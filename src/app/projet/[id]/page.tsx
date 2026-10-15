@@ -49,6 +49,7 @@ import {
   Wrench,
   Download,
   Banknote,
+  CloudUpload,
 } from "lucide-react";
 // MontageChecklist supprimée (section retirée)
 import { ProjectChat } from "@/components/project-chat";
@@ -154,6 +155,8 @@ import {
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS, COLLABORATEURS_LIST as COLLABORATEURS_ACTIFS, RAPPORT_OPTIONS_SINGLE } from "@/lib/constants";
 import { SUGGESTIONS_NOM_CABINE, nomDeLotParDefaut, nomContientMot, basculerMotDuNom } from "@/lib/nom-lot";
 import { usePhotosLocales, compteLocalesGroupe } from "@/lib/photos-locales";
+import { useEtatRapport } from "@/lib/use-etat-rapport";
+import { marquerFinalise, marquerEnvoye, lireFinalisation, LIBELLE_ETAT_RAPPORT } from "@/lib/rapport-finalise";
 import { ColoredSelect } from "@/components/colored-select";
 import { thumbnailUrl } from "@/lib/image-url";
 
@@ -4711,6 +4714,17 @@ function ProjectPageContent({ id }: { id: string }) {
   // Confirmation persistante "Rapport envoyé" (évite les envois multiples : le
   // collaborateur voit clairement que ça a fonctionné et doit fermer la fenêtre).
   const [showSentConfirm, setShowSentConfirm] = useState(false);
+
+  /* Où en est le rapport : clos sur le chantier, ou arrivé jusqu'à nous.
+     « Synchronisé » exige que TOUT soit parti — pas une photo en attente. */
+  const suiviRapport = useEtatRapport(id);
+  const suiviRapportRef = useRef(suiviRapport);
+  useEffect(() => { suiviRapportRef.current = suiviRapport; }, [suiviRapport]);
+  /* Les paramètres du PDF différé : ils décrivent le rapport tel qu'il était
+     à la clôture (heures, version client ou interne). */
+  const paramsPdfRef = useRef<string>("");
+  const envoiDiffereEnCours = useRef(false);
+  const dernierEnvoiDiffere = useRef(0);
   const [reformulating, setReformulating] = useState(false);
   const [reformulatingCabineIdx, setReformulatingCabineIdx] = useState<number | null>(null);
   const [missingPhotosPrompt, setMissingPhotosPrompt] = useState<{
@@ -7648,6 +7662,11 @@ function ProjectPageContent({ id }: { id: string }) {
         setSending(false);
         return;
       }
+      /* Le rapport est clos côté chantier. Hors ligne, l'écriture ci-dessus
+         est partie dans la file : le travail est en sécurité, il reste à
+         l'acheminer. On le dit tout de suite, et on le gardera après
+         fermeture de l'app. */
+      marquerFinalise(id, { client });
 
       // 2. Generate PDF with override params (don't rely on Notion propagation)
       const arriveeFinal = isMultiDay
@@ -7666,6 +7685,18 @@ function ProjectPageContent({ id }: { id: string }) {
       // Les simples consultations du PDF (portail, téléchargement) ne le passent
       // pas et n'envoient donc aucun mail.
       pdfParams.set("send", "1");
+      paramsPdfRef.current = pdfParams.toString();
+      /* Le PDF et le mail se font sur le SERVEUR, à partir de données qu'il
+         doit déjà avoir. Hors ligne, les réclamer n'aurait aucun sens : on
+         s'arrête ici, le rapport reste « finalisé — synchronisation en
+         attente », et l'envoi repartira tout seul quand la dernière photo
+         sera arrivée. */
+      if (!isOnline() || suiviRapportRef.current.photosEnAttente > 0 || suiviRapportRef.current.requetesEnAttente > 0) {
+        setShowSentConfirm(true);
+        setSending(false);
+        setSendKind(null);
+        return;
+      }
       await new Promise((r) => setTimeout(r, 2000));
       const pdfRes = await fetch(`/api/pdf/${id}?${pdfParams.toString()}`);
       if (!pdfRes.ok) {
@@ -7673,6 +7704,7 @@ function ProjectPageContent({ id }: { id: string }) {
         setSending(false);
         return;
       }
+      marquerEnvoye(id);
 
       // 3. Generate client portal link and copy to clipboard
       const token = btoa(id);
@@ -7712,12 +7744,55 @@ function ProjectPageContent({ id }: { id: string }) {
         }),
       ]).catch(() => {});
     } catch {
-      toast.error("Erreur reseau");
+      /* Le rapport est déjà marqué finalisé : ce qui a lâché, c'est le
+         réseau, pas le travail. On le dit dans ces termes. */
+      if (lireFinalisation(id)) {
+        setShowSentConfirm(true);
+      } else {
+        toast.error("Erreur reseau");
+      }
     } finally {
       setSending(false);
       setSendKind(null);
     }
   };
+
+  /**
+   * L'envoi qui attendait le réseau.
+   *
+   * Le rapport est clos, les photos sont enfin arrivées : c'est le moment de
+   * demander au serveur le PDF et le mail. Pas avant — un PDF fabriqué alors
+   * qu'il manque trois photos part incomplet chez le client, et personne ne
+   * s'en aperçoit.
+   */
+  useEffect(() => {
+    const f = suiviRapport.finalise;
+    if (!f || f.envoye) return;
+    if (suiviRapport.photosEnAttente > 0 || suiviRapport.requetesEnAttente > 0) return;
+    if (!isOnline() || envoiDiffereEnCours.current) return;
+    /* Une minute entre deux tentatives : l'état se relit toutes les dix
+       secondes, et un serveur qui refuse ne doit pas être martelé. */
+    if (Date.now() - dernierEnvoiDiffere.current < 60_000) return;
+    envoiDiffereEnCours.current = true;
+    dernierEnvoiDiffere.current = Date.now();
+    const params = paramsPdfRef.current || `client=${f.client ? "1" : "0"}&send=1`;
+    (async () => {
+      try {
+        const res = await fetch(`/api/pdf/${id}?${params}`);
+        if (res.ok) {
+          marquerEnvoye(id);
+          toast.success("Rapport synchronisé", {
+            description: "Tout est arrivé : photos, heures et rapport.",
+            duration: 5000,
+          });
+        }
+      } catch {
+        /* Toujours pas de réseau : on réessaiera au prochain signal. */
+      } finally {
+        envoiDiffereEnCours.current = false;
+      }
+    })();
+  }, [suiviRapport, id]);
 
   // Mise à jour synchrone de la ref à chaque render pour que le timer
   // de scheduleAutoSave lise toujours les valeurs les plus récentes.
@@ -9847,6 +9922,33 @@ function ProjectPageContent({ id }: { id: string }) {
                   bexio. Pour tout autre compte, la requête est refusée et le
                   bloc n'existe pas — pas même un emplacement vide. */}
               <BlocFacturation projectId={id} ofrTM={project?.ofrTM} />
+              {/* Où en est le rapport. Posé là, au-dessus de tout : un
+                  monteur qui rouvre l'app le lendemain doit voir d'un coup
+                  d'œil si son travail est parti. L'état survit à la
+                  fermeture de l'app — il est gardé sur l'appareil. */}
+              {suiviRapport.etat !== "aucun" && (
+                <div className={`rounded-2xl px-3 py-2.5 flex items-center gap-2.5 border-2 ${suiviRapport.etat === "synchronise"
+                  ? "border-green-200 dark:border-green-800 bg-green-50/70 dark:bg-green-900/15"
+                  : "border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/15"}`}>
+                  {suiviRapport.etat === "synchronise"
+                    ? <Check className="w-4 h-4 text-green-600 shrink-0" strokeWidth={3} />
+                    : <CloudUpload className="w-4 h-4 text-amber-600 shrink-0" />}
+                  <div className="min-w-0">
+                    <p className={`text-xs font-semibold ${suiviRapport.etat === "synchronise"
+                      ? "text-green-800 dark:text-green-200"
+                      : "text-amber-900 dark:text-amber-200"}`}>
+                      {LIBELLE_ETAT_RAPPORT[suiviRapport.etat]}
+                    </p>
+                    {suiviRapport.etat === "en-attente" && (
+                      <p className="text-[11px] text-amber-700/80 dark:text-amber-300/80">
+                        {suiviRapport.photosEnAttente > 0
+                          ? `${suiviRapport.photosEnAttente} photo${suiviRapport.photosEnAttente > 1 ? "s" : ""} à envoyer — cela repart tout seul au retour du réseau.`
+                          : "L'envoi repart tout seul au retour du réseau."}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
               {/* Barre de progression */}
               <div className="glass-card rounded-2xl p-3">
                 <div className="flex items-center justify-between mb-2">
@@ -13017,17 +13119,40 @@ function ProjectPageContent({ id }: { id: string }) {
             className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden text-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="pt-7 pb-2 flex flex-col items-center gap-3">
-              <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
-                <Check className="w-9 h-9 text-green-600 dark:text-green-400" strokeWidth={3} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Rapport envoyé</h3>
-            </div>
-            <div className="px-6 pb-2 text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Le rapport a bien été envoyé.
-              </p>
-            </div>
+            {(() => {
+              /* Deux messages, et pas un de plus : parti, ou en sécurité sur
+                 le téléphone en attendant de partir. Dire « envoyé » quand
+                 trois photos attendent encore serait faux. */
+              const enAttente = suiviRapport.etat === "en-attente";
+              return (
+                <>
+                  <div className="pt-7 pb-2 flex flex-col items-center gap-3">
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center ${enAttente ? "bg-amber-100 dark:bg-amber-900/40" : "bg-green-100 dark:bg-green-900/40"}`}>
+                      {enAttente
+                        ? <CloudUpload className="w-9 h-9 text-amber-600 dark:text-amber-400" />
+                        : <Check className="w-9 h-9 text-green-600 dark:text-green-400" strokeWidth={3} />}
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                      {enAttente ? "Rapport finalisé" : "Rapport envoyé"}
+                    </h3>
+                  </div>
+                  <div className="px-6 pb-2 text-center">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      {enAttente
+                        ? "Tout est enregistré sur votre téléphone. L'envoi se fera tout seul au retour du réseau — vous pouvez fermer l'app."
+                        : "Le rapport a bien été envoyé."}
+                    </p>
+                    {enAttente && (suiviRapport.photosEnAttente > 0 || suiviRapport.requetesEnAttente > 0) && (
+                      <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
+                        {suiviRapport.photosEnAttente > 0
+                          ? `${suiviRapport.photosEnAttente} photo${suiviRapport.photosEnAttente > 1 ? "s" : ""} en attente`
+                          : "Enregistrements en attente"}
+                      </p>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
             <div className="p-5">
               <button
                 /* On referme aussi l'assistant : le rapport est parti, rester
