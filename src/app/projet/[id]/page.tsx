@@ -1531,6 +1531,7 @@ function PiecesList({ projectId, refreshKey, cabineLabel, cabineIdx }: { project
     const avant = pieces;
     supprimesRef.current.add(id);
     setPieces((prev) => prev.filter((p) => p.id !== id));
+    window.dispatchEvent(new CustomEvent("tm-signalements-maj"));
     toast.success(`Pièce n°${num} supprimée`);
     try {
       const res = await fetch(`/api/pieces?id=${id}`, { method: "DELETE" });
@@ -1538,6 +1539,7 @@ function PiecesList({ projectId, refreshKey, cabineLabel, cabineIdx }: { project
     } catch {
       supprimesRef.current.delete(id);
       setPieces(avant);
+      window.dispatchEvent(new CustomEvent("tm-signalements-maj"));
       toast.error(`Pièce n°${num} : suppression refusée, elle est toujours là`, { duration: 8000 });
     }
   };
@@ -2061,6 +2063,11 @@ function DefautsList({ projectId, refreshKey, cabineLabel, cabineIdx, project, s
     const avant = defauts;
     supprimesRef.current.add(id);
     setDefauts((prev) => prev.filter((d) => d.id !== id));
+    /* Les pastilles des en-têtes de lot viennent d'une AUTRE liste, chargée
+       plus haut dans la page. Elle ne se rafraîchissait qu'à la création
+       d'un signalement : après une suppression, l'icône restait accrochée au
+       lot jusqu'au rechargement de la page (constaté le 16 octobre 2026). */
+    window.dispatchEvent(new CustomEvent("tm-signalements-maj"));
     toast.success(`Défaut n°${num} supprimé`);
     try {
       const res = await fetch(`/api/defauts?id=${id}`, { method: "DELETE" });
@@ -2068,6 +2075,7 @@ function DefautsList({ projectId, refreshKey, cabineLabel, cabineIdx, project, s
     } catch {
       supprimesRef.current.delete(id);
       setDefauts(avant);
+      window.dispatchEvent(new CustomEvent("tm-signalements-maj"));
       toast.error(`Défaut n°${num} : suppression refusée, il est toujours là`, { duration: 8000 });
     }
   };
@@ -4884,6 +4892,14 @@ function ProjectPageContent({ id }: { id: string }) {
       setCabineSignalements({ pieces: Array.isArray(pieces) ? pieces : [], defauts: Array.isArray(defauts) ? defauts : [] });
     });
   }, [id, pieceRefreshKey, defautRefreshKey]);
+
+  /* Une suppression faite dans la liste d'un lot doit retirer la pastille de
+     son en-tête, tout de suite. */
+  useEffect(() => {
+    const relire = () => { setDefautRefreshKey((k) => k + 1); setPieceRefreshKey((k) => k + 1); };
+    window.addEventListener("tm-signalements-maj", relire);
+    return () => window.removeEventListener("tm-signalements-maj", relire);
+  }, []);
 
   // Charge l'ordre d'affichage des lots (défaut/numérique/alphabétique).
   useEffect(() => {
