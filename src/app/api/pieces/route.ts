@@ -73,12 +73,20 @@ export async function POST(request: NextRequest) {
      d'une copie en cache ferait perdre toute modification enregistrée depuis
      moins d'une minute par une autre instance. En cas d'erreur Notion on
      abandonne plutôt que d'écrire du périmé. */
-  let pieces: PieceRequest[];
-  try {
-    pieces = await getDataFresh<PieceRequest>(KEY);
-  } catch {
+  /* Les deux LECTURES sont indépendantes — la liste d'un côté, la fiche du
+     chantier de l'autre. Les enchaîner, puis enchaîner les deux écritures,
+     faisait quatre attentes bout à bout. */
+  const [resListe, resPage] = await Promise.allSettled([
+    getDataFresh<PieceRequest>(KEY),
+    body.projectId
+      ? notion.pages.retrieve({ page_id: body.projectId })
+      : Promise.resolve(null),
+  ]);
+  if (resListe.status === "rejected") {
     return NextResponse.json({ error: "Notion indisponible, réessayez" }, { status: 503 });
   }
+  const pieces: PieceRequest[] = resListe.value;
+  const pageProjet = resPage.status === "fulfilled" ? resPage.value : null;
   /* ANTI-DOUBLON. Le client fabrique l'identifiant et le renvoie à chaque
      tentative : une requête lente coupée au bout de quelques secondes repart
      dans la file et revient ici, alors que la première avait abouti. Sans ce
@@ -97,17 +105,15 @@ export async function POST(request: NextRequest) {
     timestamp: Date.now(),
     comments: [],
   });
-  await setData(KEY, pieces);
-
+  const majFiche = async () => {
   // Write to Notion project page (primary storage)
-  if (body.projectId) {
+  if (body.projectId && pageProjet) {
     try {
       const now = new Date();
       const dateStr = `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`;
       const summary = `Description: ${body.description || "-"} | Référence: ${body.reference || "-"} | Statut: demande | Par: ${user.name} | Date: ${dateStr}`;
 
-      // Read existing text to append
-      const page = await notion.pages.retrieve({ page_id: body.projectId });
+      const page = pageProjet;
       const existingText = (page as any).properties["Infos - Pièces manquantes"]?.rich_text?.map((t: any) => t.plain_text).join("") || "";
       const newText = existingText ? `${existingText}\n${summary}` : summary;
 
@@ -156,6 +162,8 @@ export async function POST(request: NextRequest) {
       // kv-store already saved as backup, continue
     }
   }
+  };
+  await Promise.all([setData(KEY, pieces), majFiche()]);
 
   return NextResponse.json({ success: true });
 }

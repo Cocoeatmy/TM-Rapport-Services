@@ -152,7 +152,7 @@ export function PiecesForm({ projectId, projectName, cabineLabel, cabineIdx, onS
         ? `${description.trim()} (Pas d'éclaté)`
         : description.trim();
 
-      const res = await offlineFetch("/api/pieces", {
+      const envoi = offlineFetch("/api/pieces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         /* `id` fabriqué ICI : si la requête est coupée et rejouée par la
@@ -166,17 +166,21 @@ export function PiecesForm({ projectId, projectName, cabineLabel, cabineIdx, onS
           ...(typeof cabineIdx === "number" ? { cabineIdx } : {}),
         }),
       });
-      if (res.ok) {
-        toast.success("Demande de pièce envoyée");
-        onSubmitted?.(photoUrls);   // ← transmet les URLs au parent
-        reset();
-        setOpen(false);
-      } else {
-        toast.error("Erreur lors de l'envoi");
-      }
+      /* Même principe que pour les défauts : on ne retient pas le monteur
+         pendant que le serveur écrit. */
+      toast.success("Demande de pièce envoyée");
+      onSubmitted?.(photoUrls);   // ← transmet les URLs au parent
+      reset();
+      setOpen(false);
+      setSending(false);
+      envoi
+        .then((res) => {
+          if (res.ok) onSubmitted?.(photoUrls);
+          else toast.error("La demande n'a pas pu être enregistrée — réessayez", { duration: 9000 });
+        })
+        .catch(() => toast.error("La demande n'a pas pu être enregistrée — réessayez", { duration: 9000 }));
     } catch {
       toast.error("Erreur réseau");
-    } finally {
       setSending(false);
     }
   };

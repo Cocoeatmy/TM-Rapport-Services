@@ -66,12 +66,21 @@ export async function POST(request: NextRequest) {
      d'une copie en cache ferait perdre toute modification enregistrée depuis
      moins d'une minute par une autre instance. En cas d'erreur Notion on
      abandonne plutôt que d'écrire du périmé. */
-  let defauts: DefautRequest[];
-  try {
-    defauts = await getDataFresh<DefautRequest>(KEY);
-  } catch {
+  /* Les deux LECTURES sont indépendantes — la liste des signalements d'un
+     côté, la fiche du chantier de l'autre — et chacune est un aller-retour
+     chez Notion. Les enchaîner, puis enchaîner encore les deux écritures,
+     faisait quatre attentes bout à bout pour un simple signalement. */
+  const [resListe, resPage] = await Promise.allSettled([
+    getDataFresh<DefautRequest>(KEY),
+    body.projectId
+      ? notion.pages.retrieve({ page_id: body.projectId })
+      : Promise.resolve(null),
+  ]);
+  if (resListe.status === "rejected") {
     return NextResponse.json({ error: "Notion indisponible, réessayez" }, { status: 503 });
   }
+  const defauts: DefautRequest[] = resListe.value;
+  const pageProjet = resPage.status === "fulfilled" ? resPage.value : null;
   /* ANTI-DOUBLON. Le client fabrique l'identifiant et le renvoie à chaque
      tentative : une requête lente coupée au bout de quelques secondes repart
      dans la file et revient ici, alors que la première avait abouti. Sans ce
@@ -93,18 +102,16 @@ export async function POST(request: NextRequest) {
     // on affiche dans le rapport, c'est le comportement attendu).
     displayInRapport: body.displayInRapport !== false,
   });
-  await setData(KEY, defauts);
-
+  const majFiche = async () => {
   // Write to Notion project page (primary storage)
-  if (body.projectId) {
+  if (body.projectId && pageProjet) {
     try {
       const now = new Date();
       const dateStr = `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`;
       const typesStr = Array.isArray(body.types) ? body.types.join(", ") : (body.typesLabel || "-");
       const summary = `Types: ${typesStr} | Description: ${body.description || "-"} | Par: ${user.name} | Date: ${dateStr}`;
 
-      // Read existing text to append
-      const page = await notion.pages.retrieve({ page_id: body.projectId });
+      const page = pageProjet;
       const existingText = (page as any).properties["Infos - Défauts signalé"]?.rich_text?.map((t: any) => t.plain_text).join("") || "";
       const newText = existingText ? `${existingText}\n${summary}` : summary;
 
@@ -147,6 +154,8 @@ export async function POST(request: NextRequest) {
       // kv-store already saved as backup, continue
     }
   }
+  };
+  await Promise.all([setData(KEY, defauts), majFiche()]);
 
   return NextResponse.json({ success: true });
 }

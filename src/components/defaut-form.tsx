@@ -198,7 +198,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
       // photoUrls (Cloudinary) ne marchent que si l'upload est passé
       // — l'upload binaire reste online-only, mais les défauts SANS
       // photo (ou avec photos déjà uploadées) sont rejouables.
-      const res = await offlineFetch("/api/defauts", {
+      const envoi = offlineFetch("/api/defauts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -225,17 +225,26 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
           ...(typeof cabineIdx === "number" && !selectedCabine ? { cabineIdx } : {}),
         }),
       });
-      if (res.ok) {
-        toast.success("Défaut signalé avec succès");
-        onSubmitted?.(photoUrls);   // ← transmet les URLs au parent
-        resetForm();
-        setOpen(false);
-      } else {
-        toast.error("Erreur lors de l'envoi");
-      }
+      /* On ne RETIENT plus le monteur le temps de l'enregistrement.
+         Le serveur relit la liste des signalements, la réécrit et met la
+         fiche à jour : une dizaine de secondes pendant lesquelles le
+         formulaire restait ouvert, figé, et l'on recliquait. Le signalement
+         est déjà parti — ou, hors ligne, déjà dans la file, d'où il repartira
+         seul. Le formulaire se ferme donc tout de suite, et la ligne
+         apparaît dans la liste dès que le serveur a confirmé. */
+      toast.success("Défaut signalé");
+      onSubmitted?.(photoUrls);   // ← transmet les URLs au parent
+      resetForm();
+      setOpen(false);
+      setSending(false);
+      envoi
+        .then((res) => {
+          if (res.ok) onSubmitted?.(photoUrls);   // la liste se recharge, le défaut y est
+          else toast.error("Le signalement n'a pas pu être enregistré — réessayez", { duration: 9000 });
+        })
+        .catch(() => toast.error("Le signalement n'a pas pu être enregistré — réessayez", { duration: 9000 }));
     } catch {
       toast.error("Erreur réseau");
-    } finally {
       setSending(false);
     }
   };
