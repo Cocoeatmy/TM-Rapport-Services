@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Camera, ImagePlus, X, Loader2, Download, CloudUpload, RotateCcw, RotateCw, FileText } from "lucide-react";
+import { Camera, ImagePlus, X, Loader2, Download, CloudUpload, RotateCcw, RotateCw, FileText, AlertTriangle } from "lucide-react";
 import { thumbnailUrl, rotateCloudinaryUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
 import { compressImage } from "@/lib/compress-image";
 import { refusFichier } from "@/lib/video-limites";
 import { dureeVideo } from "@/lib/video-duree";
-import { uploadToCloudinary, attachPhotos, UploadError } from "@/lib/cloudinary-upload";
-import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
+import { saveFilesToDeviceGallery, enregistrerUnFichier } from "@/lib/save-to-gallery";
 import { addPendingUpload, removePendingUpload, processPendingUploads } from "@/lib/idb-uploads";
 import { usePendingUploads } from "@/lib/use-pending-uploads";
 import { isOnline } from "@/lib/offline";
@@ -54,6 +53,40 @@ export function PhotoUpload({
   const [uploadingCount, setUploadingCount] = useState(0);
   // Blob URLs des photos EN COURS d'upload (affichées comme vignettes en attente)
   const [previews, setPreviews] = useState<string[]>([]);
+
+  /* Le parent apprend les URLs quand la file a fini, pas quand on prend la
+     photo : c'est ce qui permet de ne plus rien attendre du réseau ici. On
+     passe par une ref pour que l'écouteur, posé une fois, appelle toujours
+     la dernière version du callback. */
+  const onUploadRef = useRef(onUpload);
+  useEffect(() => { onUploadRef.current = onUpload; }, [onUpload]);
+  useEffect(() => {
+    const auRattachement = (e: Event) => {
+      const d = (e as CustomEvent).detail as {
+        projectId?: string; category?: string; notionField?: string;
+        files?: { name: string; url: string }[];
+      } | undefined;
+      if (!d || d.projectId !== projectId || d.category !== category) return;
+      if ((d.notionField || undefined) !== (notionField || undefined)) return;
+      if (d.files?.length) onUploadRef.current?.(d.files);
+    };
+    window.addEventListener("tm-upload-attached", auRattachement);
+    return () => window.removeEventListener("tm-upload-attached", auRattachement);
+  }, [projectId, category, notionField]);
+
+  /* L'état du réseau décide de ce que dit le badge d'une photo en attente :
+     « Envoi… » ou « Hors ligne ». */
+  const [enLigne, setEnLigne] = useState(true);
+  useEffect(() => {
+    const maj = () => setEnLigne(isOnline());
+    maj();
+    window.addEventListener("online", maj);
+    window.addEventListener("offline", maj);
+    return () => {
+      window.removeEventListener("online", maj);
+      window.removeEventListener("offline", maj);
+    };
+  }, []);
 
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -165,106 +198,62 @@ export function PhotoUpload({
        décalait les vignettes et l'échec d'une photo en effaçait une autre. */
     const apercus = newPreviews.filter((_, i) => !refuses.has(compressed[i]));
 
-    // Helper : enregistre les fichiers en IDB pour upload différé.
-    // `uploadedUrl` (si la photo est DÉJÀ sur Cloudinary) est conservé → le
-    // re-essai ne re-uploade jamais les octets, il ne refait que le rattachement.
-    const queueOffline = async (
-      reason: "offline" | "error",
-      items: { file: File; uploadedUrl?: string }[] = aEnvoyer.map((f) => ({ file: f })),
-    ) => {
-      try {
-        await addPendingUpload({
-          projectId,
-          category,
-          notionField,
-          files: items.map((x) => ({ name: x.file.name, type: x.file.type, blob: x.file, uploadedUrl: x.uploadedUrl })),
-        });
-        toast.info(
-          reason === "offline"
-            ? "Photo enregistrée — sera envoyée au retour du réseau"
-            : "Upload en attente — nouvelle tentative auto",
-          { duration: 3500 },
-        );
-        // En ligne (échec ponctuel) : relance tout de suite le traitement de la
-        // file au lieu d'attendre le poll de 30 s.
-        if (reason === "error" && isOnline()) {
-          setTimeout(() => { processPendingUploads().catch(() => {}); }, 1500);
-        }
-      } catch (idbErr) {
-        console.error("[photo-upload] IDB queue error:", idbErr);
-        toast.error("Impossible de mettre en file la photo");
-      }
+    /* ── 1. ENREGISTRER, puis 2. ENVOYER ─────────────────────────────────
+       Dans cet ordre, et jamais l'inverse.
+
+       L'app tentait l'envoi d'abord et ne gardait la photo sur le téléphone
+       qu'en cas d'échec. Entre les deux, sur un réseau de chantier qui
+       répond mais n'avance pas, la photo n'existait nulle part : ni chez
+       Notion, ni dans la file. Elle ne comptait donc pas dans les photos
+       exigées, et le monteur restait devant un bouton gris pendant que son
+       téléphone « essayait » (incident du 15 octobre 2026, deux monteurs).
+
+       Désormais la photo est écrite dans IndexedDB AVANT toute tentative :
+       elle survit à la fermeture de l'app et au redémarrage du téléphone, et
+       elle compte immédiatement. L'envoi n'est plus qu'une tâche de fond —
+       c'est la file (idb-uploads) qui s'en charge, avec ses réessais, son
+       anti-doublon et sa garantie de ne rien supprimer avant confirmation du
+       serveur. */
+    const retirerApercus = () => {
+      setPreviews((prev) => prev.filter((u) => !apercus.includes(u)));
+      apercus.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
     };
 
     try {
-      if (!isOnline()) {
-        await queueOffline("offline");
-        return;
-      }
-
-      // Upload DIRECT vers Cloudinary (les octets ne passent PAS par Vercel →
-      // fiable même en 5G lente, pas de limite 4,5 Mo), puis rattachement Notion
-      // (petit JSON). Si seul le rattachement échoue, on met en file AVEC l'URL
-      // Cloudinary → le re-essai ne renvoie jamais les octets.
-      const newFiles: { name: string; url: string }[] = [];
-      const failed: { file: File; uploadedUrl?: string; preview: string }[] = [];
-      // Échecs PERMANENTS (mauvaise config Notion : champ inexistant / mauvais
-      // type…) : on NE réessaie PAS (fini le « moulinage sans fin »), on affiche
-      // une erreur claire et on retire l'aperçu.
-      const permanentFailed: { preview: string; message: string }[] = [];
-      const isPermanent = (e: unknown) => e instanceof UploadError && e.permanent;
-      for (let i = 0; i < aEnvoyer.length; i++) {
-        const f = aEnvoyer[i];
-        let url: string;
-        try {
-          url = await uploadToCloudinary(f, f.name, projectId, category);
-        } catch (e) {
-          if (isPermanent(e)) permanentFailed.push({ preview: apercus[i], message: (e as UploadError).message });
-          else failed.push({ file: f, preview: apercus[i] });
-          continue;
-        }
-        try {
-          if (notionField) await attachPhotos(projectId, notionField, [{ name: f.name, url }]);
-          newFiles.push({ name: f.name, url });
-        } catch (e) {
-          if (isPermanent(e)) permanentFailed.push({ preview: apercus[i], message: (e as UploadError).message });
-          else failed.push({ file: f, uploadedUrl: url, preview: apercus[i] });
-        }
-      }
-
-      if (newFiles.length > 0) {
-        invalidateApiCache();
-        onUpload?.(newFiles);
-        if (source === "camera") {
-          saveFilesToDeviceGallery(originals).catch(() => {});
-        }
-      }
-
-      // Retire les previews des photos réussies ET des échecs PERMANENTS (qui ne
-      // seront pas réessayés) ; garde uniquement celles en échec TRANSITOIRE.
-      const keepPreviews = failed.map((x) => x.preview);
-      setPreviews((prev) => {
-        const toRemove = apercus.filter((u) => !keepPreviews.includes(u));
-        toRemove.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
-        return prev.filter((u) => !toRemove.includes(u));
+      await addPendingUpload({
+        projectId,
+        category,
+        notionField,
+        files: aEnvoyer.map((f) => ({ name: f.name, type: f.type, blob: f })),
       });
-
-      if (permanentFailed.length > 0) {
-        toast.error(
-          `Enregistrement impossible dans Notion${notionField ? ` (champ « ${notionField} »)` : ""} : ${permanentFailed[0].message}. Vérifiez que la colonne existe et est de type « Fichiers ».`,
-          { duration: 12000 },
-        );
-      }
-
-      if (failed.length > 0) {
-        await queueOffline("error", failed.map((x) => ({ file: x.file, uploadedUrl: x.uploadedUrl })));
-      }
-    } catch (err) {
-      console.error("Upload error:", err);
-      await queueOffline("error");
-    } finally {
+    } catch (idbErr) {
+      /* Le SEUL échec qui mérite d'alerter : la photo n'est pas sur le
+         téléphone. Tout le reste se rattrape tout seul. */
+      console.error("[photo-upload] enregistrement local impossible:", idbErr);
+      toast.error("Photo non enregistrée sur l'appareil — reprenez-la", {
+        description: "La mémoire du téléphone est peut-être pleine.",
+        duration: 10000,
+      });
+      retirerApercus();
       setUploadingCount((n) => Math.max(0, n - 1));
+      return;
     }
+
+    /* La file affiche désormais ces photos (mêmes vignettes, un seul
+       exemplaire) : les aperçus locaux cèdent la place. */
+    retirerApercus();
+    setUploadingCount((n) => Math.max(0, n - 1));
+
+    if (source === "camera") {
+      saveFilesToDeviceGallery(originals).catch(() => {});
+    }
+
+    if (!isOnline()) {
+      toast.info("Photo enregistrée — elle partira au retour du réseau", { duration: 3000 });
+      return;
+    }
+    /* En ligne : on lance la file tout de suite, sans l'attendre. */
+    setTimeout(() => { processPendingUploads().catch(() => {}); }, 50);
   };
 
   const removePreview = (index: number) => {
@@ -291,9 +280,16 @@ export function PhotoUpload({
     pendingId?: string;
     isPending?: boolean;
     isUploading?: boolean;
+    statut?: "pending" | "permanently-failed";
+    motif?: string;
+    blob?: Blob;
+    name?: string;
   }[] = [
     ...validExisting.map((p) => ({ src: p.url, isPreview: false })),
-    ...pending.map((p) => ({ src: p.objectUrl, isPreview: false, pendingId: p.id, isPending: true })),
+    ...pending.map((p) => ({
+      src: p.objectUrl, isPreview: false, pendingId: p.id, isPending: true,
+      statut: p.statut, motif: p.motif, blob: p.blob, name: p.name,
+    })),
     ...previews.map((u) => ({ src: u, isPreview: true, isUploading: true })),
   ];
 
@@ -390,7 +386,31 @@ export function PhotoUpload({
             )}
 
             {/* Barre inférieure : télécharger */}
-            {!img.isUploading && (
+            {!img.isUploading && img.isPending && img.blob && (
+              /* Photo encore sur le téléphone : on la passe à la feuille de
+                 partage iOS (« Enregistrer l'image ») à partir du fichier
+                 local. Un lien de téléchargement ne saurait pas la mettre
+                 dans la pellicule, et attendre qu'elle soit chez Cloudinary
+                 n'aurait pas de sens — elle est là, sous la main. */
+              <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 p-1.5 bg-gradient-to-t from-black/60 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const fichier = new File([img.blob as Blob], img.name || `photo-${i + 1}.jpg`, {
+                      type: (img.blob as Blob).type || "image/jpeg",
+                    });
+                    enregistrerUnFichier(fichier).then((r) => {
+                      if (r === "unsupported") toast.error("Enregistrement impossible sur cet appareil");
+                    });
+                  }}
+                  className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center hover:bg-white shadow active:scale-95"
+                  title="Enregistrer dans la pellicule"
+                >
+                  <Download className="w-4.5 h-4.5 text-gray-700" />
+                </button>
+              </div>
+            )}
+            {!img.isUploading && !img.isPending && (
               <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 p-1.5 bg-gradient-to-t from-black/60 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                 <a
                   href={img.src}
@@ -457,16 +477,27 @@ export function PhotoUpload({
               </button>
             </div>
 
-            {/* Badge "en attente de synchro" (photos IDB hors-ligne) */}
-            {img.isPending && (
-              <div
-                className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-orange-500/90 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full shadow"
-                title="En attente de synchronisation"
-              >
-                <CloudUpload className="w-2.5 h-2.5" />
-                <span>Sync</span>
-              </div>
-            )}
+            {/* Où en est cette photo. Dans tous les cas elle est SUR LE
+                TÉLÉPHONE et elle compte pour les photos exigées — le badge
+                ne parle que de son voyage vers le serveur. */}
+            {img.isPending && (() => {
+              const echec = img.statut === "permanently-failed";
+              const couleur = echec
+                ? "bg-red-600/90"
+                : enLigne ? "bg-blue-500/90" : "bg-slate-600/90";
+              const texte = echec ? "Erreur" : enLigne ? "Envoi…" : "Hors ligne";
+              const bulle = echec
+                ? `Enregistrée sur l'appareil. Envoi en échec${img.motif ? ` — ${img.motif}` : ""} : nouvelle tentative programmée.`
+                : enLigne
+                  ? "Enregistrée sur l'appareil. Envoi au serveur en cours."
+                  : "Enregistrée sur l'appareil. Elle partira au retour du réseau.";
+              return (
+                <div className={`absolute top-1.5 left-1.5 flex items-center gap-1 ${couleur} text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full shadow`} title={bulle}>
+                  {echec ? <AlertTriangle className="w-2.5 h-2.5" /> : <CloudUpload className="w-2.5 h-2.5" />}
+                  <span>{texte}</span>
+                </div>
+              );
+            })()}
           </div>
         ))}
 

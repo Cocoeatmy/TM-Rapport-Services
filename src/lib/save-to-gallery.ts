@@ -92,6 +92,41 @@ export async function saveFilesToDeviceGallery(files: File[]): Promise<"shared" 
   }
 }
 
+/**
+ * Enregistrer UNE photo demandée explicitement, préférence ou non.
+ *
+ * Sert aux photos encore sur le téléphone — celles qui attendent le réseau.
+ * Le monteur doit pouvoir les récupérer dans sa pellicule sans attendre
+ * qu'elles soient parties : c'est un geste qu'il demande, pas une surprise,
+ * donc la préférence « sauvegarder les photos » ne s'applique pas ici.
+ */
+export async function enregistrerUnFichier(file: File): Promise<"shared" | "downloaded" | "unsupported"> {
+  if (typeof navigator === "undefined") return "unsupported";
+  try {
+    const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean };
+    if (typeof nav.share === "function" && typeof nav.canShare === "function" && nav.canShare({ files: [file] })) {
+      await nav.share({ files: [file], title: file.name });
+      return "shared";
+    }
+  } catch {
+    /* Annulation ou refus : on tente le téléchargement. */
+  }
+  try {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return "downloaded";
+  } catch {
+    return "unsupported";
+  }
+}
+
 /** True si la feuille de partage native avec fichiers est dispo. */
 export function canShareFilesNatively(files: File[]): boolean {
   if (typeof navigator === "undefined") return false;

@@ -16,6 +16,12 @@ export interface PendingPreview {
   category: string;
   /** Champ Notion ciblé (utile pour distinguer photos avant/montage/etc). */
   notionField?: string;
+  /** « pending » : la file réessaie. « permanently-failed » : elle attend un geste. */
+  statut: "pending" | "permanently-failed";
+  /** Motif du dernier échec, pour l'info-bulle. */
+  motif?: string;
+  /** Le fichier lui-même : il sert à l'enregistrer dans la pellicule. */
+  blob: Blob;
 }
 
 /**
@@ -38,9 +44,12 @@ export function usePendingUploads(projectId: string | undefined): PendingPreview
 
     const refresh = async () => {
       try {
-        // N'afficher que les "pending" — les "permanently-failed" ont leur
-        // propre alerte dans OfflineBanner avec bouton "Renvoyer".
-        const items = await getPendingUploads({ projectId, status: "pending" });
+        /* On affiche AUSSI les « permanently-failed ». Leurs octets sont
+           toujours sur le téléphone : les faire disparaître de la grille
+           donnerait à croire que la photo est perdue, alors qu'elle est là
+           et qu'elle compte parmi les photos exigées. Le bandeau d'alerte
+           reste par ailleurs. */
+        const items = await getPendingUploads({ projectId, status: "all" });
         if (cancelled) return;
         // Révoque les anciennes URLs avant d'en recréer pour ne pas
         // accumuler en mémoire.
@@ -55,6 +64,9 @@ export function usePendingUploads(projectId: string | undefined): PendingPreview
               name: f.name,
               category: item.category,
               notionField: item.notionField,
+              statut: item.status === "permanently-failed" ? "permanently-failed" : "pending",
+              motif: item.reason,
+              blob: f.blob,
             });
           }
         }

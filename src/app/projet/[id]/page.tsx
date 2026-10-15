@@ -137,6 +137,7 @@ import {
   BUCKET_LABEL,
   BUCKET_HINT,
   BUCKET_NOTION_FIELD,
+  BUCKET_NOTION_LABEL,
   bucketFilePrefix,
   defaultBucketForField,
   detectBucket,
@@ -152,6 +153,7 @@ import {
 } from "@/lib/photo-buckets";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS, COLLABORATEURS_LIST as COLLABORATEURS_ACTIFS, RAPPORT_OPTIONS_SINGLE } from "@/lib/constants";
 import { SUGGESTIONS_NOM_CABINE, nomDeLotParDefaut, nomContientMot, basculerMotDuNom } from "@/lib/nom-lot";
+import { usePhotosLocales, compteLocalesGroupe } from "@/lib/photos-locales";
 import { ColoredSelect } from "@/components/colored-select";
 import { thumbnailUrl } from "@/lib/image-url";
 
@@ -466,17 +468,10 @@ function BucketPhotoUpload({
 }) {
   if (!project) return null;
   const notionFieldKey = BUCKET_NOTION_FIELD[bucket];
-  const notionFieldName: Record<typeof notionFieldKey, string> = {
-    photosAvant: "Photos avant montage",
-    photosDemontage: "Photos démontage",
-    photosMontage: "Photos montage terminé",
-    photosQRCode: "Photos QR Code",
-    photosGaranties: "Photos garanties",
-    photosSavRetouches: "Photos SAV / Retouches cabines",
-    documentsSavDemande: "Documents SAV",
-    photosNumeroLot: "Photos numéro de Lot",
-    videosMontage: "Vidéo Montage",
-  };
+  /* La correspondance clé → colonne Notion vit dans photo-buckets : le
+     compte des photos locales en a besoin lui aussi, et deux copies
+     finiraient par diverger. */
+  const notionFieldName = BUCKET_NOTION_LABEL;
   const fieldDefault = defaultBucketForField(notionFieldKey);
   const allInField = project[notionFieldKey] || [];
   const existingPhotos = filterByBucket(allInField, bucket, cabineIdx, fieldDefault);
@@ -4133,13 +4128,22 @@ function AssistantRapport({
   const optionsRapport = lot ? lot.options : RAPPORT_OPTIONS_SINGLE;
   const cabineIdx = lot?.numero;
 
+  /* Les photos déjà sur le téléphone mais pas encore chez Notion comptent
+     autant que les autres : une photo prise est une photo prise. Attendre le
+     serveur revenait à bloquer un monteur sans réseau devant un bouton gris
+     (incident du 15 octobre 2026). */
+  const photosLocales = usePhotosLocales(projectId);
+  const comptePlanche = (compte: readonly PhotoBucketKey[]) =>
+    comptePhotosGroupe(project, compte, cabineIdx)
+    + compteLocalesGroupe(photosLocales, compte, cabineIdx);
+
   /* On reprend là où le rapport en est : rouvrir l'assistant sur la première
      étape ne servirait qu'à refaire défiler ce qui est déjà rempli. */
   const premiereIncomplete = (): EtapeAssistant => {
     if (choisis.length === 0) return "collaborateurs";
     if (!arriveeEff || !jour) return "heures";
     if (lot && nomDeLotParDefaut(lot.nom)) return "nom";
-    if (comptePhotosGroupe(project, ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE"], cabineIdx) === 0) return "photos";
+    if (comptePlanche(["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE"]) === 0) return "photos";
     if (!rapportEff.trim()) return "rapport";
     return "signature";
   };
@@ -4148,6 +4152,7 @@ function AssistantRapport({
   /* Démontage non prévu au contrat : la planche n'apparaît que si on la
      demande. Sur un chantier sans dépose, elle n'aurait rien à recevoir. */
   const [demontageForce, setDemontageForce] = useState(false);
+
   /* L'heure de départ se pose toute seule, sur la dernière photo d'après
      intervention. Elle se relit quand même avant l'envoi : c'est elle qui
      sera facturée, et une photo prise en partant puis un détour imprévu
@@ -4206,7 +4211,7 @@ function AssistantRapport({
   ].filter((p) => p.bucket !== "DEMONTAGE" || aDemontage || demontageForce);
   const plancheCourante = planches[Math.min(planche, planches.length - 1)];
   const requisPlanche = plancheCourante ? minimumRequis(plancheCourante.compte) : 0;
-  const presentPlanche = plancheCourante ? comptePhotosGroupe(project, plancheCourante.compte, cabineIdx) : 0;
+  const presentPlanche = plancheCourante ? comptePlanche(plancheCourante.compte) : 0;
   const dernierePlanche = planche >= planches.length - 1;
 
   const enregistrerChamp = (champ: string, valeur: string) => {
@@ -4445,7 +4450,7 @@ function AssistantRapport({
               {planches.map((p, i) => {
                 const actif = i === planche;
                 const min = minimumRequis(p.compte);
-                const n = comptePhotosGroupe(project, p.compte, cabineIdx);
+                const n = comptePlanche(p.compte);
                 const estAbsent = absents.includes(p.bucket as PhotoBucketKey);
                 /* Une planche déclarée sans objet est « faite » : elle porte
                    la même coche, pour qu'on voie d'un coup d'œil ce qu'il

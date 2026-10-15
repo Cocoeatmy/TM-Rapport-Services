@@ -349,6 +349,18 @@ async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOu
         const { invalidateApiCache } = await import("@/lib/api-helpers");
         invalidateApiCache();
       } catch {}
+      /* L'écran qui a pris ces photos veut le savoir : c'est maintenant
+         qu'elles existent côté serveur, avec leurs URLs. Il les ajoute à sa
+         liste sans attendre une relecture du projet — sinon le compteur
+         d'une planche retomberait d'un cran le temps d'un aller-retour. */
+      window.dispatchEvent(new CustomEvent("tm-upload-attached", {
+        detail: {
+          projectId: item.projectId,
+          category: item.category,
+          notionField: item.notionField,
+          files: files.map((f) => ({ name: f.name, url: f.uploadedUrl as string })),
+        },
+      }));
     }
     return { success: 1, failed: 0, permanentlyFailed: 0 };
   }

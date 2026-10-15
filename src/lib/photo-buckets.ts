@@ -279,6 +279,30 @@ export function missingRequiredPhotos(
 }
 
 /**
+ * Le NOM de la colonne Notion, tel que l'API l'attend au rattachement.
+ *
+ * Deux conventions coexistent : la clé du projet côté app (`photosAvant`) et
+ * le libellé de la colonne côté Notion (« Photos avant montage »). La file
+ * d'attente des envois stocke le second ; le compte des photos doit donc
+ * savoir traduire, sous peine de ne rien reconnaître.
+ */
+export const BUCKET_NOTION_LABEL: Record<
+  "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties"
+  | "photosSavRetouches" | "documentsSavDemande" | "photosNumeroLot" | "videosMontage",
+  string
+> = {
+  photosAvant: "Photos avant montage",
+  photosDemontage: "Photos démontage",
+  photosMontage: "Photos montage terminé",
+  photosQRCode: "Photos QR Code",
+  photosGaranties: "Photos garanties",
+  photosSavRetouches: "Photos SAV / Retouches cabines",
+  documentsSavDemande: "Documents SAV",
+  photosNumeroLot: "Photos numéro de Lot",
+  videosMontage: "Vidéo Montage",
+};
+
+/**
  * Combien de photos un groupe exige — 0 s'il est facultatif.
  *
  * L'assistant pas à pas s'en sert pour bloquer le passage à l'étape suivante.
