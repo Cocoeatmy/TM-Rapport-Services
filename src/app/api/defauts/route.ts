@@ -76,13 +76,27 @@ export class VerrouIndisponible extends Error {}
  * l'effacement a échoué — plutôt que de travailler à l'aveugle et de
  * laisser croire que c'est fait.
  */
-const ATTENTE_VERROU_MS = 20_000;
+/**
+ * Le verrou doit survivre à l'écriture qu'il protège.
+ *
+ * Il expirait au bout de trente secondes, alors qu'une écriture en prenait
+ * dix-neuf : une écriture un peu lente perdait sa protection EN COURS DE
+ * ROUTE, un second serveur prenait le verrou, et les deux réécrivaient la
+ * liste chacun de son côté. Démontré le 16 octobre en production, à mes
+ * dépens — une ligne effacée, une autre ressuscitée.
+ *
+ * L'écriture est tombée à trois secondes (voir CLES_CONTENEUR dans
+ * kv-store). Une minute laisse vingt fois la marge nécessaire, et borne
+ * tout de même un blocage si un serveur meurt sans relâcher.
+ */
+const DUREE_VERROU_MS = 60_000;
+const ATTENTE_VERROU_MS = 25_000;
 async function avecVerrou<T>(faire: () => Promise<T>): Promise<T> {
   let jeton: string | null = null;
   if (redisEnabled) {
     const limite = Date.now() + ATTENTE_VERROU_MS;
     for (;;) {
-      jeton = await redisLockAcquire(VERROU, 30_000);
+      jeton = await redisLockAcquire(VERROU, DUREE_VERROU_MS);
       if (jeton) break;
       if (Date.now() >= limite) throw new VerrouIndisponible();
       await new Promise((r) => setTimeout(r, 150 + Math.floor(Math.random() * 150)));

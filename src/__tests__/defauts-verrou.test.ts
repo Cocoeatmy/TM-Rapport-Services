@@ -38,6 +38,19 @@ describe("défauts — exclusion mutuelle des écritures", () => {
     expect(SRC).toMatch(/status: 503/);
   });
 
+  it("le verrou vit PLUS LONGTEMPS que l'écriture qu'il protège", () => {
+    /* Il expirait en 30 s alors qu'une écriture en prenait 19 : la
+       protection lâchait en cours de route, un second serveur prenait le
+       verrou, et les deux réécrivaient la liste. Une ligne effacée, une
+       autre ressuscitee — constaté en production le 16 octobre. */
+    const ttl = Number(SRC.match(/const DUREE_VERROU_MS = ([\d_]+)/)?.[1].replace(/_/g, ""));
+    const attente = Number(SRC.match(/const ATTENTE_VERROU_MS = ([\d_]+)/)?.[1].replace(/_/g, ""));
+    expect(ttl).toBeGreaterThanOrEqual(60_000);
+    /* Et celui qui attend renonce AVANT que le détenteur ne perde le sien :
+       sinon deux écrivains se croiraient seuls au même instant. */
+    expect(attente).toBeLessThan(ttl);
+  });
+
   it("le verrou est relâché quoi qu'il arrive", () => {
     const bloc = SRC.slice(SRC.indexOf("async function avecVerrou"));
     expect(bloc.slice(0, 1200)).toMatch(/finally\s*{[\s\S]*redisLockRelease/);
