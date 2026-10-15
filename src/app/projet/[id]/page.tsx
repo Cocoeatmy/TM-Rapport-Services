@@ -11135,6 +11135,10 @@ function ProjectPageContent({ id }: { id: string }) {
                             placeholder="Ex. : porte qui frotte, joint à refaire, fuite constatée…"
                           />
                         </div>
+                        {/* Ce qu'on a REÇU du client, juste après la réclamation : la
+                            page suit l'ordre des choses — on reçoit, on regarde, puis on
+                            cherche la cause. */}
+                        <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
                         <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
                           <div>
                             <Label>Cause du SAV</Label>
@@ -11182,8 +11186,6 @@ function ProjectPageContent({ id }: { id: string }) {
                             </div>
                           </div>
                         </div>
-                        <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
-                        <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
                         <div>
                           <Label>Ce que nous avons fait</Label>
                           <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
@@ -11194,6 +11196,9 @@ function ProjectPageContent({ id }: { id: string }) {
                             onSave={(v) => saveCabineText("savRetouchesCabines", 0, v)}
                           />
                         </div>
+                        {/* La preuve que c'est réglé vient APRÈS le récit de
+                            l'intervention, pas avant. */}
+                        <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
                         <div>
                           <Label>Date SAV clôturé</Label>
                           <input
@@ -12175,6 +12180,12 @@ function ProjectPageContent({ id }: { id: string }) {
                                 />
                               </div>
 
+                              {/* Ce qu'on a REÇU du client, juste après la réclamation : la
+                                  page suit l'ordre des choses — on reçoit, on regarde, puis
+                                  on cherche la cause. Ces documents étaient tout en bas,
+                                  après les pièces de rechange. */}
+                              <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
+
                               {/* Détails SAV (niveau projet) : cause, date d'intervention, collaborateur(s). */}
                               <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
                                 <div>
@@ -12195,12 +12206,6 @@ function ProjectPageContent({ id }: { id: string }) {
                                 {renderPiecesSav(idx)}
                               </div>
 
-                              {/* Documents de la DEMANDE (photos/vidéos reçus pour déclencher le SAV). */}
-                              <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
-
-                              {/* Photos/vidéos une fois le souci RÉGLÉ. */}
-                              <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
-
                               {/* Ce que nous avons fait → « SAV / Retouches cabines ». */}
                               <div>
                                 <Label>Ce que nous avons fait</Label>
@@ -12212,6 +12217,10 @@ function ProjectPageContent({ id }: { id: string }) {
                                   onSave={(v) => saveCabineText("savRetouchesCabines", idx, v)}
                                 />
                               </div>
+
+                              {/* La preuve que c'est réglé vient APRÈS le récit de
+                                  l'intervention, pas avant. */}
+                              <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
 
                               {/* SAV clôturé PAR CABINE : la présence d'une date dans
                                   « Dates SAV clôturé cabines » = clôturé (+ la date du jour). */}
