@@ -1449,6 +1449,8 @@ function PiecesList({ projectId, refreshKey, cabineLabel, cabineIdx }: { project
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  /** Lignes retirées de l'écran dont l'effacement se termine en coulisse. */
+  const supprimesRef = useRef<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{ description: string; reference: string }>({ description: "", reference: "" });
   const [saving, setSaving] = useState(false);
@@ -1515,24 +1517,29 @@ function PiecesList({ projectId, refreshKey, cabineLabel, cabineIdx }: { project
         // Réponse hors-ligne du SW ([] vide) : ne pas écraser une liste déjà affichée.
         if (res.headers.get("X-SW-Offline") === "1") return;
         const data = await res.json();
-        if (Array.isArray(data)) setPieces(data);
+        if (Array.isArray(data)) setPieces(data.filter((p: Piece) => !supprimesRef.current.has(p.id)));
       }
     } catch {} finally { setLoaded(true); }
   }, [projectId]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
+  /** Même principe que pour les défauts : la ligne part tout de suite, le
+   *  serveur suit, et elle revient si l'effacement a échoué. */
   const handleDelete = async (id: string, num: number) => {
     if (!confirm(`Supprimer la Pièce n°${num} ? Cette action est irréversible.`)) return;
-    setDeleting(id);
+    const avant = pieces;
+    supprimesRef.current.add(id);
+    setPieces((prev) => prev.filter((p) => p.id !== id));
+    toast.success(`Pièce n°${num} supprimée`);
     try {
       const res = await fetch(`/api/pieces?id=${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setPieces((prev) => prev.filter((p) => p.id !== id));
-        toast.success(`Pièce n°${num} supprimée`);
-      } else { toast.error("Erreur lors de la suppression"); }
-    } catch { toast.error("Erreur réseau"); }
-    finally { setDeleting(null); }
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      supprimesRef.current.delete(id);
+      setPieces(avant);
+      toast.error(`Pièce n°${num} : suppression refusée, elle est toujours là`, { duration: 8000 });
+    }
   };
 
   const startEdit = (p: Piece) => {
@@ -1938,6 +1945,8 @@ function DefautsList({ projectId, refreshKey, cabineLabel, cabineIdx, project, s
   const [defauts, setDefauts] = useState<Defaut[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  /** Lignes retirées de l'écran dont l'effacement se termine en coulisse. */
+  const supprimesRef = useRef<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{ description: string; types: string[]; otherText: string }>({ description: "", types: [], otherText: "" });
   const [saving, setSaving] = useState(false);
@@ -1984,7 +1993,10 @@ function DefautsList({ projectId, refreshKey, cabineLabel, cabineIdx, project, s
         // Réponse hors-ligne du SW ([] vide) : ne pas écraser une liste déjà affichée.
         if (res.headers.get("X-SW-Offline") === "1") return;
         const data = await res.json();
-        if (Array.isArray(data)) setDefauts(data);
+        /* Une relecture lancée pendant qu'un effacement se termine renverrait
+           la ligne qu'on vient de retirer : on l'écarte jusqu'à ce que le
+           serveur l'ait vraiment oubliée. */
+        if (Array.isArray(data)) setDefauts(data.filter((d: Defaut) => !supprimesRef.current.has(d.id)));
       }
     } catch {} finally { setLoaded(true); }
   }, [projectId]);
@@ -2033,15 +2045,31 @@ function DefautsList({ projectId, refreshKey, cabineLabel, cabineIdx, project, s
   // Au moins un défaut réglé → on affiche le bloc « Travaux exécutés » (projet).
   const anyResolved = defauts.some((d) => d.resolved);
 
+  /**
+   * Supprimer un signalement, sans attendre le serveur.
+   *
+   * Le serveur, lui, en a pour un moment : il relit la liste entière depuis
+   * Notion, la réécrit, puis reconstruit le texte de la fiche. Une demi-minute
+   * pendant laquelle la ligne restait à l'écran et le monteur recliquait.
+   *
+   * La ligne disparaît donc tout de suite, et l'effacement se termine en
+   * arrière-plan. S'il échoue, la ligne revient avec un message clair : rien
+   * n'est perdu, et l'on ne prétend jamais avoir supprimé ce qui est encore là.
+   */
   const handleDelete = async (id: string, num: number) => {
     if (!confirm(`Supprimer le Défaut n°${num} ? Cette action est irréversible.`)) return;
-    setDeleting(id);
+    const avant = defauts;
+    supprimesRef.current.add(id);
+    setDefauts((prev) => prev.filter((d) => d.id !== id));
+    toast.success(`Défaut n°${num} supprimé`);
     try {
       const res = await fetch(`/api/defauts?id=${id}`, { method: "DELETE" });
-      if (res.ok) { setDefauts((prev) => prev.filter((d) => d.id !== id)); toast.success(`Défaut n°${num} supprimé`); }
-      else { toast.error("Erreur lors de la suppression"); }
-    } catch { toast.error("Erreur réseau"); }
-    finally { setDeleting(null); }
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      supprimesRef.current.delete(id);
+      setDefauts(avant);
+      toast.error(`Défaut n°${num} : suppression refusée, il est toujours là`, { duration: 8000 });
+    }
   };
 
   // Liste de types selon le type de défaut (avant intervention ou standard).

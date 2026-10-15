@@ -181,8 +181,11 @@ export async function DELETE(request: NextRequest) {
   }
   const piece = pieces.find((p) => p.id === id);
   const updated = pieces.filter((p) => p.id !== id);
-  await setData(KEY, updated);
 
+  /* Les deux écritures sont indépendantes — la liste d'un côté, le texte de
+     la fiche de l'autre — et chacune prend plusieurs secondes chez Notion.
+     Les enchaîner doublait l'attente pour rien. */
+  const majFiche = async () => {
   // Rebuild Notion "Infos - Pièces manquantes" from remaining entries for this project
   if (piece?.projectId) {
     try {
@@ -207,6 +210,8 @@ export async function DELETE(request: NextRequest) {
       console.error("Notion piece delete sync error:", err);
     }
   }
+  };
+  await Promise.all([setData(KEY, updated), majFiche()]);
 
   return NextResponse.json({ success: true });
 }

@@ -172,9 +172,11 @@ export async function DELETE(request: NextRequest) {
   }
   const defaut = defauts.find((d) => d.id === id);
   const updated = defauts.filter((d) => d.id !== id);
-  await setData(KEY, updated);
 
-  // Rebuild the Notion "Infos - Défauts signalé" field from remaining KV entries for this project
+  /* Les deux écritures sont indépendantes — la liste d'un côté, le texte de
+     la fiche de l'autre — et chacune prend plusieurs secondes chez Notion.
+     Les enchaîner doublait l'attente pour rien. */
+  const majFiche = async () => {
   if (defaut?.projectId) {
     try {
       const remaining = updated.filter((d) => d.projectId === defaut.projectId);
@@ -196,6 +198,8 @@ export async function DELETE(request: NextRequest) {
       console.error("Notion defaut delete sync error:", err);
     }
   }
+  };
+  await Promise.all([setData(KEY, updated), majFiche()]);
 
   return NextResponse.json({ success: true });
 }
