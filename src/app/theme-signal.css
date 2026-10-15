@@ -5555,3 +5555,8 @@ html[data-ui="signal"] .sg-savcnt .sav-piece-txt {
   padding: 1px 5px; border-radius: 6px;
   background: #fdf0dc; color: #8a5a10; border: 1px solid #f0c27a;
 }
+
+/* Masquage VOULU par l'utilisateur : une note, pas une alarme. */
+html[data-ui="signal"] .sg-alerte-note {
+  margin: 0 0 8px; font-size: 11.5px; color: #6b7280;
+}

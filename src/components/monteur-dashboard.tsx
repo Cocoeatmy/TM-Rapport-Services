@@ -3214,6 +3214,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const tousProjetsSav = [...projects, ...terminatedProjects]
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
 
+  /* Les chantiers terminés arrivent par une seconde requête, une seconde
+     plus tard. Tant qu'ils ne sont pas là, la liste SAV est forcément
+     incomplète — presque tous les SAV portent sur un montage fini. Pendant
+     ce temps on affiche « … » plutôt qu'un chiffre qui a l'air juste : sur
+     ce même écran, le compte est tombé à 2 avant de remonter à 10. */
+  const savPartiel = terminatedProjects.length === 0;
+
   /* UNE SEULE RÈGLE, UNE SEULE PASSE. La liste se construisait auparavant en
      deux morceaux — ancienne base d'un côté, SAV par cabine de l'autre —
      recollés par un dédoublonnage. Chaque couture était une occasion de
@@ -3449,7 +3456,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       case "rdv-sav-a-fixer": return (
         <button onClick={(e) => openPanel("rdv-sav-a-fixer", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
           <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-rose-100/80 dark:bg-rose-900/30 flex items-center justify-center"><Calendar className="w-4 h-4 text-rose-500 dark:text-rose-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{rdvSavAFixerCount}</p>
+          <p className="text-lg sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{savPartiel ? <span className="animate-pulse text-base">…</span> : rdvSavAFixerCount}</p>
           <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">RDV SAV à fixer</p>
           <p className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
         </button>
@@ -3460,7 +3467,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       case "sav-ouverts": return (
         <button onClick={(e) => openPanel("sav-ouverts", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
           <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-amber-100/80 dark:bg-amber-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-amber-500 dark:text-amber-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{savOuvertsCount}</p>
+          <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{savPartiel ? <span className="animate-pulse text-base">…</span> : savOuvertsCount}</p>
           <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Tous les SAV ouverts</p>
           <p className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
             {savOuvertsProjects.reduce((n, p) => n + comptesSav(p).concernees - comptesSav(p).regles, 0)} cab.
@@ -7736,11 +7743,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {vueSav && (() => {
                   const cs = panelProjects.map((p) => comptesSav(p));
                   const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
+                  const piece = cs.reduce((s, c) => s + c.enAttentePiece, 0);
                   const regles = cs.reduce((s, c) => s + c.regles, 0);
                   const flous = cs.filter((c) => !c.detaille).length;
                   return (
                     <span className="sg-panel-kpi">
                       {aFixer} cabine{aFixer > 1 ? "s" : ""} à fixer
+                      {piece > 0 ? ` · ${piece} pièce${piece > 1 ? "s" : ""} attendue${piece > 1 ? "s" : ""}` : ""}
                       {regles > 0 ? ` · ${regles} réglée${regles > 1 ? "s" : ""}` : ""}
                       {flous > 0 ? ` · ${flous} à vérifier` : ""}
                     </span>
@@ -7839,16 +7848,45 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 />
               )}
 
+              {vueSav && savPartiel && (
+                <div className="sg-alerte" role="status">
+                  <Loader2 className="w-4 h-4 sg-alerte-icone animate-spin" />
+                  <div>
+                    <p className="sg-alerte-titre">Liste encore incomplète</p>
+                    <p className="sg-alerte-why">
+                      Les chantiers terminés sont en cours de chargement — presque
+                      tous les SAV s’y trouvent. Patientez avant de conclure qu’un
+                      dossier manque.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* ── GARDE-FOU ───────────────────────────────────────────
                   Ce que les données réclament, face à ce qui est à l'écran.
                   Un SAV qui ne s'affiche pas ne se fixe pas, et personne ne
                   le cherche : plutôt qu'une disparition silencieuse, un
                   avertissement nommant les dossiers et la raison. */}
               {showSummaryPanel === "rdv-sav-a-fixer" && (() => {
+                /* DEUX pertes, deux voix. Masquer par une recherche ou un
+                   filtre est un choix de l'utilisateur : une note grise
+                   suffit. Un dossier absent de la liste ALORS QUE RIEN N'EST
+                   FILTRÉ est un défaut : là, on alerte. Confondre les deux
+                   revenait à crier à chaque frappe, et un avertissement qui
+                   crie tout le temps ne se lit plus. */
                 const affiches = new Set<string>();
                 sgGroups.forEach(([, rows]) => rows.forEach((p) => affiches.add(p.id)));
-                const manquants = anomaliesSavPour(affiches);
-                if (manquants.length === 0) return null;
+                const masques = rdvSavAFixerProjects.filter((p) => !affiches.has(p.id)).length;
+                const manquants = anomaliesSavPour(rdvSavAFixerProjects.map((p) => p.id));
+                if (manquants.length === 0) {
+                  if (masques === 0) return null;
+                  return (
+                    <p className="sg-alerte-note" role="status">
+                      {masques} dossier{masques > 1 ? "s" : ""} SAV masqué{masques > 1 ? "s" : ""} par la recherche
+                      ou les filtres — effacez-les pour tout revoir.
+                    </p>
+                  );
+                }
                 const n = manquants.length;
                 return (
                   <div className="sg-alerte" role="alert">
@@ -7872,7 +7910,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         {n > 8 && <li className="sg-alerte-why">… et {n - 8} autre{n - 8 > 1 ? "s" : ""}</li>}
                       </ul>
                       <p className="sg-alerte-why">
-                        Un filtre ou une recherche peut en être la cause : effacez-les pour tout revoir.
+                        Ces dossiers réclament un rendez-vous mais n’entrent pas dans la liste.
+                        Ouvrez-les depuis « Tous les SAV ouverts » en attendant la correction.
                       </p>
                     </div>
                   </div>
@@ -7936,8 +7975,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
                               const regles = cs.reduce((s, c) => s + c.regles, 0);
                               const flous = cs.filter((c) => !c.detaille).length;
+                              const piece = cs.reduce((s2, c) => s2 + c.enAttentePiece, 0);
                               const bouts = [`${rows.length} projet${rows.length > 1 ? "s" : ""}`];
                               if (aFixer) bouts.push(`${aFixer} SAV à fixer`);
+                              if (piece) bouts.push(`${piece} pièce${piece > 1 ? "s" : ""} attendue${piece > 1 ? "s" : ""}`);
                               if (regles) bouts.push(`${regles} réglé${regles > 1 ? "s" : ""}`);
                               if (flous) bouts.push(`${flous} à vérifier`);
                               return bouts.join(" · ");
@@ -8061,11 +8102,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {vueSav && (() => {
                   const cs = panelProjects.map((p) => comptesSav(p));
                   const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
+                  const piece = cs.reduce((s, c) => s + c.enAttentePiece, 0);
                   const regles = cs.reduce((s, c) => s + c.regles, 0);
                   const flous = cs.filter((c) => !c.detaille).length;
                   return (
                     <span className="ml-2 normal-case">
                       <span className="text-rose-600 dark:text-rose-400">· {aFixer} cabine{aFixer > 1 ? "s" : ""} à fixer</span>
+                      {piece > 0 && <span className="text-amber-600 dark:text-amber-400"> · {piece} pièce{piece > 1 ? "s" : ""} attendue{piece > 1 ? "s" : ""}</span>}
                       {regles > 0 && <span className="text-green-600 dark:text-green-400"> · {regles} réglée{regles > 1 ? "s" : ""}</span>}
                       {flous > 0 && <span className="text-gray-400"> · {flous} à vérifier</span>}
                     </span>
@@ -8160,11 +8203,26 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 <span className="w-14 text-right">Cabines</span>
               </div>
             )}
+            {vueSav && savPartiel && (
+              <div role="status" className="flex items-center gap-2 mb-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800 text-[11px] text-gray-500 dark:text-gray-400">
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                <span>Liste encore incomplète : les chantiers terminés chargent — presque tous les SAV s’y trouvent.</span>
+              </div>
+            )}
             {/* Même garde-fou que sur la liste Signal : le thème change
                 l'habillage, jamais ce qu'on a le droit d'ignorer. */}
             {showSummaryPanel === "rdv-sav-a-fixer" && (() => {
-              const manquants = anomaliesSavPour(panelProjects.map((p) => p.id));
-              if (manquants.length === 0) return null;
+              const masques = rdvSavAFixerProjects.length - panelProjects.length;
+              const manquants = anomaliesSavPour(rdvSavAFixerProjects.map((p) => p.id));
+              if (manquants.length === 0) {
+                if (masques <= 0) return null;
+                return (
+                  <p role="status" className="mb-2 text-[11px] text-gray-500 dark:text-gray-400">
+                    {masques} dossier{masques > 1 ? "s" : ""} SAV masqué{masques > 1 ? "s" : ""} par la recherche
+                    ou les filtres — effacez-les pour tout revoir.
+                  </p>
+                );
+              }
               const n = manquants.length;
               return (
                 <div role="alert" className="flex items-start gap-2 mb-2 p-2.5 rounded-lg border border-amber-300 border-l-4 border-l-red-500 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 text-amber-900 dark:text-amber-200">
@@ -8188,7 +8246,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       {n > 8 && <li className="opacity-80">… et {n - 8} autre{n - 8 > 1 ? "s" : ""}</li>}
                     </ul>
                     <p className="mt-1 text-[11px] opacity-80">
-                      Un filtre ou une recherche peut en être la cause : effacez-les pour tout revoir.
+                      Ces dossiers réclament un rendez-vous mais n’entrent pas dans la liste.
+                      Ouvrez-les depuis « Tous les SAV ouverts » en attendant la correction.
                     </p>
                   </div>
                 </div>
@@ -8636,8 +8695,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
                           const regles = cs.reduce((s, c) => s + c.regles, 0);
                           const flous = cs.filter((c) => !c.detaille).length;
+                          const piece = cs.reduce((s2, c) => s2 + c.enAttentePiece, 0);
                           const bouts = [`${group.projects.length} projet${group.projects.length > 1 ? "s" : ""}`];
                           if (aFixer) bouts.push(`${aFixer} à fixer`);
+                          if (piece) bouts.push(`${piece} pièce${piece > 1 ? "s" : ""} attendue${piece > 1 ? "s" : ""}`);
                           if (regles) bouts.push(`${regles} réglé${regles > 1 ? "s" : ""}`);
                           if (flous) bouts.push(`${flous} à vérifier`);
                           return bouts.join(" · ");
@@ -8685,11 +8746,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     // Badge cabines : panneau SAV → cabines à SAV ouvert ; montage →
                     // posées/total ; sinon total du projet.
                     const csLigne = rdvIsSav ? comptesSav(p) : null;
+                    /* « pièce attendue » doit figurer ici : sans elle, le lot
+                       CANAsanitaire 23 retombait sur « 1 cab. » — présent dans
+                       la liste, mais muet sur la raison de sa présence. */
                     const cabBadgeTxt = csLigne
                       ? (!csLigne.detaille
                           ? "SAV à vérifier"
                           : [
                               csLigne.aFixer ? `${csLigne.aFixer} à fixer` : "",
+                              csLigne.enAttentePiece ? `${csLigne.enAttentePiece} pièce attendue` : "",
+                              csLigne.planifies ? `${csLigne.planifies} planifié${csLigne.planifies > 1 ? "s" : ""}` : "",
                               csLigne.regles ? `${csLigne.regles} réglé${csLigne.regles > 1 ? "s" : ""}` : "",
                             ].filter(Boolean).join(" · ") || `${cabTotal} cab.`)
                       : (isMontagePanel && cabInstalled > 0 ? `${cabInstalled}/${cabTotal} cab.` : `${cabTotal} cab.`);
