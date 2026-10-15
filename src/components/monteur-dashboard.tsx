@@ -33,6 +33,7 @@ import { useNotionColors, statusClasses } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 import { clientFacture } from "@/lib/analyses";
+import { comptesSavParCabine, type SourceSavCabines } from "@/lib/sav-cabines";
 import { PersonalStats } from "@/components/personal-stats";
 
 // ─── Citations motivantes quotidiennes (365) ────────────────────────────────
@@ -3236,16 +3237,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     }
     return false;
   };
-  // Nombre de cabines dont le SAV est OUVERT (non clôturé) — pour la page
-  // « RDV SAV à fixer » (le total des cabines du projet fausserait le SAV).
-  // Repli sur nbCabines uniquement pour les SAV « ancienne base » sans détail
-  // par cabine (aucune donnée SAV par cabine encodée).
-  const savOpenCabCount = (p: Project): number => {
-    const cabs = cabineSavCabs(p);
-    if (cabs.size === 0) return p.nbCabines || 0;
-    const cloture = parseCabMap(p.datesSavClotureCabines);
-    return [...cabs].filter((n) => !(cloture[n] || "").trim()).length;
-  };
+  /**
+   * L'état d'un SAV, cabine par cabine.
+   *
+   * Le calcul vit dans lib/sav-cabines, avec ses tests : la liste, les
+   * en-têtes de groupe et les pastilles doivent dire exactement la même
+   * chose, et un seul endroit doit en décider.
+   */
+  const comptesSav = (p: Project) => comptesSavParCabine(p as unknown as SourceSavCabines);
+
+
 
   // RDV SAV à fixer : ancienne base (État - SAV) + SAV par cabine ouverts.
   // Dédup par N° OFR TM (si un projet est dans les deux bases, on ne le compte
@@ -3702,7 +3703,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 { label: "RDV Montage", count: rdvMontageAFixerCount, meta: `${rdvMontageAFixerProjects.reduce((s, p) => s + cabinesRestantes(p), 0)} cabines à poser`, bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-a-fixer", Icon: Wrench, lead: true },
                 { label: "RDV Mesures", count: rdvMesuresAFixerCount, meta: "à contacter", bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-a-fixer", Icon: Ruler, lead: false },
                 { label: "RDV Services", count: rdvServicesAFixerCount, meta: "à planifier", bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-a-fixer", Icon: Settings, lead: false },
-                { label: "RDV SAV", count: rdvSavAFixerCount, meta: `${rdvSavAFixerProjects.reduce((s, p) => s + savOpenCabCount(p), 0)} cabines ouvertes`, bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-a-fixer", Icon: AlertCircle, lead: false },
+                { label: "RDV SAV", count: rdvSavAFixerCount, meta: `${rdvSavAFixerProjects.reduce((s, p) => s + comptesSav(p).aFixer, 0)} cabines à fixer`, bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-a-fixer", Icon: AlertCircle, lead: false },
                 /* Les quatre premières tuiles comptent ce qui reste à caler ;
                    celle-ci, ce qui l'est déjà — montages, mesures, services et
                    SAV réunis, seul endroit où la date fixée se voit d'un bloc. */
@@ -7731,11 +7732,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     {panelProjects.reduce((s, p) => s + cabinesRestantes(p), 0)} cabines à poser
                   </span>
                 )}
-                {showSummaryPanel === "rdv-sav-a-fixer" && (
-                  <span className="sg-panel-kpi">
-                    {panelProjects.reduce((s, p) => s + savOpenCabCount(p), 0)} cabines SAV ouvertes
-                  </span>
-                )}
+                {showSummaryPanel === "rdv-sav-a-fixer" && (() => {
+                  const cs = panelProjects.map((p) => comptesSav(p));
+                  const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
+                  const regles = cs.reduce((s, c) => s + c.regles, 0);
+                  const flous = cs.filter((c) => !c.detaille).length;
+                  return (
+                    <span className="sg-panel-kpi">
+                      {aFixer} cabine{aFixer > 1 ? "s" : ""} à fixer
+                      {regles > 0 ? ` · ${regles} réglée${regles > 1 ? "s" : ""}` : ""}
+                      {flous > 0 ? ` · ${flous} à vérifier` : ""}
+                    </span>
+                  );
+                })()}
               </div>
 
               <div className="sg-panel-tools">
@@ -7837,7 +7846,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   <div className="sg-cols">
                     <span>DÉLAI</span><span>N° OFR TM</span><span>N° FOURN.</span>
                     <span>PROJET</span><span>ÉTAT</span><span>EMPLACEMENT</span>
-                    <span className="sg-right">PERS.</span><span className="sg-right">CAB.</span>
+                    {/* Sur la liste SAV, le nombre de poseurs prévus au montage
+                        n'apprend rien ; ce qu'on cherche, c'est combien de
+                        cabines attendent. La colonne « CAB. » reste à côté :
+                        elle dit la taille du chantier. */}
+                    <span className="sg-right">{showSummaryPanel === "rdv-sav-a-fixer" ? "SAV" : "PERS."}</span><span className="sg-right">CAB.</span>
                   </div>
                   {panelProjects.length === 0 && (
                     <p className="sg-empty">
@@ -7869,7 +7882,25 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           {gInfo && <span className={`sg-jpill ${gInfo.bgClass} ${gInfo.colorClass}`}>J+{gInfo.days}</span>}
                           <i className="sg-rule" />
                           <span className="sg-grp-sum">
-                            {rows.length} projet{rows.length > 1 ? "s" : ""} · {rows.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
+                            {(() => {
+                              /* Sur la liste SAV, le total des cabines du
+                                 chantier n'est pas la charge de travail : on
+                                 annonce les cabines à reprendre, et celles
+                                 déjà réglées. */
+                              if (showSummaryPanel !== "rdv-sav-a-fixer") {
+                                const cab = rows.reduce((s, p) => s + (p.nbCabines || 0), 0);
+                                return `${rows.length} projet${rows.length > 1 ? "s" : ""} · ${cab} cab.`;
+                              }
+                              const cs = rows.map((p) => comptesSav(p));
+                              const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
+                              const regles = cs.reduce((s, c) => s + c.regles, 0);
+                              const flous = cs.filter((c) => !c.detaille).length;
+                              const bouts = [`${rows.length} projet${rows.length > 1 ? "s" : ""}`];
+                              if (aFixer) bouts.push(`${aFixer} SAV à fixer`);
+                              if (regles) bouts.push(`${regles} réglé${regles > 1 ? "s" : ""}`);
+                              if (flous) bouts.push(`${flous} à vérifier`);
+                              return bouts.join(" · ");
+                            })()}
                           </span>
                         </div>
                         {rows.map((p) => {
@@ -7923,7 +7954,33 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 <MapPin className="w-3 h-3" />
                                 <span>{p.emplacementCabine || "—"}</span>
                               </span>
-                              <span className="sg-pers">{p.nbCollaborateursMontage ? `${p.nbCollaborateursMontage} pers.` : "—"}</span>
+                              {showSummaryPanel === "rdv-sav-a-fixer" ? (() => {
+                                const c = comptesSav(p);
+                                if (!c.detaille) {
+                                  return (
+                                    <span className="sg-pers sg-savcnt" title="SAV suivi au niveau du projet, sans détail par cabine — à vérifier dans la fiche">
+                                      <i className="sav-flou">?</i>
+                                    </span>
+                                  );
+                                }
+                                const titre = [
+                                  c.aFixer ? `${c.aFixer} à fixer` : "",
+                                  c.planifies ? `${c.planifies} planifié${c.planifies > 1 ? "s" : ""}` : "",
+                                  c.enAttentePiece ? `${c.enAttentePiece} en attente de pièce` : "",
+                                  c.regles ? `${c.regles} réglé${c.regles > 1 ? "s" : ""}` : "",
+                                ].filter(Boolean).join(" · ") || "Aucune cabine en SAV";
+                                return (
+                                  <span className="sg-pers sg-savcnt" title={`Cabines : ${titre}`}>
+                                    {c.aFixer > 0 && <i className="sav-fix">{c.aFixer}</i>}
+                                    {c.planifies > 0 && <i className="sav-plan">{c.planifies}</i>}
+                                    {c.enAttentePiece > 0 && <i className="sav-piece">{c.enAttentePiece}</i>}
+                                    {c.regles > 0 && <i className="sav-ok">{c.regles}</i>}
+                                    {c.concernees === 0 && <i className="sav-flou">—</i>}
+                                  </span>
+                                );
+                              })() : (
+                                <span className="sg-pers">{p.nbCollaborateursMontage ? `${p.nbCollaborateursMontage} pers.` : "—"}</span>
+                              )}
                               <span className="sg-mono sg-right sg-strong">{p.nbCabines || 0}</span>
                             </Link>
                           );
@@ -7953,8 +8010,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 {panelTitle} ({rdvFiltered ? `${panelProjects.length} / ${rdvTotalCount}` : (rdvStatusFieldFn ? rdvTotalCount : panelProjects.length)})
                 {showSummaryPanel === "rdv-sav-a-fixer" && (() => {
-                  const savCabTotal = panelProjects.reduce((s, p) => s + savOpenCabCount(p), 0);
-                  return <span className="ml-2 normal-case text-rose-600 dark:text-rose-400">· {savCabTotal} cabine{savCabTotal > 1 ? "s" : ""} SAV en cours</span>;
+                  const cs = panelProjects.map((p) => comptesSav(p));
+                  const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
+                  const regles = cs.reduce((s, c) => s + c.regles, 0);
+                  const flous = cs.filter((c) => !c.detaille).length;
+                  return (
+                    <span className="ml-2 normal-case">
+                      <span className="text-rose-600 dark:text-rose-400">· {aFixer} cabine{aFixer > 1 ? "s" : ""} à fixer</span>
+                      {regles > 0 && <span className="text-green-600 dark:text-green-400"> · {regles} réglée{regles > 1 ? "s" : ""}</span>}
+                      {flous > 0 && <span className="text-gray-400"> · {flous} à vérifier</span>}
+                    </span>
+                  );
                 })()}
                 {showSummaryPanel === "rdv-montage-a-fixer" && (() => {
                   // Cabines RESTANT à poser = total − déjà installées (jamais négatif).
@@ -8483,8 +8549,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       {(() => {
                         // Panneau SAV : total = cabines à SAV ouvert (pas le total projet).
                         if (showSummaryPanel === "rdv-sav-a-fixer") {
-                          const savCab = group.projects.reduce((s, p) => s + savOpenCabCount(p), 0);
-                          return `${group.projects.length} projet${group.projects.length > 1 ? "s" : ""} · ${savCab} cab.`;
+                          const cs = group.projects.map((p) => comptesSav(p));
+                          const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
+                          const regles = cs.reduce((s, c) => s + c.regles, 0);
+                          const flous = cs.filter((c) => !c.detaille).length;
+                          const bouts = [`${group.projects.length} projet${group.projects.length > 1 ? "s" : ""}`];
+                          if (aFixer) bouts.push(`${aFixer} à fixer`);
+                          if (regles) bouts.push(`${regles} réglé${regles > 1 ? "s" : ""}`);
+                          if (flous) bouts.push(`${flous} à vérifier`);
+                          return bouts.join(" · ");
                         }
                         const totalCab = group.projects.reduce((s, p) => s + (p.nbCabines || 0), 0);
                         const installedCab = group.projects.reduce((s, p) => s + cabinesPosees(p), 0);
@@ -8528,8 +8601,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     const showCabProgress = (isMontagePanel || (showSummaryPanel === "rdv-fixe" && !isMesure)) && cabInstalled > 0;
                     // Badge cabines : panneau SAV → cabines à SAV ouvert ; montage →
                     // posées/total ; sinon total du projet.
-                    const cabBadgeTxt = rdvIsSav
-                      ? `${savOpenCabCount(p)} cab.`
+                    const csLigne = rdvIsSav ? comptesSav(p) : null;
+                    const cabBadgeTxt = csLigne
+                      ? (!csLigne.detaille
+                          ? "SAV à vérifier"
+                          : [
+                              csLigne.aFixer ? `${csLigne.aFixer} à fixer` : "",
+                              csLigne.regles ? `${csLigne.regles} réglé${csLigne.regles > 1 ? "s" : ""}` : "",
+                            ].filter(Boolean).join(" · ") || `${cabTotal} cab.`)
                       : (isMontagePanel && cabInstalled > 0 ? `${cabInstalled}/${cabTotal} cab.` : `${cabTotal} cab.`);
                     return (
                       <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}

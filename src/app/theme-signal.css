@@ -1463,6 +1463,29 @@ html[data-ui="signal"] .sg-pers {
   color: var(--sg-text-2);
   white-space: nowrap;
 }
+/* Cabines en SAV : à fixer (rouge), planifiées (bleu), en attente de pièce
+   (ambre), réglées (vert). Un SAV sans détail par lot affiche « ? » — on ne
+   met pas un chiffre faux à la place de ce qu'on ignore. */
+html[data-ui="signal"] .sg-savcnt {
+  display: inline-flex;
+  gap: 3px;
+  padding: 0;
+  background: transparent;
+}
+html[data-ui="signal"] .sg-savcnt i {
+  font-style: normal;
+  min-width: 17px;
+  text-align: center;
+  padding: 1px 4px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+}
+html[data-ui="signal"] .sg-savcnt .sav-fix { background: #fee2e2; color: #b91c1c; }
+html[data-ui="signal"] .sg-savcnt .sav-plan { background: #e0f2fe; color: #0369a1; }
+html[data-ui="signal"] .sg-savcnt .sav-piece { background: #fef3c7; color: #b45309; }
+html[data-ui="signal"] .sg-savcnt .sav-ok { background: #dcfce7; color: #15803d; }
+html[data-ui="signal"] .sg-savcnt .sav-flou { background: var(--sg-paper-2); color: var(--sg-text-3); }
 html[data-ui="signal"] .sg-cols {
   padding: 0 10px 5px 10px;
   border-bottom: 1px solid var(--sg-line);
