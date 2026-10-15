@@ -1,93 +1,39 @@
 "use client";
 
-import { useState, useEffect } from "react";
+/**
+ * Créer un projet complet, sans ouvrir Notion.
+ *
+ * Cette page proposait dix-huit champs, écrits un à un dans le code, sur
+ * les cent quarante-deux que compte la base. Pour tout le reste — le
+ * fournisseur, les contacts, les numéros de commande, l'arrivage — il
+ * fallait créer le dossier ici puis rouvrir Notion pour le compléter.
+ *
+ * Elle lit maintenant le schéma de la base et se construit toute seule.
+ * Une colonne ajoutée demain dans Notion apparaît ici sans qu'on touche à
+ * ce fichier.
+ *
+ * Les champs sont rangés par section, repliées sauf les trois premières :
+ * une liste de cent quarante-deux cases à la file serait inutilisable. Et
+ * les colonnes que le système de rapports remplit lui-même n'y figurent
+ * pas — on ne crée pas un chantier en saisissant ses heures de montage.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus, X, Loader2, FolderPlus } from "lucide-react";
+import { Plus, X, Loader2, FolderPlus, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { COLLABORATEURS_LIST } from "@/lib/constants";
-
-const ETAT_CMD_OPTIONS = [
-  "Cabines en CMD",
-  "En attente de mesures",
-  "Cabines à recevoir",
-  "Livraison partielle",
-  "Cabine à aller chercher",
-  "Récéptionné - RDV à fixer",
-  "RDV - fixé",
-  "RDV - Attendre news",
-  "Montage partiel",
-  "Soucis montage",
-  "Terminé",
-  "Annulé",
-];
-
-const ETAT_MESURES_OPTIONS = [
-  "Pas contacté",
-  "Contact sans réponse",
-  "OFR envoyée sans mesures",
-  "Mesures non relevées - attendre news",
-  "RDV - Fixé",
-  "RDV - Attendre news",
-  "Mesures partielles",
-  "Mesures relevées - attente news",
-  "Terminé",
-];
-
-const TYPE_CLIENT_OPTIONS = [
-  "Client direct",
-  "Grossiste",
-  "Grossistes",
-  "Fournisseur",
-  "Fournisseurs",
-];
-
-const COLLABORATEURS_BINOMES = [
-  "Jean-Marc & Miguel",
-  "Micael & Claudio",
-  "Jacobo & Miguel",
-  "Micael & Jean-Marc",
-  "Claudio & Jacobo",
-];
-
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-const inputCls =
-  "w-full text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors";
-
-const emptyForm = () => ({
-  projet: "",
-  ofrTM: "",
-  nomChantier: "",
-  nbCabines: "",
-  dateMontage: "",
-  dateMesures: "",
-  collaborateurs: "",
-  mesuresTraiteePar: "",
-  etatCMD: "Récéptionné - RDV à fixer",
-  etatMesures: "",
-  contacts: "",
-  contactsRDV: "",
-  typeClient: "",
-  cmdTM: "",
-  cmdTMUsine: "",
-});
+import { ChampsNotion, type SchemaAffichable } from "@/components/champs-notion";
+import type { ValeurChamp } from "@/lib/notion-valeurs";
 
 export function CreateProjectButton() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(emptyForm());
+  const [ouvert, setOuvert] = useState(false);
+  const [schema, setSchema] = useState<SchemaAffichable | null>(null);
+  const [erreurSchema, setErreurSchema] = useState("");
+  const [valeurs, setValeurs] = useState<Record<string, ValeurChamp>>({});
+  const [envoi, setEnvoi] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth")
@@ -96,66 +42,73 @@ export function CreateProjectButton() {
       .catch(() => {});
   }, []);
 
-  if (!isAdmin) return null;
+  /* Le schéma n'est demandé qu'à l'ouverture : inutile d'interroger Notion
+     sur chaque page pour un bouton qu'on ne cliquera peut-être pas. */
+  useEffect(() => {
+    if (!ouvert || schema) return;
+    setErreurSchema("");
+    fetch("/api/notion/schema")
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => setSchema({ champs: d.champs || [], sections: d.sections || [] }))
+      .catch((e) => setErreurSchema(e.message || "Schéma indisponible"));
+  }, [ouvert, schema]);
 
-  const set = (field: string, value: string) =>
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const champTitre = useMemo(
+    () => schema?.champs.find((c) => c.type === "title"),
+    [schema],
+  );
 
-  const handleClose = () => {
-    setIsOpen(false);
-    setForm(emptyForm());
-  };
+  const modifier = useCallback((id: string, v: ValeurChamp) => {
+    setValeurs((prev) => ({ ...prev, [id]: v }));
+  }, []);
 
-  const handleSubmit = async () => {
-    if (!form.projet.trim()) {
-      toast.error("Le nom du projet est requis");
+  const fermer = () => { setOuvert(false); setValeurs({}); };
+
+  const creer = async () => {
+    const titre = champTitre ? valeurs[champTitre.id] : null;
+    if (!titre || typeof titre !== "string" || !titre.trim()) {
+      toast.error(`« ${champTitre?.nom || "Projet"} » est obligatoire`);
       return;
     }
-    setSaving(true);
+    setEnvoi(true);
     try {
-      const body: Record<string, any> = {
-        projet: form.projet.trim(),
-      };
-      if (form.ofrTM.trim()) body.ofrTM = form.ofrTM.trim();
-      if (form.cmdTM.trim()) body.cmdTM = form.cmdTM.trim();
-      if (form.cmdTMUsine.trim()) body.cmdTMUsine = form.cmdTMUsine.trim();
-      if (form.nomChantier.trim()) body.nomChantier = form.nomChantier.trim();
-      if (form.nbCabines) body.nbCabines = Number(form.nbCabines);
-      if (form.dateMontage) body.dateMontage = form.dateMontage;
-      if (form.dateMesures) body.dateMesures = form.dateMesures;
-      if (form.collaborateurs) body.collaborateurs = form.collaborateurs;
-      if (form.mesuresTraiteePar) body.mesuresTraiteePar = form.mesuresTraiteePar;
-      if (form.etatCMD) body.etatCMD = form.etatCMD;
-      if (form.etatMesures) body.etatMesures = form.etatMesures;
-      if (form.contactsRDV.trim()) body.contactsRDV = form.contactsRDV.trim();
-      if (form.typeClient) body.typeClient = form.typeClient;
-
-      const res = await fetch("/api/projects", {
+      const res = await fetch("/api/projects/creer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ valeurs }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur serveur");
 
-      toast.success("Projet créé avec succès !");
-      handleClose();
-
-      if (data.pageId) {
-        router.push(`/projet/${data.pageId}?mode=cmd`);
+      /* On nomme ce qui n'a pas pu être enregistré : un champ refusé en
+         silence, c'est une information qu'on croit saisie et qui manque. */
+      if (data.refuses?.length) {
+        toast.warning(
+          `Projet créé. ${data.refuses.length} champ(s) non enregistré(s) : ` +
+          data.refuses.map((r: { nom: string }) => r.nom).join(", "),
+          { duration: 10000 },
+        );
+      } else {
+        toast.success("Projet créé");
       }
-    } catch (e: any) {
-      toast.error(e.message || "Erreur lors de la création");
+      fermer();
+      if (data.pageId) router.push(`/projet/${data.pageId}?mode=cmd`);
+    } catch (e) {
+      toast.error((e as Error).message || "Erreur lors de la création");
     } finally {
-      setSaving(false);
+      setEnvoi(false);
     }
   };
 
+  if (!isAdmin) return null;
+
   return (
     <>
-      {/* Bouton dans le header */}
       <button
-        onClick={() => setIsOpen(true)}
+        onClick={() => setOuvert(true)}
         aria-label="Créer un nouveau projet"
         title="Nouveau projet"
         className="app-hdr-new w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 active:scale-95 transition-all"
@@ -163,205 +116,86 @@ export function CreateProjectButton() {
         <Plus className="w-4 h-4" />
       </button>
 
-      {/* Modal / slide-over — rendu via Portal hors du header pour éviter le clipping */}
-      {isOpen && createPortal(
+      {ouvert && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[200] flex justify-end">
-          {/* Backdrop */}
           <div
+            onClick={fermer}
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={handleClose}
+            aria-hidden="true"
           />
-
-          {/* Panel */}
-          <div className="relative flex flex-col w-full max-w-lg bg-white dark:bg-gray-900 h-full overflow-hidden shadow-2xl">
-            {/* Header */}
+          <div className="relative flex flex-col w-full max-w-2xl bg-white dark:bg-gray-900 h-full overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
-              <div className="flex items-center gap-2">
-                <FolderPlus className="w-5 h-5 text-blue-500" />
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-base">Nouveau projet</h2>
+              <div className="flex items-center gap-2 min-w-0">
+                <FolderPlus className="w-5 h-5 text-blue-500 shrink-0" />
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-base truncate">Nouveau projet</h2>
+                {schema && (
+                  <span className="text-xs text-gray-400 shrink-0">
+                    {schema.champs.filter((c) => !c.lectureSeule && !c.masque).length} champs
+                  </span>
+                )}
               </div>
               <button
-                onClick={handleClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                onClick={fermer}
+                aria-label="Fermer"
+                className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
-
-              {/* === Identification === */}
-              <section>
-                <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                  Identification
-                </h3>
-                <div className="space-y-3">
-                  <Field label="Nom du projet" required>
-                    <input
-                      className={inputCls}
-                      value={form.projet}
-                      onChange={(e) => set("projet", e.target.value)}
-                      placeholder="Nom complet du projet"
-                      autoFocus
-                    />
-                  </Field>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="N° OFR TM">
-                      <input
-                        className={inputCls}
-                        value={form.ofrTM}
-                        onChange={(e) => set("ofrTM", e.target.value)}
-                        placeholder="TM-25-..."
-                      />
-                    </Field>
-                    <Field label="N° CMD TM">
-                      <input
-                        className={inputCls}
-                        value={form.cmdTM}
-                        onChange={(e) => set("cmdTM", e.target.value)}
-                      />
-                    </Field>
-                  </div>
-                  <Field label="N° CMD TM Usine">
-                    <input
-                      className={inputCls}
-                      value={form.cmdTMUsine}
-                      onChange={(e) => set("cmdTMUsine", e.target.value)}
-                    />
-                  </Field>
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              {!schema && !erreurSchema && (
+                <div className="flex items-center gap-2 text-sm text-gray-500 py-8 justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Lecture des champs depuis Notion…
                 </div>
-              </section>
+              )}
 
-              {/* === Chantier === */}
-              <section>
-                <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                  Chantier
-                </h3>
-                <div className="space-y-3">
-                  <Field label="Nom du chantier">
-                    <input
-                      className={inputCls}
-                      value={form.nomChantier}
-                      onChange={(e) => set("nomChantier", e.target.value)}
-                      placeholder="Nom / adresse du chantier"
-                    />
-                  </Field>
-                  <Field label="Nb. Cabines">
-                    <input
-                      type="number"
-                      min="1"
-                      className={inputCls}
-                      value={form.nbCabines}
-                      onChange={(e) => set("nbCabines", e.target.value)}
-                      placeholder="1"
-                    />
-                  </Field>
-                </div>
-              </section>
-
-              {/* === Client === */}
-              <section>
-                <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                  Client
-                </h3>
-                <div className="space-y-3">
-                  <Field label="Type de client">
-                    <select className={inputCls} value={form.typeClient} onChange={(e) => set("typeClient", e.target.value)}>
-                      <option value="">— Choisir —</option>
-                      {TYPE_CLIENT_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Contacts pour RDV">
-                    <input
-                      className={inputCls}
-                      value={form.contactsRDV}
-                      onChange={(e) => set("contactsRDV", e.target.value)}
-                      placeholder="Nom + téléphone"
-                    />
-                  </Field>
-                </div>
-              </section>
-
-              {/* === Planification === */}
-              <section>
-                <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                  Planification
-                </h3>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Date de montage">
-                      <input
-                        type="date"
-                        className={inputCls}
-                        value={form.dateMontage}
-                        onChange={(e) => set("dateMontage", e.target.value)}
-                      />
-                    </Field>
-                    <Field label="Date Mesures">
-                      <input
-                        type="date"
-                        className={inputCls}
-                        value={form.dateMesures}
-                        onChange={(e) => set("dateMesures", e.target.value)}
-                      />
-                    </Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Collaborateur montage">
-                      <select className={inputCls} value={form.collaborateurs} onChange={(e) => set("collaborateurs", e.target.value)}>
-                        <option value="">— Choisir —</option>
-                        {COLLABORATEURS_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
-                        <optgroup label="Binômes">
-                          {COLLABORATEURS_BINOMES.map((b) => <option key={b} value={b}>{b}</option>)}
-                        </optgroup>
-                      </select>
-                    </Field>
-                    <Field label="Mesures par">
-                      <select className={inputCls} value={form.mesuresTraiteePar} onChange={(e) => set("mesuresTraiteePar", e.target.value)}>
-                        <option value="">— Choisir —</option>
-                        {COLLABORATEURS_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="État CMD">
-                      <select className={inputCls} value={form.etatCMD} onChange={(e) => set("etatCMD", e.target.value)}>
-                        <option value="">— Choisir —</option>
-                        {ETAT_CMD_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="État Mesures">
-                      <select className={inputCls} value={form.etatMesures} onChange={(e) => set("etatMesures", e.target.value)}>
-                        <option value="">— Choisir —</option>
-                        {ETAT_MESURES_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    </Field>
+              {erreurSchema && (
+                <div role="alert" className="flex items-start gap-2 p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-semibold">Impossible de lire les champs depuis Notion</p>
+                    <p className="text-xs mt-1 opacity-80">{erreurSchema}</p>
+                    <p className="text-xs mt-1 opacity-80">
+                      Le projet ne peut pas être créé tant que la base ne répond pas — mieux vaut
+                      attendre que fabriquer un dossier incomplet.
+                    </p>
                   </div>
                 </div>
-              </section>
+              )}
+
+              {schema && (
+                /* Les champs non saisissables sont écartés : à la création,
+                   une formule n'a rien à calculer et un bouton rien à faire. */
+                <ChampsNotion
+                  schema={schema}
+                  valeurs={valeurs}
+                  onChange={modifier}
+                  afficherLectureSeule={false}
+                />
+              )}
             </div>
 
-            {/* Footer */}
-            <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex gap-2 shrink-0 bg-white dark:bg-gray-900">
+            <div className="flex items-center gap-2 px-4 py-3 border-t border-gray-200 dark:border-gray-700 shrink-0">
               <button
-                onClick={handleClose}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                onClick={fermer}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
                 Annuler
               </button>
               <button
-                onClick={handleSubmit}
-                disabled={saving || !form.projet.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                onClick={creer}
+                disabled={envoi || !schema}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-900 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center justify-center gap-2"
               >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderPlus className="w-4 h-4" />}
-                Créer le projet
+                {envoi ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                {envoi ? "Création…" : "Créer"}
               </button>
             </div>
           </div>
         </div>,
-        document.body
+        document.body,
       )}
     </>
   );

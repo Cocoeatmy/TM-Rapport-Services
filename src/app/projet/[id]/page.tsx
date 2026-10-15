@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState, use, useCallback, type Dispatch, type SetStateAction } from "react";
 import { fileDEnvoi } from "@/lib/envoi-en-serie";
 import { createPortal } from "react-dom";
+import { FicheComplete } from "@/components/fiche-complete";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -50,6 +51,7 @@ import {
   Download,
   Banknote,
   CloudUpload,
+  Database,
 } from "lucide-react";
 // MontageChecklist supprimée (section retirée)
 import { ProjectChat } from "@/components/project-chat";
@@ -5399,6 +5401,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [savRowBusy, setSavRowBusy] = useState("");
   const [showSavCard, setShowSavCard] = useState(false);
   const [showSuiviSignalements, setShowSuiviSignalements] = useState(false); // onglet « Suivi des Signalements » repliable
+  const [showFicheComplete, setShowFicheComplete] = useState(false); // « Toutes les informations » (champs Notion)
   const [sigStatOpen, setSigStatOpen] = useState<string | null>(null); // compteur ouvert (liste détaillée) dans « Suivi des Signalements »
   // Quel type de rapport est en cours (pour n'animer que le bon bouton) :
   // "interne" (avec heures) ou "client" (sans heures).
@@ -10729,6 +10732,30 @@ function ProjectPageContent({ id }: { id: string }) {
                     );
                   })()}
                 </CardContent>}
+              </Card>
+            )}
+
+            {/* ── Toutes les informations (base Notion) ──────────────────────── */}
+            {/* Mêmes champs, mêmes sections et même ordre que « Nouveau
+                projet » : un champ ne change pas de place selon l'écran.
+                Réservé à l'administration — la base porte des montants.
+                Déplié à la demande : lire cent quarante-deux propriétés
+                coûte un aller-retour chez Notion. */}
+            {isAdmin && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <button type="button" onClick={() => setShowFicheComplete((v) => !v)} className="w-full flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-300">
+                      <Database className="w-4 h-4" />Toutes les informations
+                    </CardTitle>
+                    {showFicheComplete ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                  </button>
+                </CardHeader>
+                {showFicheComplete && (
+                  <CardContent>
+                    <FicheComplete projectId={id} />
+                  </CardContent>
+                )}
               </Card>
             )}
 
