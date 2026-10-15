@@ -54,25 +54,34 @@ export async function GET(req: NextRequest) {
         page_size: 10,
       });
     } else {
-      // Recherche par N° « AS … » dans le TITRE (propriété « Projet »). On essaie
-      // plusieurs variantes de format (avec/sans « / », espaces) et on garde la
-      // première qui donne un résultat.
-      const asM = ident.match(/AS\s*\d{4}\s*\/?\s*\d+/i);
-      const base = (asM ? asM[0] : ident).toUpperCase().replace(/\s+/g, " ").trim();
-      const variants = Array.from(new Set([
-        base,
-        base.replace(/\s*\/\s*/g, "/"),
-        base.replace(/\//g, ""),
-        base.replace(/\//g, " "),
-      ]));
+      // Recherche par N° « AS … ». Il vit normalement dans « N° Serv. Mesures
+      // Fournisseurs » (rich_text, ex. « AS 2026/2071 ») ; repli sur le TITRE
+      // (certains projets ont l'AS dans le nom). On essaie plusieurs variantes de
+      // séparateur (« / », « : », espace, collé) et on garde le 1er résultat.
+      const am = ident.toUpperCase().match(/AS\s*(\d{4})\D*(\d+)/);
+      const variants = am
+        ? Array.from(new Set([
+            ident.toUpperCase().replace(/\s+/g, " ").trim(),
+            `AS ${am[1]}/${am[2]}`, `AS ${am[1]}:${am[2]}`,
+            `AS ${am[1]}${am[2]}`, `AS ${am[1]} ${am[2]}`,
+          ]))
+        : [ident.toUpperCase().replace(/\s+/g, " ").trim()];
+      const searchProps: { name: string; kind: "rich_text" | "title" }[] = [
+        { name: "N° Serv. Mesures Fournisseurs", kind: "rich_text" },
+        { name: "Projet", kind: "title" },
+      ];
       resp = { results: [] };
-      for (const v of variants) {
-        resp = await notion.databases.query({
-          database_id: databaseId,
-          filter: { property: "Projet", title: { contains: v } },
-          page_size: 10,
-        });
-        if (resp.results?.length) break;
+      for (const spec of searchProps) {
+        let found = false;
+        for (const v of variants) {
+          resp = await notion.databases.query({
+            database_id: databaseId,
+            filter: { property: spec.name, [spec.kind]: { contains: v } } as any,
+            page_size: 10,
+          });
+          if (resp.results?.length) { found = true; break; }
+        }
+        if (found) break;
       }
     }
 
