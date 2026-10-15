@@ -1,0 +1,1360 @@
+[
+ {
+  "nom": "Éclaté produit",
+  "id": "%3A%3ApX",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos étiquette carton",
+  "id": "%3AI%3Bt",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Heure arrivée",
+  "id": "%3AVnd",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos pour signalements",
+  "id": "%3Arxa",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Soucis montage",
+  "id": "%3BSrF",
+  "type": "checkbox",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "n8n - Adresse chantier",
+  "id": "%3B_hq",
+  "type": "formula",
+  "utilise": true,
+  "options": [],
+  "formule": "if(empty(prop(\"Adresse chantier\")), \"\", prop(\"Adresse chantier\"))"
+ },
+ {
+  "nom": "Vidéo Montage",
+  "id": "%3Brbg",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Emplacement de cabine",
+  "id": "%3C%5B%5Er",
+  "type": "multi_select",
+  "utilise": true,
+  "options": [
+   "Dubat Villars-ste-Croix",
+   "Dubat Yverdon",
+   "Chez sanitaire",
+   "Getaz Bussigny",
+   "Getaz Yverdon",
+   "Dépôt TM",
+   "Sur chantier",
+   "Matway",
+   "Saneo Orbe",
+   "Sanitas Villars-sur-Glâne",
+   "Saneo Lonay",
+   "Tema La Chaux-de-Fonds",
+   "Getaz Payerne",
+   "Sylroc Diffusion SA",
+   "Saneo - Givisiez",
+   "Sanitas Neuchâtel",
+   "Bringhen Aigle",
+   "Decomat-Broye",
+   "Cabine(s) installée(s)"
+  ]
+ },
+ {
+  "nom": "Mesures traitée par",
+  "id": "%3D%5DtR",
+  "type": "multi_select",
+  "utilise": true,
+  "options": [
+   "Jacobo",
+   "Claudio",
+   "Jean-Marc",
+   "Micael",
+   "Loïc",
+   "Miguel"
+  ]
+ },
+ {
+  "nom": "Vidéos",
+  "id": "%3ED%7BQ",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "N° CMD Grossiste",
+  "id": "%3E%7BB%60",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos SAV / Retouches cabines",
+  "id": "%3E%7BEJ",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos avant montage",
+  "id": "%3E%7C%3AY",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Monteurs sous-traitance",
+  "id": "%3Fl%40K",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos localité",
+  "id": "%3FlWM",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "SAV / Retouches cabines",
+  "id": "%40IwO",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos démontage",
+  "id": "%40Qcn",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Nb. Collaborateurs montage",
+  "id": "%40b%3Eq",
+  "type": "select",
+  "utilise": true,
+  "options": [
+   "1",
+   "2",
+   "3",
+   "4"
+  ]
+ },
+ {
+  "nom": "Signature clients",
+  "id": "AFfQ",
+  "type": "url",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos numéro de Lot",
+  "id": "B%5C%5De",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos garanties",
+  "id": "CXbi",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Soucis montage facturé",
+  "id": "Cd%3D%40",
+  "type": "select",
+  "utilise": false,
+  "options": [
+   "NON",
+   "OUI"
+  ]
+ },
+ {
+  "nom": "Date - SAV clôturé le",
+  "id": "Cs%3CJ",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Divers infos chantier",
+  "id": "DB%3DQ",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Nb. de cartons",
+  "id": "DIov",
+  "type": "number",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Documents pour Montage",
+  "id": "ED%3Fy",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Sanitaire",
+  "id": "FKVP",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "28a1895b-9179-811f-b736-eca6c8e2ffb3"
+ },
+ {
+  "nom": "Rapport PDF",
+  "id": "F%60y%5B",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Arrivage TM",
+  "id": "FbOl",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Date Offre",
+  "id": "F~%40v",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Contacts Architecte",
+  "id": "G%3Adk",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "28a1895b-9179-811e-98ef-c8848571d8db"
+ },
+ {
+  "nom": "Jours Montage",
+  "id": "G%3Adz",
+  "type": "formula",
+  "utilise": false,
+  "options": [],
+  "formule": "dateBetween(prop(\"Date Montage\"), prop(\"Arrivage TM\"), \"days\")\n"
+ },
+ {
+  "nom": "n° CMD Fournisseurs",
+  "id": "G%60xx",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Date Montage",
+  "id": "H%3AIK",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Commentaires Livraisons",
+  "id": "HFet",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Interventions montage cabines",
+  "id": "Hmoh",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Séries Cabines",
+  "id": "HryA",
+  "type": "relation",
+  "utilise": false,
+  "options": [],
+  "relation": "2e21895b-9179-8042-8d1e-cc45b0c29c78"
+ },
+ {
+  "nom": "Facturations",
+  "id": "HwB~",
+  "type": "status",
+  "utilise": true,
+  "options": [
+   "En attente de rapport",
+   "A facturer",
+   "Facturé"
+  ]
+ },
+ {
+  "nom": "Commentaires Soucis montages",
+  "id": "JIOT",
+  "type": "rich_text",
+  "utilise": false,
+  "options": []
+ },
+ {
+  "nom": "Contacts Clients finaux",
+  "id": "JW%3D%3E",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "28a1895b-9179-811e-98ef-c8848571d8db"
+ },
+ {
+  "nom": "Infos - Défauts signalé",
+  "id": "J%5BhO",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Montant OFR",
+  "id": "KDMO",
+  "type": "number",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos montage terminé",
+  "id": "KD_D",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Documents SAV",
+  "id": "KJZ%3B",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Dictée vocale",
+  "id": "K%5CTy",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Coût soucis montage",
+  "id": "KkIL",
+  "type": "number",
+  "utilise": false,
+  "options": []
+ },
+ {
+  "nom": "Collaborateurs démontage",
+  "id": "L%40CM",
+  "type": "multi_select",
+  "utilise": true,
+  "options": [
+   "Claudio & Miguel",
+   "Loïc & Micael",
+   "Jean-Marc & Loïc",
+   "Miguel & Loïc",
+   "Jacobo & Loïc",
+   "Claudio & Loïc",
+   "Team TM",
+   "Claudio & Jean-Marc",
+   "Claudio & Jacobo",
+   "Claudio & Micael",
+   "Jacobo & Jean-Marc",
+   "Jacobo & Miguel",
+   "Jacobo & Micael",
+   "Jean-Marc & Miguel",
+   "Jacobo",
+   "Claudio",
+   "Jean-Marc",
+   "Micael",
+   "Loïc",
+   "Miguel",
+   "Atelier Art Home",
+   "Ferreira Micael & Claudio & Jean-Marc",
+   "Ferreira Micael",
+   "Rocha Jorge"
+  ]
+ },
+ {
+  "nom": "N° CMD TM",
+  "id": "L~l%7D",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Documents pour prise de mesures",
+  "id": "M%60%3Fa",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Commentaires SAV",
+  "id": "NS%3Ab",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Adresse chantier",
+  "id": "NZdT",
+  "type": "place",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Commentaires Montages",
+  "id": "O_Ko",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Architecte",
+  "id": "Oalv",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "28a1895b-9179-811f-b736-eca6c8e2ffb3"
+ },
+ {
+  "nom": "Photos situations",
+  "id": "OcXK",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos des cartons récéptionnés",
+  "id": "OxjZ",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Date - Soucis montage clôturé le",
+  "id": "P%3AH%5D",
+  "type": "date",
+  "utilise": false,
+  "options": []
+ },
+ {
+  "nom": "Photos soucis montage réglé",
+  "id": "PqWa",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Collaborateurs montages",
+  "id": "Q%3CdL",
+  "type": "multi_select",
+  "utilise": true,
+  "options": [
+   "Claudio & Miguel",
+   "Loïc & Micael",
+   "Jean-Marc & Loïc",
+   "Miguel & Loïc",
+   "Jacobo & Loïc",
+   "Claudio & Loïc",
+   "Team TM",
+   "Claudio & Jean-Marc",
+   "Claudio & Jacobo",
+   "Claudio & Micael",
+   "Jacobo & Jean-Marc",
+   "Jacobo & Miguel",
+   "Jacobo & Micael",
+   "Jean-Marc & Miguel",
+   "Jacobo",
+   "Claudio",
+   "Jean-Marc",
+   "Micael",
+   "Loïc",
+   "Miguel",
+   "Atelier Art Home",
+   "Ferreira Micael & Claudio & Jean-Marc",
+   "Ferreira Micael",
+   "Rocha Jorge"
+  ]
+ },
+ {
+  "nom": "Date Démontage",
+  "id": "QRFQ",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "État du montage",
+  "id": "QU%3BM",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "SAV Clôturé",
+  "id": "Qcnq",
+  "type": "checkbox",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Demande projet reçue le",
+  "id": "QpPZ",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Collaborateurs SAV cabines",
+  "id": "RNGQ",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Cause SAV cabines",
+  "id": "RR_r",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Dates CMD pièces SAV cabines",
+  "id": "Rqg%5C",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "N° Serv. CMD Fournisseurs",
+  "id": "SCul",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Contacts Locataires",
+  "id": "SCwz",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "28a1895b-9179-811e-98ef-c8848571d8db"
+ },
+ {
+  "nom": "Nb. Cabines installées",
+  "id": "S_Bx",
+  "type": "number",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Dates RDV SAV cabines",
+  "id": "TLQ%5D",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "N° OFR Fournisseurs",
+  "id": "UkI%7D",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Infos - Pièces manquantes",
+  "id": "V%5Dyf",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Monteur responsable",
+  "id": "WPLt",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "SAV",
+  "id": "XL%60d",
+  "type": "checkbox",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Jours Soucis",
+  "id": "XZ%7Cr",
+  "type": "formula",
+  "utilise": false,
+  "options": [],
+  "formule": "dateBetween(prop(\"Date - Soucis montage clôturé le\"), prop(\"Date - Soucis montage\"), \"days\")\n\n"
+ },
+ {
+  "nom": "Contacts DT",
+  "id": "ZXz_",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "28a1895b-9179-811e-98ef-c8848571d8db"
+ },
+ {
+  "nom": "Date - Soucis montage",
+  "id": "%5C%3FXQ",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Prévision livraison",
+  "id": "%5Cxu%3F",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Etat de relance",
+  "id": "%5Dy%3E%5D",
+  "type": "formula",
+  "utilise": false,
+  "options": [],
+  "formule": "if(\n  not empty(prop(\"Relance dossier\")),\n  \"🔁 Client relancé\",\n  if(\n    contains(lower(format(prop(\"État - CMD\"))), \"pas de mesure\"),\n    \"✅ OK\",\n    if(\n      and(\n        contains(lower(format(prop(\"État - CMD\"))), \"cabine\"),\n        contains(lower(format(prop(\"État - CMD\"))), \"mesur\")\n      ),\n      if(\n        empty(prop(\"Mesures traitée le\")),\n        \"❓ Date manquante\",\n        if(\n          dateBetween(now(), dateStart(prop(\"Mesures traitée le\")), \"days\") >= 30,\n          \"⚠️ Relancer client\",\n          \"✅ OK\"\n        )\n      ),\n      \"✅ OK\"\n    )\n  )\n)\n"
+ },
+ {
+  "nom": "Commentaires Mesures",
+  "id": "%5E_bK",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos mesures",
+  "id": "%5EjkM",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Date Mesures reçue le",
+  "id": "_%5DfB",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "N° Serv. Mesures Fournisseurs",
+  "id": "_i%40%40",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Heure départ",
+  "id": "%60afc",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "État - Soucis Montage",
+  "id": "%60hRv",
+  "type": "status",
+  "utilise": false,
+  "options": [
+   "Aucun Soucis Montage",
+   "A traiter",
+   "Contact sans réponse",
+   "Attente news",
+   "En cours de traitement",
+   "Cabine en CMD",
+   "Réceptionné - RDV à fixer",
+   "RDV Fixé",
+   "Terminé"
+  ]
+ },
+ {
+  "nom": "Dates réception pièces SAV cabines",
+  "id": "a%5DgH",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Cause Soucis montages",
+  "id": "bDjv",
+  "type": "select",
+  "utilise": true,
+  "options": [
+   "Erreur Grossistes",
+   "Erreur Clients",
+   "Erreur Kermi",
+   "Erreur Ronal",
+   "Erreur Nelo",
+   "Erreur Koralle",
+   "Erreur Duscholux",
+   "Erreur Duka",
+   "Erreur TM",
+   "Erreur Sanitaire",
+   "Erreur DT",
+   "Erreur Sanitas Troesch",
+   "Erreur Megius"
+  ]
+ },
+ {
+  "nom": "Arrivage Grossiste",
+  "id": "b%5DXD",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "N° OFR TM",
+  "id": "d~JD",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "N° CMD TM - Usine",
+  "id": "eoL_",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "A facturer",
+  "id": "fN%3AR",
+  "type": "button",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos - Défauts signalé",
+  "id": "f%7DhF",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Soucis montages clôturé",
+  "id": "g~De",
+  "type": "checkbox",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "État des cartons réceptionnés",
+  "id": "h%3DAM",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos - Pièces manquante",
+  "id": "hwNZ",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "n8n Séries Cabines",
+  "id": "iCWl",
+  "type": "multi_select",
+  "utilise": true,
+  "options": [
+   "Acqua 5000",
+   "Bella Vita 3 Plus",
+   "Dukessa 3000",
+   "Easy",
+   "Easy Pro",
+   "Libra",
+   "Multi-S 4000",
+   "Natura 4000",
+   "Libero 3000",
+   "Optima 6",
+   "Optima 400",
+   "Prima 2000",
+   "S300",
+   "S400",
+   "S400Plus",
+   "S500Plus",
+   "Solino",
+   "Stila 2000",
+   "Twiggy Top",
+   "X88",
+   "Amalia",
+   "Libero 5000",
+   "X77",
+   "Air 2",
+   "Bella Vita 3",
+   "ProCasa Cinque",
+   "S404Plus",
+   "Primo",
+   "Emotion",
+   "Divera",
+   "Grande",
+   "Cadura",
+   "Steam",
+   "ProCasa TRE",
+   "ProCasa UNO",
+   "Ligth",
+   "GLAX2 R",
+   "Open 6",
+   "Gallery 3000",
+   "Unico",
+   "Acrux",
+   "Walk-in Easy",
+   "Rubin",
+   "S606Plus",
+   "Libero 4000",
+   "Liga",
+   "stila",
+   "S600Plus",
+   "Collections 2 Plus",
+   "Libero 2000",
+   "Saneostar Walk-in",
+   "Alterna Lin.3",
+   "Alterna Liva",
+   "Air 3",
+   "Alterna Primo",
+   "Viva",
+   "Iris Comby",
+   "Pura 5000",
+   "Elegance Design",
+   "GLAX 2A",
+   "More Live",
+   "S6",
+   "Arelia",
+   "Alpha 2.0",
+   "S505Plus",
+   "Walk-in PUR",
+   "Multi 3000",
+   "Avant",
+   "S707Plus",
+   "Aurora 4",
+   "Top-Line S",
+   "Alterna Costa",
+   "Young 1",
+   "Saneostar",
+   "Kuadra 2.0",
+   "Riga",
+   "ZEN",
+   "Opera 2A",
+   "Optima 6 Plus",
+   "Lunes G",
+   "EX209",
+   "NP",
+   "Edition",
+   "Lunes A",
+   "HP HART",
+   "lin.3",
+   "Link",
+   "Harmony Cloud",
+   "Vega",
+   "Elegance Rain",
+   "BN Design",
+   "Supersintesi",
+   "Supra Top",
+   "Oriana",
+   "7200",
+   "Optima 300",
+   "Open 8",
+   "S808Plus",
+   "Alpha 501",
+   "Glax 1 2P",
+   "America Quattro",
+   "Walk-in 10mm",
+   "Imperium"
+  ]
+ },
+ {
+  "nom": "Date - SAV reçu le",
+  "id": "iFOH",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Journal des échanges",
+  "id": "iof%3D",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Date RDV - Garantie",
+  "id": "jhRN",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Nb. Cabines",
+  "id": "js%3E%3D",
+  "type": "number",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Type de client",
+  "id": "lVv%3A",
+  "type": "select",
+  "utilise": true,
+  "options": [
+   "Fournisseurs",
+   "Entreprise générales",
+   "Architecte",
+   "Client finaux",
+   "Grossistes",
+   "Sanitaires",
+   "Gérances Immo",
+   "Promoteur",
+   "Carreleur",
+   "Menuiserie"
+  ]
+ },
+ {
+  "nom": "Date - RDV SAV",
+  "id": "l_tE",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "n8n Fournisseurs",
+  "id": "mF%3CT",
+  "type": "multi_select",
+  "utilise": true,
+  "options": [
+   "Duka.ch",
+   "Bekon-Koralle AG",
+   "Duscholux AG",
+   "Nelo GmbH",
+   "Artweger",
+   "Ronal",
+   "Novellini",
+   "Samo",
+   "GME",
+   "Hüppe",
+   "inda",
+   "Kemi",
+   "megius",
+   "Vitrerie David Sàrl",
+   "Relax",
+   "Kermi",
+   "Fonsegrive GmbH",
+   "Galaxus",
+   "Maw by Geo",
+   "nelo",
+   "Bernstein",
+   "VismaraVetro",
+   "Arblu",
+   "TM Douche"
+  ]
+ },
+ {
+  "nom": "Type de services",
+  "id": "mKSH",
+  "type": "multi_select",
+  "utilise": true,
+  "options": [
+   "Mesures",
+   "Démontage",
+   "Montages",
+   "Services",
+   "SAV",
+   "Livraison"
+  ]
+ },
+ {
+  "nom": "Cause SAV",
+  "id": "o%3EtO",
+  "type": "select",
+  "utilise": true,
+  "options": [
+   "Erreur Grossistes",
+   "Erreur Clients",
+   "Erreur Kermi",
+   "Erreur Ronal",
+   "Erreur Nelo",
+   "Erreur Koralle",
+   "Erreur Duscholux",
+   "Erreur Duka",
+   "Erreur TM",
+   "Erreur Sanitaire",
+   "Erreur DT",
+   "Erreur Sanitas Troesch",
+   "Dégâts par client",
+   "Erreur Vitrerie-Serrurerie Rocha",
+   "Erreur Aqua Pro Montage Sàrl",
+   "Erreur Novellini"
+  ]
+ },
+ {
+  "nom": "Collaborateurs SAV",
+  "id": "oXOz",
+  "type": "select",
+  "utilise": true,
+  "options": [
+   "Team TM",
+   "Claudio & Jean-Marc",
+   "Claudio & Jacobo",
+   "Jacobo & Jean-Marc",
+   "Fontan Casas Jacobo",
+   "Zanutto Claudio",
+   "Nelzi Jean-Marc",
+   "Ferreira Micael",
+   "Jacob & Micael",
+   "Claudio & Micael",
+   "Miguel",
+   "Miguel & Jean-Marc",
+   "Loïc Schiro"
+  ]
+ },
+ {
+  "nom": "Date CMD - Usine",
+  "id": "om%5B%3F",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Commentaires interne",
+  "id": "peC%3F",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Relance dossier",
+  "id": "qBKn",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Jours pour mesures",
+  "id": "rb%5Df",
+  "type": "formula",
+  "utilise": false,
+  "options": [],
+  "formule": "dateBetween(prop(\"Mesures traitée le\"), prop(\"Demande projet reçue le\"), \"days\")\n"
+ },
+ {
+  "nom": "Finalisé",
+  "id": "t%3Fye",
+  "type": "button",
+  "utilise": false,
+  "options": []
+ },
+ {
+  "nom": "Offre TM",
+  "id": "tH%3El",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "N° OFR Grossiste",
+  "id": "uEUY",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Mesures traitée le",
+  "id": "vFpd",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Photos QR Code",
+  "id": "vhWu",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Nom chantier",
+  "id": "vsn%3C",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Heure départ SAV",
+  "id": "wNnn",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Bon de livraison",
+  "id": "xK%3E%3C",
+  "type": "files",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Fichiers soucis montages",
+  "id": "xPJ%5D",
+  "type": "files",
+  "utilise": false,
+  "options": []
+ },
+ {
+  "nom": "Grossistes",
+  "id": "xTLL",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "2d11895b-9179-80a1-a202-fa866102e0e5"
+ },
+ {
+  "nom": "Rapport monteur",
+  "id": "x%60d%3C",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Contacts Sanitaire",
+  "id": "y%40%3AT",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "28a1895b-9179-811e-98ef-c8848571d8db"
+ },
+ {
+  "nom": "Explications travaux exécuté",
+  "id": "y_%5EA",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "État - SAV",
+  "id": "y%7B%3Cn",
+  "type": "status",
+  "utilise": true,
+  "options": [
+   "Aucun SAV",
+   "A contacter",
+   "Contact sans réponse",
+   "Attente news",
+   "En cours de traitement",
+   "RDV Fixé",
+   "Terminé"
+  ]
+ },
+ {
+  "nom": "Contact Grossiste",
+  "id": "zX%5Em",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "28a1895b-9179-811e-98ef-c8848571d8db"
+ },
+ {
+  "nom": "Heure arrivée SAV",
+  "id": "z%60D%60",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Collaborateur Garantie",
+  "id": "%7BYAC",
+  "type": "select",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "DT",
+  "id": "%7B%7BSy",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "28a1895b-9179-811f-b736-eca6c8e2ffb3"
+ },
+ {
+  "nom": "Contacts Autres",
+  "id": "%7Clyl",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "28a1895b-9179-811e-98ef-c8848571d8db"
+ },
+ {
+  "nom": "Montages clôturé",
+  "id": "%7Cv%40h",
+  "type": "button",
+  "utilise": false,
+  "options": []
+ },
+ {
+  "nom": "Rapport de montage",
+  "id": "%7D%3ErR",
+  "type": "status",
+  "utilise": true,
+  "options": [
+   "En attente de montage",
+   "A traiter",
+   "Rapport traité"
+  ]
+ },
+ {
+  "nom": "Collaborateurs soucis montage",
+  "id": "%7D%5B%3B%3D",
+  "type": "multi_select",
+  "utilise": false,
+  "options": [
+   "Jean-Marc Nelzi",
+   "Jacobo Fontan Casas",
+   "Claudio Zanutto",
+   "Jacobo & Jean-Marc",
+   "Team",
+   "Jean-Marc & Miguel",
+   "Loïc",
+   "Claudio & Jacobo",
+   "Jacobo",
+   "Jacobo & Miguel"
+  ]
+ },
+ {
+  "nom": "Contacts pour RDV",
+  "id": "%7DnJv",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Interventions SAV cabines",
+  "id": "%7DzKC",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "État - Mesures",
+  "id": "~%3AY%5B",
+  "type": "status",
+  "utilise": true,
+  "options": [
+   "Pas contacté",
+   "Contact sans réponse",
+   "OFR envoyée sans mesures",
+   "Mesures non relevées - attendre news",
+   "RDV - Fixé",
+   "RDV - Attendre news",
+   "Mesures partielles",
+   "Mesures relevées - attente news",
+   "Annulé",
+   "Projet sans mesures",
+   "Terminé"
+  ]
+ },
+ {
+  "nom": "Lot (nom de cabine)",
+  "id": "~H%7CD",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Fournisseurs",
+  "id": "~ky%3F",
+  "type": "relation",
+  "utilise": true,
+  "options": [],
+  "relation": "2d11895b-9179-807b-988d-f489cfdc469d"
+ },
+ {
+  "nom": "Dates SAV clôturé cabines",
+  "id": "~x%5Bu",
+  "type": "rich_text",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Projet",
+  "id": "title",
+  "type": "title",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Personne assignée",
+  "id": "notion%3A%2F%2Ftasks%2Fassign_property",
+  "type": "people",
+  "utilise": false,
+  "options": []
+ },
+ {
+  "nom": "État - CMD",
+  "id": "notion%3A%2F%2Ftasks%2Fstatus_property",
+  "type": "status",
+  "utilise": true,
+  "options": [
+   "En attente de mesures",
+   "Cabines mesurées",
+   "OFR envoyées sans mesures",
+   "Cabines en CMD",
+   "Cabines à recevoir",
+   "Livraison partielle",
+   "Soucis livraison",
+   "Cabine à aller chercher",
+   "Récéptionné - RDV à fixer",
+   "RDV - fixé",
+   "RDV - Attendre news",
+   "Montage partiel",
+   "Soucis montage",
+   "Annulé",
+   "Terminé"
+  ]
+ },
+ {
+  "nom": "CMD reçue le",
+  "id": "notion%3A%2F%2Ftasks%2Fdue_date_property",
+  "type": "date",
+  "utilise": true,
+  "options": []
+ },
+ {
+  "nom": "Priorité",
+  "id": "notion%3A%2F%2Ftasks%2Fpriority_property",
+  "type": "select",
+  "utilise": true,
+  "options": [
+   "Basse",
+   "Normal",
+   "Haute"
+  ]
+ }
+]

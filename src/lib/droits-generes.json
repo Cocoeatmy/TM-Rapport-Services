@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-15T22:20:40.640Z",
+  "genereLe": "2026-10-15T22:35:56.617Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -743,6 +743,26 @@
       ]
     },
     {
+      "url": "/api/notion/relations",
+      "type": "api",
+      "fichier": "src/app/api/notion/relations/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/notion/schema",
+      "type": "api",
+      "fichier": "src/app/api/notion/schema/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
       "url": "/api/paiements-fournisseurs",
       "type": "api",
       "fichier": "src/app/api/paiements-fournisseurs/route.ts",
@@ -883,6 +903,17 @@
       ]
     },
     {
+      "url": "/api/projects/[id]/champs",
+      "type": "api",
+      "fichier": "src/app/api/projects/[id]/champs/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
       "url": "/api/projects/[id]/comments",
       "type": "api",
       "fichier": "src/app/api/projects/[id]/comments/route.ts",
@@ -931,6 +962,16 @@
       "gardePage": false,
       "methodes": [
         "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/creer",
+      "type": "api",
+      "fichier": "src/app/api/projects/creer/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "POST"
       ]
     },
     {
