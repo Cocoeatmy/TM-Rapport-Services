@@ -4,6 +4,11 @@ import { verifyToken } from "@/lib/auth";
 import { getData, getDataFresh, setData } from "@/lib/kv-store";
 import { notion } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
+import { redisEnabled, redisLockAcquire, redisLockRelease } from "@/lib/redis-cache";
+import {
+  empreinteSignalement, rejeuDe, pierreTombaleDe, purgerPierresTombales,
+  type PierreTombale,
+} from "@/lib/signalement-integrite";
 
 interface DefautComment {
   user: string;
@@ -37,6 +42,41 @@ interface DefautRequest {
 }
 
 const KEY = "defauts";
+/** Les suppressions dont on garde la trace, pour qu'elles tiennent. */
+const KEY_TOMBES = "defauts-supprimes";
+
+/**
+ * Un seul serveur à la fois sur la liste des signalements.
+ *
+ * Chaque écriture relit la liste ENTIÈRE et la réécrit. Deux serveurs qui
+ * s'en occupent en même temps lisent le même état de départ, et le second
+ * efface le travail du premier : une suppression annulée par un ajout, un
+ * ajout annulé par une suppression. Le verrou existant dans kv-store ne vaut
+ * que dans un seul processus — or Vercel en lance autant qu'il veut.
+ *
+ * Si Redis n'est pas joignable, on travaille sans : mieux vaut un risque de
+ * collision qu'un signalement refusé.
+ */
+const VERROU = "lock:defauts";
+async function avecVerrou<T>(faire: () => Promise<T>): Promise<T> {
+  const jeton = redisEnabled ? await redisLockAcquire(VERROU, 30_000) : null;
+  try {
+    return await faire();
+  } finally {
+    if (jeton) await redisLockRelease(VERROU, jeton).catch(() => {});
+  }
+}
+
+async function lireTombes(): Promise<PierreTombale[]> {
+  try {
+    return await getDataFresh<PierreTombale>(KEY_TOMBES);
+  } catch {
+    /* Pas de trace des suppressions : on continue sans. Le pire qui puisse
+       arriver est qu'un rejeu recrée un signalement effacé — visible, et
+       rattrapable — alors que refuser l'enregistrement perdrait une saisie. */
+    return [];
+  }
+}
 
 export async function GET(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
@@ -62,6 +102,10 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
+  return avecVerrou(() => enregistrer(body, user.name));
+}
+
+async function enregistrer(body: Partial<DefautRequest>, nomUtilisateur: string) {
   /* Lecture FRAÎCHE avant d'écrire : on réécrit la LISTE ENTIÈRE, donc partir
      d'une copie en cache ferait perdre toute modification enregistrée depuis
      moins d'une minute par une autre instance. En cas d'erreur Notion on
@@ -70,33 +114,48 @@ export async function POST(request: NextRequest) {
      côté, la fiche du chantier de l'autre — et chacune est un aller-retour
      chez Notion. Les enchaîner, puis enchaîner encore les deux écritures,
      faisait quatre attentes bout à bout pour un simple signalement. */
-  const [resListe, resPage] = await Promise.allSettled([
-    getDataFresh<DefautRequest>(KEY),
-    body.projectId
-      ? notion.pages.retrieve({ page_id: body.projectId })
-      : Promise.resolve(null),
+  const [resListe, resPage, tombes] = await Promise.all([
+    Promise.allSettled([getDataFresh<DefautRequest>(KEY)]).then((r) => r[0]),
+    Promise.allSettled([
+      body.projectId ? notion.pages.retrieve({ page_id: body.projectId }) : Promise.resolve(null),
+    ]).then((r) => r[0]),
+    lireTombes(),
   ]);
   if (resListe.status === "rejected") {
     return NextResponse.json({ error: "Notion indisponible, réessayez" }, { status: 503 });
   }
   const defauts: DefautRequest[] = resListe.value;
   const pageProjet = resPage.status === "fulfilled" ? resPage.value : null;
-  /* ANTI-DOUBLON. Le client fabrique l'identifiant et le renvoie à chaque
-     tentative : une requête lente coupée au bout de quelques secondes repart
-     dans la file et revient ici, alors que la première avait abouti. Sans ce
-     garde-fou, un seul signalement s'inscrivait deux ou trois fois —
-     constaté le 16 octobre 2026, trois exemplaires par douche. */
-  const idClient = typeof body.id === "string" && body.id.trim() ? body.id.trim() : "";
-  if (idClient) {
-    const deja = defauts.find((x) => x.id === idClient);
-    if (deja) return NextResponse.json({ success: true, deja: true, defaut: deja });
+  const maintenant = Date.now();
+
+  /* GARDE-FOU 1 — EST-CE DÉJÀ ENREGISTRÉ ?
+     L'enregistrement dure plus longtemps que les vingt-cinq secondes que le
+     téléphone accorde : il croit l'envoi perdu, le range dans sa file et le
+     rejoue, alors que le premier avait abouti. Douze inscriptions pour un
+     constat, le 15 octobre 2026. Les règles — identifiant, photos
+     identiques, contenu récent — sont dans lib/signalement-integrite. */
+  const rejeu = rejeuDe(defauts, { ...body, timestamp: maintenant }, maintenant);
+  if (rejeu) {
+    return NextResponse.json({ success: true, deja: true, motif: rejeu.motif, defaut: rejeu.existant });
   }
+
+  /* GARDE-FOU 2 — A-T-IL ÉTÉ EFFACÉ ?
+     Effacer un signalement ne vide pas la file du téléphone : le rejeu
+     suivant le recréait. C'est ce qui faisait MONTER le compteur pendant
+     qu'on supprimait. On répond que c'est fait — la file se vide — et on
+     n'inscrit rien. */
+  const tombe = pierreTombaleDe(tombes, body);
+  if (tombe) {
+    return NextResponse.json({ success: true, supprime: true, quand: tombe.quand });
+  }
+
+  const idClient = typeof body.id === "string" && body.id.trim() ? body.id.trim() : "";
   defauts.push({
-    ...body,
+    ...(body as DefautRequest),
     id: idClient || Math.random().toString(36).slice(2),
-    user: user.name,
+    user: nomUtilisateur,
     status: "signale",
-    timestamp: Date.now(),
+    timestamp: maintenant,
     comments: [],
     // Si le client n'a pas envoyé le flag, on considère que oui (par défaut
     // on affiche dans le rapport, c'est le comportement attendu).
@@ -109,7 +168,7 @@ export async function POST(request: NextRequest) {
       const now = new Date();
       const dateStr = `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`;
       const typesStr = Array.isArray(body.types) ? body.types.join(", ") : (body.typesLabel || "-");
-      const summary = `Types: ${typesStr} | Description: ${body.description || "-"} | Par: ${user.name} | Date: ${dateStr}`;
+      const summary = `Types: ${typesStr} | Description: ${body.description || "-"} | Par: ${nomUtilisateur} | Date: ${dateStr}`;
 
       const page = pageProjet;
       const existingText = (page as any).properties["Infos - Défauts signalé"]?.rich_text?.map((t: any) => t.plain_text).join("") || "";
@@ -122,7 +181,8 @@ export async function POST(request: NextRequest) {
       };
 
       // Add photos if present → colonne UNIFIÉE « Photos pour signalements ».
-      if (body.photoUrls?.length > 0) {
+      const photos = body.photoUrls || [];
+      if (photos.length > 0) {
         const existingFiles = (page as any).properties["Photos pour signalements"]?.files || [];
         /* Chaque fichier repart sous le type que Notion lui connaît : une photo
            déposée à la main dans la fiche est hébergée par Notion, qui refuse
@@ -136,7 +196,7 @@ export async function POST(request: NextRequest) {
           .filter((f: any) => f.url)
           .map((f: any) => descripteurFichier(f.nom, f.url));
 
-        const newFiles = body.photoUrls.map((url: string, i: number) => ({
+        const newFiles = photos.map((url: string, i: number) => ({
           type: "external" as const,
           name: `defaut-${dateStr}-${i + 1}.jpg`,
           external: { url },
@@ -169,6 +229,10 @@ export async function DELETE(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
 
+  return avecVerrou(() => effacer(id, user.name));
+}
+
+async function effacer(id: string, nomUtilisateur: string) {
   /* Lecture FRAÎCHE avant d'écrire : on réécrit la LISTE ENTIÈRE, donc partir
      d'une copie en cache ferait perdre toute modification enregistrée depuis
      moins d'une minute par une autre instance. En cas d'erreur Notion on
@@ -181,6 +245,31 @@ export async function DELETE(request: NextRequest) {
   }
   const defaut = defauts.find((d) => d.id === id);
   const updated = defauts.filter((d) => d.id !== id);
+
+  /* LA TRACE DE LA SUPPRESSION.
+     Sans elle, effacer ne suffisait pas : le téléphone garde sa demande tant
+     qu'il n'a pas reçu d'accusé de réception, et le rejeu suivant recréait
+     le signalement. On écrit donc ce qu'on vient d'effacer, et le POST s'y
+     réfère avant d'inscrire quoi que ce soit.
+
+     Si cette écriture échoue, la suppression a tout de même lieu : perdre la
+     trace fait au pire revenir une ligne, qu'on voit et qu'on efface à
+     nouveau. Refuser la suppression, lui, ne réglerait rien. */
+  const poserLaPierre = async () => {
+    if (!defaut) return;
+    try {
+      const avant = await lireTombes();
+      const tombe: PierreTombale = {
+        id: defaut.id,
+        empreinte: empreinteSignalement(defaut),
+        quand: Date.now(),
+        par: nomUtilisateur,
+      };
+      await setData(KEY_TOMBES, [...purgerPierresTombales(avant, Date.now()), tombe]);
+    } catch (err) {
+      console.error("[defauts] trace de suppression non enregistrée:", err);
+    }
+  };
 
   /* Les deux écritures sont indépendantes — la liste d'un côté, le texte de
      la fiche de l'autre — et chacune prend plusieurs secondes chez Notion.
@@ -208,7 +297,7 @@ export async function DELETE(request: NextRequest) {
     }
   }
   };
-  await Promise.all([setData(KEY, updated), majFiche()]);
+  await Promise.all([setData(KEY, updated), majFiche(), poserLaPierre()]);
 
   return NextResponse.json({ success: true });
 }
@@ -220,6 +309,13 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
+  /* Une modification relit et réécrit la liste ENTIÈRE, comme les autres :
+     sans le même verrou, elle écraserait une création ou une suppression
+     faite au même instant par un autre serveur. */
+  return avecVerrou(() => modifier(body, user.name));
+}
+
+async function modifier(body: Partial<DefautRequest> & { comment?: string }, nomUtilisateur: string) {
   const { id, status, comment, displayInRapport, description, resolved, cabineLabel, photoUrls, types, typesLabel, cabineIdx} = body;
   // Lecture FRAÎCHE (bypass cache) : évite qu'une instance au cache périmé ne
   // trouve pas le défaut (→ 404 silencieux) ou n'écrase des modifications
@@ -235,7 +331,7 @@ export async function PATCH(request: NextRequest) {
 
   if (comment) {
     if (!defauts[idx].comments) defauts[idx].comments = [];
-    defauts[idx].comments.push({ user: user.name, message: comment, timestamp: Date.now() });
+    defauts[idx].comments.push({ user: nomUtilisateur, message: comment, timestamp: Date.now() });
   }
   if (status) defauts[idx].status = status;
   if (typeof displayInRapport === "boolean") defauts[idx].displayInRapport = displayInRapport;

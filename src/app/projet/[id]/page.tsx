@@ -2002,7 +2002,16 @@ function DefautsList({ projectId, refreshKey, cabineLabel, cabineIdx, project, s
         /* Une relecture lancée pendant qu'un effacement se termine renverrait
            la ligne qu'on vient de retirer : on l'écarte jusqu'à ce que le
            serveur l'ait vraiment oubliée. */
-        if (Array.isArray(data)) setDefauts(data.filter((d: Defaut) => !supprimesRef.current.has(d.id)));
+        /* Le compteur annonce le nombre de signalements : il doit dire la
+           vérité. On écarte ce qu'on vient d'effacer, et on ne compte
+           jamais deux fois le même identifiant — une liste réécrite en
+           entier à chaque écriture peut, le temps d'un enregistrement
+           interrompu, contenir deux fois la même ligne. */
+        if (Array.isArray(data)) {
+          const vus = new Set<string>();
+          setDefauts(data.filter((d: Defaut) =>
+            !supprimesRef.current.has(d.id) && !vus.has(d.id) && vus.add(d.id)));
+        }
       }
     } catch {} finally { setLoaded(true); }
   }, [projectId]);
