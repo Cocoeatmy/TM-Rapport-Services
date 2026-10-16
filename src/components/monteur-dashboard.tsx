@@ -7609,7 +7609,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         /* Les deux listes SAV se lisent de la même façon : colonne « SAV »,
            pastilles par cabine, totaux par groupe. Seul le choix des lignes
            les distingue. */
-        const vueSav = showSummaryPanel === "rdv-sav-a-fixer" || showSummaryPanel === "sav-ouverts";
+        const vueSav = showSummaryPanel === "rdv-sav-a-fixer" || showSummaryPanel === "sav-ouverts" || showSummaryPanel === "rdv-sav-fixe";
         let rdvStatusOptions: string[] = [];
         let rdvHiddenCount = 0;
         const rdvTotalCount = panelProjects.length;
@@ -8800,7 +8800,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       ? "bg-white/60 dark:bg-slate-800/40"
                       : "bg-blue-50/40 dark:bg-blue-950/15";
                     const bestLogo = getBestLogo(p.projet, p.fournisseurs || []);
-                    const isRdvAFixerPanel = ["rdv-montage-a-fixer", "rdv-mesures-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer", "sav-ouverts"].includes(showSummaryPanel || "");
+                    const isRdvAFixerPanel = ["rdv-montage-a-fixer", "rdv-mesures-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer", "sav-ouverts", "rdv-montage-fixe", "rdv-mesures-fixe", "rdv-services-fixe", "rdv-sav-fixe"].includes(showSummaryPanel || "");
                     const rdvIsMes = showSummaryPanel === "rdv-mesures-a-fixer";
                     const rdvIsSav = vueSav;
                     // SAV : J+x = jours depuis la RÉCEPTION du SAV (pas le montage).
