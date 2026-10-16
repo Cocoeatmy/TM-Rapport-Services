@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { FicheComplete } from "@/components/fiche-complete";
 import { etatSavAffiche } from "@/lib/sav-cabines";
 import { repriseDepuisHeures } from "@/lib/sav-passages-reprise";
+import { departAvantArrivee, MESSAGE_DEPART_AVANT, MESSAGE_ARRIVEE_APRES } from "@/lib/heures-coherentes";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -400,10 +401,18 @@ function InterventionsLot({
                 </div>
                 <div>
                   <span className="text-[11px] text-gray-500 dark:text-gray-400">Heure d&apos;arrivée</span>
+                  {/* Le départ était contrôlé, l'arrivée jamais : il
+                      suffisait de remplir les deux champs dans l'autre
+                      ordre pour repartir avant d'arriver. */}
                   <input
                     type="time"
                     value={it.arrivee}
-                    onChange={(e) => modifier(i, "arrivee", e.target.value)}
+                    max={it.depart || undefined}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (departAvantArrivee(v, it.depart)) { toast.error(MESSAGE_ARRIVEE_APRES); return; }
+                      modifier(i, "arrivee", v);
+                    }}
                     className="mt-0.5 block w-full h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
                   />
                 </div>
@@ -415,7 +424,7 @@ function InterventionsLot({
                     min={it.arrivee || undefined}
                     onChange={(e) => {
                       const v = e.target.value;
-                      if (v && it.arrivee && v < it.arrivee) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
+                      if (departAvantArrivee(it.arrivee, v)) { toast.error(MESSAGE_DEPART_AVANT); return; }
                       modifier(i, "depart", v);
                     }}
                     className="mt-0.5 block w-full h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
@@ -6094,7 +6103,12 @@ function ProjectPageContent({ id }: { id: string }) {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs">Arrivée</Label>
-                <Input type="time" value={entry.arrivee} onChange={(e) => onUpdate(idx, "arrivee", e.target.value)}
+                <Input type="time" value={entry.arrivee} max={entry.depart || undefined}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (departAvantArrivee(v, entry.depart)) { toast.error(MESSAGE_ARRIVEE_APRES); return; }
+                    onUpdate(idx, "arrivee", v);
+                  }}
                   className="mt-0.5 h-10 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100" />
               </div>
               <div>
@@ -6102,7 +6116,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 <Input type="time" value={entry.depart} min={entry.arrivee || undefined}
                   onChange={(e) => {
                     const v = e.target.value;
-                    if (v && entry.arrivee && v < entry.arrivee) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
+                    if (departAvantArrivee(entry.arrivee, v)) { toast.error(MESSAGE_DEPART_AVANT); return; }
                     onUpdate(idx, "depart", v);
                   }}
                   className="mt-0.5 h-10 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100" />
@@ -10465,7 +10479,13 @@ function ProjectPageContent({ id }: { id: string }) {
                             <Input
                               type="time"
                               value={entry.arrivee}
-                              onChange={(e) => { if (refuse()) return; updatePointage(idx, "arrivee", e.target.value); }}
+                              max={entry.depart || undefined}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (refuse()) return;
+                                if (departAvantArrivee(v, entry.depart)) { toast.error(MESSAGE_ARRIVEE_APRES); return; }
+                                updatePointage(idx, "arrivee", v);
+                              }}
                               className="mt-0.5 h-10 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100"
                             />
                           </div>
@@ -10478,8 +10498,8 @@ function ProjectPageContent({ id }: { id: string }) {
                               onChange={(e) => {
                                 const v = e.target.value;
                                 if (refuse()) return;
-                                if (v && entry.arrivee && v < entry.arrivee) {
-                                  toast.error("L'heure de départ ne peut pas être avant l'arrivée.");
+                                if (departAvantArrivee(entry.arrivee, v)) {
+                                  toast.error(MESSAGE_DEPART_AVANT);
                                   return;
                                 }
                                 updatePointage(idx, "depart", v);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifierHeuresEntrantes, toucheDesHeures, COUPLES_HEURES } from "@/lib/heures-coherentes";
 import { getProject, updateProject } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache, publierSnapshot } from "@/lib/server-cache";
 import { redisGetJSON } from "@/lib/redis-cache";
@@ -349,6 +350,9 @@ export async function PATCH(
       body.dateSAVRecu !== undefined ||
       hasClear;
 
+    /* La fiche telle qu'elle est en base : il faut la connaître pour juger
+       une arrivée envoyée seule, sans son départ. */
+    let existantPourHeures: Record<string, unknown> | null = null;
     if (needsMerge) {
       invalidateCache(`project-${id}`);
       let existing: any;
@@ -357,6 +361,7 @@ export async function PATCH(
       } catch {
         existing = null;
       }
+      existantPourHeures = existing as Record<string, unknown> | null;
       if (existing) {
         // État sous-traitance résultant (existant + delta entrant) : sert à
         // traiter les heures des cabines sous-traitées comme « vidables ».
@@ -454,6 +459,32 @@ export async function PATCH(
     // Ne pas transmettre ces champs de contrôle à updateProject.
     delete body.clearAttributionCabs;
     delete body.nomsCabinesForces;
+
+    /* ── UN DÉPART NE PRÉCÈDE PAS UNE ARRIVÉE ───────────────────────────
+       Le 16 octobre 2026, un rapport est parti chez le client en annonçant
+       une équipe arrivée à 9 h 00 et repartie à 8 h 52. Les écrans
+       contrôlaient le champ DÉPART ; il suffisait de remplir les deux
+       champs dans l'autre ordre pour les contourner.
+
+       Le contrôle est donc ici aussi : c'est le seul endroit que TOUS les
+       chemins traversent — les trois éditeurs, le minuteur, et la file
+       d'attente hors ligne, qui rejoue des saisies faites sans écran. */
+    if (toucheDesHeures(body)) {
+      /* On ne relit la fiche que si l'écriture ne porte qu'un côté du
+         couple : avec les deux, le jugement se fait sans aller-retour. */
+      let reference = existantPourHeures;
+      const partiel = COUPLES_HEURES.some(([a, d]) =>
+        (body[a] !== undefined) !== (body[d] !== undefined));
+      if (!reference && partiel) {
+        try {
+          reference = (await cachedOrFetch(`project-${id}`, () => getProject(id))) as unknown as Record<string, unknown>;
+        } catch {
+          reference = null;
+        }
+      }
+      const refus = verifierHeuresEntrantes(body, reference);
+      if (refus) return NextResponse.json({ error: refus }, { status: 400 });
+    }
 
     await updateProject(id, body);
     // Invalider le cache après mise à jour

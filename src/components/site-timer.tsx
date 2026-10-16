@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Clock, Play, Square } from "lucide-react";
 import { toast } from "sonner";
+import { departAvantArrivee, MESSAGE_DEPART_AVANT, MESSAGE_ARRIVEE_APRES } from "@/lib/heures-coherentes";
 
 interface SiteTimerProps {
   projectId: string;
@@ -122,6 +123,14 @@ export function SiteTimer({ projectId, heureArrivee, heureDepart, onArrival, onD
   // STOP: set départ + stop chrono
   const handleStop = () => {
     const time = getCurrentTime();
+    /* L'heure du moment peut précéder une arrivée saisie à la main — ou
+       posée pour plus tard. Le minuteur n'y regardait pas, et c'est l'un
+       des chemins par lesquels « arrivée 09:00, départ 08:52 » est parti
+       chez le client. */
+    if (departAvantArrivee(localArrivee, time)) {
+      toast.error(`${MESSAGE_DEPART_AVANT} Corrigez l'heure d'arrivée d'abord.`, { duration: 8000 });
+      return;
+    }
     setRunning(false);
     setLocalDepart(time);
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -132,6 +141,13 @@ export function SiteTimer({ projectId, heureArrivee, heureDepart, onArrival, onD
 
   // Manual arrivée change: start chrono if not running
   const handleArriveeManual = (val: string) => {
+    /* LA FAILLE. Le départ était contrôlé, l'arrivée jamais : il suffisait
+       de remplir les deux champs dans l'autre ordre — départ d'abord,
+       arrivée ensuite — pour obtenir une équipe repartie avant d'arriver. */
+    if (departAvantArrivee(val, localDepart)) {
+      toast.error(MESSAGE_ARRIVEE_APRES, { duration: 8000 });
+      return;
+    }
     setLocalArrivee(val);
     onArriveeChange(val);
     if (val && !running && !localDepart) {
@@ -147,9 +163,8 @@ export function SiteTimer({ projectId, heureArrivee, heureDepart, onArrival, onD
 
   // Manual départ change: stop chrono
   const handleDepartManual = (val: string) => {
-    // Le départ ne peut pas précéder l'arrivée.
-    if (val && localArrivee && val < localArrivee) {
-      toast.error("L'heure de départ ne peut pas être avant l'arrivée.");
+    if (departAvantArrivee(localArrivee, val)) {
+      toast.error(MESSAGE_DEPART_AVANT);
       return;
     }
     setLocalDepart(val);
@@ -201,6 +216,7 @@ export function SiteTimer({ projectId, heureArrivee, heureDepart, onArrival, onD
           <input
             type="time"
             value={localArrivee}
+            max={localDepart || undefined}
             onChange={(e) => handleArriveeManual(e.target.value)}
             className="mt-1 h-11 w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 px-3 text-sm"
           />
