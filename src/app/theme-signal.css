@@ -5651,3 +5651,20 @@ html[data-ui="signal"] .sg-etatsav-refus button {
   font-size: 11px; font-weight: 700; text-decoration: underline;
   background: none; border: none; color: inherit; cursor: pointer; padding: 0;
 }
+
+/* ── Listes « RDV … établi » : la date sous la pastille ─────────────────
+   Elle ne figurait que dans l'en-tête de groupe — donc nulle part en tri
+   par région, où l'on groupe par code postal. Or sur un rendez-vous pris,
+   la date EST l'information. */
+html[data-ui="signal"] .sg-delai-rdv {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  min-width: 0;
+}
+html[data-ui="signal"] .sg-delai-rdv i {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--sg-text-3);
+  white-space: nowrap;
+}

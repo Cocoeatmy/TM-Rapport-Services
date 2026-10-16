@@ -7622,6 +7622,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
            pastilles par cabine, totaux par groupe. Seul le choix des lignes
            les distingue. */
         const vueSav = showSummaryPanel === "rdv-sav-a-fixer" || showSummaryPanel === "sav-ouverts" || showSummaryPanel === "rdv-sav-fixe";
+        /* Les quatre listes « établi » parlent d'un rendez-vous PRIS : la
+           date est l'information principale, pas un arrivage attendu. */
+        const vueFixe = ["rdv-montage-fixe", "rdv-mesures-fixe", "rdv-services-fixe", "rdv-sav-fixe"]
+          .includes(showSummaryPanel || "");
         /* Sur les listes SAV, le filtre porte sur l'état AFFICHÉ, pas sur
            la colonne Notion : sinon masquer « Aucun SAV » ferait
            disparaître des lignes qui affichent « A contacter », et l'on ne
@@ -7757,6 +7761,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
               title: `Livraison annoncée le ${d.toLocaleDateString("fr-CH")} — cabines pas encore reçues`,
             };
+          };
+          /* « Arrivage attendu dans 3 jours » n'a aucun sens devant un
+             rendez-vous déjà pris : on reformule pour ces listes-là. */
+          const titreRdv = (j: { text: string }, iso: string) => {
+            if (!iso) return "Aucune date de rendez-vous";
+            const quand = new Date(iso + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" });
+            if (j.text === "Auj.") return `Rendez-vous aujourd'hui (${quand})`;
+            const n = parseInt(j.text.replace(/[^\d]/g, ""), 10);
+            if (!Number.isFinite(n)) return `Rendez-vous le ${quand}`;
+            return j.text.includes("+")
+              ? `Rendez-vous passé il y a ${n} jour${n > 1 ? "s" : ""} (${quand})`
+              : `Rendez-vous dans ${n} jour${n > 1 ? "s" : ""} (${quand})`;
           };
           const sgDelay = (raw: string | null | undefined) => {
             const info = getDaysInfoFromDate(raw);
@@ -8109,7 +8125,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               onFocus={() => setSgSelected(p.id)}
                               className={`sg-prow${on ? " is-sel" : ""}`}
                             >
-                              <span className={`sg-jpill ${j.cls}`} title={j.title}>{j.text}</span>
+                              {vueFixe ? (() => {
+                                /* La date du rendez-vous, sur la ligne. Elle
+                                   ne figurait que dans l'en-tête de groupe —
+                                   donc nulle part en tri par région, où l'on
+                                   groupe par code postal. */
+                                const d = (dateRef || "").split("T")[0];
+                                const lisible = /^\d{4}-\d{2}-\d{2}$/.test(d)
+                                  ? new Date(d + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })
+                                  : "";
+                                return (
+                                  <span className="sg-delai-rdv">
+                                    <span className={`sg-jpill ${j.cls}`} title={titreRdv(j, d)}>{j.text}</span>
+                                    {lisible && <i title={titreRdv(j, d)}>{lisible}</i>}
+                                  </span>
+                                );
+                              })() : (
+                                <span className={`sg-jpill ${j.cls}`} title={j.title}>{j.text}</span>
+                              )}
                               {/* Le n° TM ouvre l'APERÇU (et l'épingle) ; tout le
                                   reste de la ligne ouvre le projet complet. */}
                               <span

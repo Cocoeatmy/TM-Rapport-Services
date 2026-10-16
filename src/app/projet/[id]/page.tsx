@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState, use, useCallback, type 
 import { fileDEnvoi } from "@/lib/envoi-en-serie";
 import { createPortal } from "react-dom";
 import { FicheComplete } from "@/components/fiche-complete";
+import { etatSavAffiche } from "@/lib/sav-cabines";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -6316,6 +6317,34 @@ function ProjectPageContent({ id }: { id: string }) {
 
   const renderSavHoursEditor = () => {
     const savDate = (parseCabineTextMulti(project?.datesRdvSavCabines || "")[1] || "").slice(0, 10);
+
+    /**
+     * Les passages SAV vont AUSSI dans les colonnes par lot.
+     *
+     * En mono-cabine, dès qu'on ajoutait une deuxième intervention, tout
+     * partait dans « Heure arrivée SAV » / « Heure départ SAV » — des
+     * colonnes d'heures, que personne d'autre ne lit. « Interventions SAV
+     * cabines » et « Dates RDV SAV cabines » restaient vides.
+     *
+     * Résultat sur TM-2600864 : deux passages saisis, le second calé au
+     * 20 octobre, et le chantier restait dans « RDV SAV à fixer » comme si
+     * rien n'était prévu. Les listes lisent ces deux colonnes-là ; on les
+     * écrit donc, exactement comme le fait la vue multi-cabines.
+     */
+    const persistPassagesSav = (liste: PointageEntry[]) => {
+      const propres = liste.filter((p) => p.date || p.collaborateur || p.arrivee || p.depart);
+      const encode = encodeInterventions(propres.map((p) => ({
+        date: p.date, collaborateurs: p.collaborateur, arrivee: p.arrivee, depart: p.depart,
+      })));
+      /* La date retenue est la plus LOINTAINE : c'est le prochain passage
+         calé, celui qui dit que le rendez-vous est pris. */
+      const derniere = propres
+        .map((p) => (p.date || "").slice(0, 10))
+        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+        .sort()
+        .pop() || "";
+      saveCabineTexts(0, { interventionsSavCabines: encode, datesRdvSavCabines: derniere });
+    };
     const persistSavHours = (arr: string, dep: string) => {
       setProject((prev) => (prev ? { ...prev, heureArriveeSav: arr, heureDepartSav: dep } : prev));
       offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArriveeSav: arr, heureDepartSav: dep }) }).catch(() => {});
@@ -6344,6 +6373,7 @@ function ProjectPageContent({ id }: { id: string }) {
       onDisable: () => {
         const first = savPointages[0];
         persistSavHours(first?.arrivee || "", first?.depart || "");
+        persistPassagesSav(first ? [first] : []);
         setSavMultiDay(false);
         setSavPointages([]);
       },
@@ -6351,6 +6381,7 @@ function ProjectPageContent({ id }: { id: string }) {
         const next = [...prev, { date: today, collaborateur: "", arrivee: "", depart: "" }];
         const enc = encodePointages(next);
         offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArriveeSav: enc.arrivee, heureDepartSav: enc.depart }) }).catch(() => {});
+        persistPassagesSav(next);
         return next;
       }),
       onUpdate: (idx, field, value) => {
@@ -6358,6 +6389,7 @@ function ProjectPageContent({ id }: { id: string }) {
           const next = prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p));
           const enc = encodePointages(next);
           offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArriveeSav: enc.arrivee, heureDepartSav: enc.depart }) }).catch(() => {});
+          persistPassagesSav(next);
           return next;
         });
       },
@@ -6366,6 +6398,7 @@ function ProjectPageContent({ id }: { id: string }) {
           const next = prev.filter((_, i) => i !== idx);
           const enc = encodePointages(next);
           offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArriveeSav: enc.arrivee, heureDepartSav: enc.depart }) }).catch(() => {});
+          persistPassagesSav(next);
           return next;
         });
       },
@@ -6950,10 +6983,17 @@ function ProjectPageContent({ id }: { id: string }) {
     if (!hasSav) return;
     const patch: Record<string, unknown> = {};
     if (!project.sav) patch.sav = true;
+    /* On écrit l'état DÉDUIT DES LOTS, pas « A contacter » d'office : un
+       passage déjà calé vaut « RDV Fixé », et l'inscrire de travers
+       mettait le chantier dans la mauvaise liste — constaté sur
+       TM-2600634, dont la reprise était datée du 19 octobre.
+       Garde-fou contre la boucle : on n'écrit que si la colonne est vide
+       ou « Aucun SAV », et ce qu'on écrit n'est ni l'un ni l'autre. */
     const etat = (project.etatSAV || "").trim();
-    /* Garde-fou contre la boucle : on n'écrit que si l'état est vide ou
-       « Aucun SAV », et ce qu'on écrit n'est ni l'un ni l'autre. */
-    if (!etat || etat === "Aucun SAV") patch.etatSAV = "A contacter";
+    if (!etat || etat === "Aucun SAV") {
+      const deduit = etatSavAffiche(project as unknown as Parameters<typeof etatSavAffiche>[0]);
+      if (deduit.deduit) patch.etatSAV = deduit.etat;
+    }
     if (Object.keys(patch).length > 0) saveProjectField(patch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.sav, project?.etatSAV, project?.commentairesSav, project?.causeSavCabines, project?.datesRdvSavCabines, project?.collaborateursSavCabines, project?.interventionsSavCabines, project?.documentsSavDemande, project?.photosSavRetouches]);
