@@ -904,14 +904,26 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                photo d'avant montage ». Les confondre serait pire que de
                ne rien afficher du tout. */
             const SousHeure = ({ h, quoi }: {
-              h: { premiere: string; derniere: string; source: "prise" | "ajout" } | null;
+              h: { premiere: string; derniere: string; source: "prise" | "prise-autre" | "ajout"; jourReel?: string } | null;
               quoi: "premiere" | "derniere";
-            }) =>
-              h ? (
+            }) => {
+              if (!h) return null;
+              /* Des photos d'un AUTRE jour sur un montage, cela se
+                 remarque : on affiche alors leur date, en rouge. C'est
+                 exactement ce qu'on cherche à voir. */
+              if (h.source === "prise-autre") {
+                return (
+                  <Text style={{ ...styles.timePhoto, color: "#b91c1c" }}>
+                    photo prise le {fmtDate(h.jourReel || "")} à {h[quoi]}
+                  </Text>
+                );
+              }
+              return (
                 <Text style={styles.timePhoto}>
                   {h.source === "prise" ? "photo prise " : "photo ajoutée "}{h[quoi]}
                 </Text>
-              ) : null;
+              );
+            };
             /* Sans passage daté, la journée de référence est celle du
                montage : c'est la seule date que porte alors la fiche. */
             const photosDuMontage = photosDe(String(project.dateMontage || "").split("T")[0]);

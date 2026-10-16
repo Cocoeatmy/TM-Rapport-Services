@@ -132,6 +132,47 @@ describe("prise de vue contre heure d'ajout", () => {
     expect(lotDuNom("Montage.Cab3.1.1792134182687.p1792107600000.jpg")).toBe(3);
   });
 
+  it("LE CAS DU RAPPORT REMPLI LE SOIR : photos prises a 08h, ajoutées à 21h", () => {
+    /* C'est tout l'objet de la demande. Le monteur déclare 08:00–17:00 et
+       remplit son rapport à la maison le soir : l'heure d'ajout dirait
+       21 h, la prise de vue dit la vérité. */
+    const projet = {
+      photosAvant: [{ name: "Avant.1.1792177200000.p1792130400000.jpg" }],   // ajout 21:00, prise 08:00
+      photosMontage: [{ name: "Montage.1.1792177260000.p1792152000000.jpg" }], // ajout 21:01, prise 14:00
+    };
+    const h = heuresPhotosSourcees(projet, "2026-10-16");
+    expect(h?.source).toBe("prise");
+    expect(h?.premiere).toBe("08:00");
+    expect(h?.derniere).toBe("14:00");
+  });
+
+  it("des photos d'un AUTRE jour sont montrées, pas effacées", () => {
+    /* Relevé réel sur TEST 5 : deux photos reprises de la galerie,
+       datées du 22 septembre et du 12 octobre, sur un montage du 16. Les
+       écarter laissait l'écran afficher l'heure d'ajout — précisément le
+       chiffre trompeur qu'on voulait remplacer. */
+    const projet = {
+      photosAvant: [{ name: "Avant.Cab2.2.1792181084080.p1790105133000.jpg" }],
+    };
+    const h = heuresPhotosSourcees(projet, "2026-10-16", { lot: 2 });
+    expect(h?.source).toBe("prise-autre");
+    expect(h?.jourReel).toBe("2026-09-22");
+  });
+
+  it("le jour déclaré l'emporte sur un autre jour", () => {
+    /* Une photo reprise de la galerie ne doit pas masquer celles,
+       datées, qui ont bien été prises ce jour-là. */
+    const projet = {
+      photosAvant: [
+        { name: "Avant.1.1792181084080.p1790105133000.jpg" },  // 22.09
+        { name: "Avant.2.1792181084081.p1792130400000.jpg" },  // 16.10 08:00
+      ],
+    };
+    const h = heuresPhotosSourcees(projet, "2026-10-16");
+    expect(h?.source).toBe("prise");
+    expect(h?.premiere).toBe("08:00");
+  });
+
   it("PRÉFÈRE la prise de vue dès qu'une seule photo la porte", () => {
     /* 08:20 (prise) plutôt que 09:02 (ajout) : c'est toute la question. */
     const projet = {

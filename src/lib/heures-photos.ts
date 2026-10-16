@@ -169,38 +169,80 @@ export function priseDeVueDuNom(nom?: string | null): number | null {
 }
 
 export interface HeuresPhotosSourcees extends HeuresPhotos {
-  /** « prise » = lu dans la photo ; « ajout » = entrée dans la file. */
-  source: "prise" | "ajout";
+  /**
+   * « prise »      la photo porte sa date, et ce jour-là ;
+   * « prise-autre » elle porte sa date, mais d'un AUTRE jour ;
+   * « ajout »      elle n'a pas d'EXIF : on n'a que l'heure d'ajout.
+   */
+  source: "prise" | "prise-autre" | "ajout";
+  /** Le jour des photos, quand il diffère de celui qu'on a déclaré. */
+  jourReel?: string;
+}
+
+/** Le jour (AAAA-MM-JJ) d'une liste d'instants, s'ils tombent tous le même. */
+function jourCommun(instants: number[], fuseau: string): string {
+  const jours = new Set(instants.map((ms) => jourDe(ms, fuseau)));
+  return jours.size === 1 ? [...jours][0] : "";
 }
 
 /**
- * Première et dernière photo du jour, en préférant la prise de vue.
+ * Première et dernière photo, en préférant TOUJOURS la prise de vue.
  *
- * Si AU MOINS une photo du jour porte sa date de prise de vue, on ne
- * travaille que sur celles-là : mélanger les deux horloges donnerait une
- * amplitude qui n'appartient à aucune des deux. Sinon on retombe sur
- * l'heure d'ajout — en le DISANT, pour qu'on ne la lise pas comme une
- * heure de prise de vue.
+ * L'ordre de préférence tient en trois lignes, et chacune répond à un cas
+ * réel :
+ *
+ *   1. les photos du lot datées, prises LE JOUR DÉCLARÉ — le cas normal,
+ *      et la seule heure qui vaille ;
+ *   2. les photos du lot datées, prises UN AUTRE JOUR — on l'affiche avec
+ *      sa date. C'est justement ce qu'on veut voir : des photos d'un
+ *      autre jour sur un montage, cela se remarque ;
+ *   3. à défaut, l'heure d'ajout — en le disant.
+ *
+ * On ne mélange jamais deux horloges dans un même calcul : une amplitude
+ * faite d'une prise de vue et d'un ajout n'appartiendrait à personne.
  */
 export function heuresPhotosSourcees(
   buckets: Record<string, unknown>,
   jourISO: string,
   options: { lot?: number; fuseau?: string } = {},
 ): HeuresPhotosSourcees | null {
-  const avecPrise: Record<string, { name: string }[]> = {};
+  const fuseau = options.fuseau || "Europe/Zurich";
+
+  /* Les photos du lot qui portent leur date de prise de vue. On réécrit
+     leur horodatage d'ajout par celui de la prise, pour que le reste du
+     calcul n'ait pas à connaître la distinction. */
+  const datees: Record<string, { name: string }[]> = {};
+  const instantsPris: number[] = [];
   for (const [champ, valeur] of Object.entries(buckets || {})) {
-    if (!champ.startsWith("photos") || !Array.isArray(valeur)) continue;
-    const gardees = (valeur as FichierHorodate[])
-      .filter((f) => priseDeVueDuNom(f?.name) !== null)
-      /* On réécrit le nom pour que le calcul porte sur la prise de vue. */
-      .map((f) => ({ name: String(f.name).replace(/\.(\d{13})\./, `.${priseDeVueDuNom(f.name)}.`) }));
-    if (gardees.length) avecPrise[champ] = gardees;
+    if (!champ.startsWith("photos") || HORS_CHANTIER.has(champ) || !Array.isArray(valeur)) continue;
+    const gardees: { name: string }[] = [];
+    for (const f of valeur as FichierHorodate[]) {
+      const prise = priseDeVueDuNom(f?.name);
+      if (prise === null) continue;
+      if (options.lot !== undefined) {
+        const lot = lotDuNom(f?.name);
+        if (lot !== null && lot !== options.lot) continue;
+      }
+      gardees.push({ name: String(f.name).replace(/\.(\d{13})\./, `.${prise}.`) });
+      instantsPris.push(prise);
+    }
+    if (gardees.length) datees[champ] = gardees;
   }
 
-  if (Object.keys(avecPrise).length > 0) {
-    const h = heuresPhotosDuJour(avecPrise, jourISO, options);
-    if (h) return { ...h, source: "prise" };
+  if (instantsPris.length > 0) {
+    /* 1. Le jour déclaré. */
+    const leJour = heuresPhotosDuJour(datees, jourISO, options);
+    if (leJour) return { ...leJour, source: "prise" };
+
+    /* 2. Un autre jour — on le montre, c'est une information. */
+    const autre = jourCommun(instantsPris, fuseau);
+    if (autre) {
+      const h = heuresPhotosDuJour(datees, autre, options);
+      if (h) return { ...h, source: "prise-autre", jourReel: autre };
+    }
   }
+
+  /* 3. Aucune photo datée : l'heure d'ajout, nommée pour ce qu'elle est. */
   const h = heuresPhotosDuJour(buckets, jourISO, options);
   return h ? { ...h, source: "ajout" } : null;
 }
