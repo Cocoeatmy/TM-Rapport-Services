@@ -179,10 +179,26 @@ export interface HeuresPhotosSourcees extends HeuresPhotos {
   jourReel?: string;
 }
 
-/** Le jour (AAAA-MM-JJ) d'une liste d'instants, s'ils tombent tous le même. */
-function jourCommun(instants: number[], fuseau: string): string {
-  const jours = new Set(instants.map((ms) => jourDe(ms, fuseau)));
-  return jours.size === 1 ? [...jours][0] : "";
+/**
+ * Le jour qui porte le PLUS de photos datées.
+ *
+ * Exiger un jour unique paraissait prudent et ne l'était pas : deux
+ * photos reprises de la galerie, de deux mois différents, suffisaient à
+ * faire échouer la règle — et l'écran retombait sur l'heure d'ajout,
+ * c'est-à-dire sur le chiffre qu'on voulait précisément remplacer. On
+ * retient donc le jour majoritaire, et le plus récent en cas d'égalité.
+ */
+function jourDominant(instants: number[], fuseau: string): string {
+  const compte = new Map<string, number>();
+  for (const ms of instants) {
+    const j = jourDe(ms, fuseau);
+    compte.set(j, (compte.get(j) || 0) + 1);
+  }
+  let gagnant = "", meilleur = -1;
+  for (const [j, n] of [...compte.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (n >= meilleur) { meilleur = n; gagnant = j; }
+  }
+  return gagnant;
 }
 
 /**
@@ -235,7 +251,7 @@ export function heuresPhotosSourcees(
     if (leJour) return { ...leJour, source: "prise" };
 
     /* 2. Un autre jour — on le montre, c'est une information. */
-    const autre = jourCommun(instantsPris, fuseau);
+    const autre = jourDominant(instantsPris, fuseau);
     if (autre) {
       const h = heuresPhotosDuJour(datees, autre, options);
       if (h) return { ...h, source: "prise-autre", jourReel: autre };

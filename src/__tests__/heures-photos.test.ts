@@ -210,3 +210,31 @@ describe("prise de vue contre heure d'ajout", () => {
     expect(heuresPhotosSourcees({}, "2026-10-16")).toBeNull();
   });
 });
+
+describe("plusieurs jours parmi les photos datées", () => {
+  it("retient le jour MAJORITAIRE au lieu de renoncer", () => {
+    /* Exiger un jour unique paraissait prudent : deux photos reprises de
+       la galerie, de deux mois différents, suffisaient à faire échouer la
+       règle — et l'écran retombait sur l'heure d'ajout. */
+    const projet = {
+      photosAvant: [
+        { name: "A.1.1792181084080.p1790105133000.jpg" },  // 22.09
+        { name: "A.2.1792181084081.p1791794392000.jpg" },  // 12.10
+        { name: "A.3.1792181084082.p1791797000000.jpg" },  // 12.10
+      ],
+    };
+    const h = heuresPhotosSourcees(projet, "2026-10-16");
+    expect(h?.source).toBe("prise-autre");
+    expect(h?.jourReel).toBe("2026-10-12");
+  });
+
+  it("à égalité, le jour le plus récent", () => {
+    const projet = {
+      photosAvant: [
+        { name: "A.1.1792181084080.p1790105133000.jpg" },  // 22.09
+        { name: "A.2.1792181084081.p1791794392000.jpg" },  // 12.10
+      ],
+    };
+    expect(heuresPhotosSourcees(projet, "2026-10-16")?.jourReel).toBe("2026-10-12");
+  });
+});
