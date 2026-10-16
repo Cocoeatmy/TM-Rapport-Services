@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  etatSavProjet, controleCoherenceSav, type SourceSavProjet,
+  etatSavProjet, controleCoherenceSav, comptesSavParCabine, type SourceSavProjet,
 } from "@/lib/sav-cabines";
 
 /**
@@ -178,5 +178,85 @@ describe("controleCoherenceSav", () => {
 
   it("supporte une liste vide sans rien inventer", () => {
     expect(controleCoherenceSav([], [])).toEqual([]);
+  });
+});
+
+/**
+ * UNE DATE D'INTERVENTION VAUT UN RENDEZ-VOUS PRIS.
+ *
+ * Micael cale les passages SAV dans « Interventions SAV » — une ligne par
+ * passage, avec sa date et son monteur. L'écran de saisie recopie bien le
+ * dernier passage dans la colonne « Dates RDV SAV cabines », mais ce n'est
+ * qu'un miroir : ajouter une ligne vide l'efface, et le dossier reparaît
+ * dans « RDV SAV à fixer » alors que la date est toujours là, sous les
+ * yeux. On lit donc les passages eux-mêmes.
+ *
+ * Relevé réel du 16 octobre 2026, TM-2600634 — Dubat SA / Timpanaro,
+ * cabine 2 : passage au 19 octobre avec Miguel.
+ */
+describe("la date saisie dans « Interventions SAV » compte", () => {
+  it("un passage daté suffit, même sans la colonne miroir", () => {
+    const c = comptesSavParCabine({
+      causeSavCabines: "Cab2:Erreur TM",
+      interventionsSavCabines: "Cab2:2026-10-19~Miguel",
+    });
+    expect(c.aFixer).toBe(0);
+    expect(c.planifies).toBe(1);
+  });
+
+  it("LE CAS RÉEL de TM-2600634, miroir compris", () => {
+    const c = comptesSavParCabine({
+      causeSavCabines: "Cab2:Erreur TM",
+      datesRdvSavCabines: "Cab2:2026-10-19",
+      collaborateursSavCabines: "Cab2:Miguel",
+      interventionsSavCabines: "Cab2:2026-10-19~Miguel",
+    });
+    expect(c.aFixer).toBe(0);
+    expect(c.planifies).toBe(1);
+  });
+
+  it("on retient la date la PLUS LOINTAINE des deux sources", () => {
+    /* Un second passage calé plus tard est le rendez-vous qui compte ; le
+       miroir, lui, peut encore annoncer le premier. */
+    const c = comptesSavParCabine({
+      causeSavCabines: "Cab1:joint",
+      datesRdvSavCabines: "Cab1:2026-09-01",
+      datesCmdPiecesSavCabines: "Cab1:2026-08-20",
+      datesReceptionPiecesSavCabines: "Cab1:2026-09-15",
+      interventionsSavCabines: "Cab1:2026-09-01~Miguel;2026-09-20~Claudio",
+    });
+    /* Pièce reçue le 15, second passage calé le 20 : rien à fixer. */
+    expect(c.aFixer).toBe(0);
+    expect(c.planifies).toBe(1);
+  });
+
+  it("une pièce arrivée APRÈS le dernier passage rouvre le rendez-vous", () => {
+    const c = comptesSavParCabine({
+      causeSavCabines: "Cab1:joint",
+      datesCmdPiecesSavCabines: "Cab1:2026-08-20",
+      datesReceptionPiecesSavCabines: "Cab1:2026-09-25",
+      interventionsSavCabines: "Cab1:2026-09-01~Miguel;2026-09-20~Claudio",
+    });
+    expect(c.aFixer).toBe(1);
+  });
+
+  it("une ligne de passage sans date ne fait pas disparaître le rendez-vous", () => {
+    /* C'est le piège du miroir : l'écran y recopie le DERNIER passage, et
+       une ligne vide l'effaçait. La date du premier passage tient. */
+    const c = comptesSavParCabine({
+      causeSavCabines: "Cab1:joint",
+      datesRdvSavCabines: "",
+      interventionsSavCabines: "Cab1:2026-10-19~Miguel;~Claudio",
+    });
+    expect(c.aFixer).toBe(0);
+    expect(c.planifies).toBe(1);
+  });
+
+  it("un passage sans aucune date laisse le lot à fixer", () => {
+    const c = comptesSavParCabine({
+      causeSavCabines: "Cab1:joint",
+      interventionsSavCabines: "Cab1:~Miguel",
+    });
+    expect(c.aFixer).toBe(1);
   });
 });

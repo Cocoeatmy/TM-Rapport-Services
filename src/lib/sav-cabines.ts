@@ -52,6 +52,29 @@ export interface ComptesSav {
   detaille: boolean;
 }
 
+/**
+ * La date d'intervention la plus lointaine d'un lot.
+ *
+ * Les passages SAV s'écrivent « date~collaborateurs~arrivée~départ », le
+ * point-virgule séparant les passages. Un second passage déjà calé est un
+ * rendez-vous pris, au même titre qu'une date posée dans la colonne
+ * « Dates RDV SAV cabines ».
+ *
+ * On lit les deux. La colonne « Dates RDV » est tenue à jour par l'écran
+ * de saisie, qui y recopie le dernier passage — mais ce n'est qu'un
+ * miroir : il suffit d'ajouter une ligne vide pour l'effacer, et le
+ * dossier reparaîtrait dans « RDV SAV à fixer » alors que la date est
+ * toujours là, sous les yeux, dans la liste des passages.
+ */
+function derniereDatePassages(encode?: string | null): string {
+  let max = "";
+  for (const bloc of String(encode || "").split(";")) {
+    const d = (bloc.split("~")[0] || "").trim().slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d > max) max = d;
+  }
+  return max;
+}
+
 /** Décode une colonne « Cab1:valeur | Cab2:valeur ». */
 export function parseCabMap(raw?: string | null): Record<number, string> {
   const m: Record<number, string> = {};
@@ -96,6 +119,7 @@ export function comptesSavParCabine(p: SourceSavCabines): ComptesSav {
     return { concernees: 0, aFixer: 0, planifies: 0, enAttentePiece: 0, regles: 0, detaille: false };
   }
   const rdv = parseCabMap(p.datesRdvSavCabines);
+  const passages = parseCabMap(p.interventionsSavCabines);
   const cloture = parseCabMap(p.datesSavClotureCabines);
   const piecesCmd = parseCabMap(p.datesCmdPiecesSavCabines);
   const piecesRecues = parseCabMap(p.datesReceptionPiecesSavCabines);
@@ -106,7 +130,11 @@ export function comptesSavParCabine(p: SourceSavCabines): ComptesSav {
     const cmd = (piecesCmd[n] || "").slice(0, 10);
     const recu = (piecesRecues[n] || "").slice(0, 10);
     if (cmd && !recu) { enAttentePiece++; continue; }
-    const date = (rdv[n] || "").slice(0, 10);
+    /* La plus lointaine des deux : une intervention calée au 19 vaut
+       rendez-vous, même si la colonne miroir en annonce une plus tôt. */
+    const posee = (rdv[n] || "").slice(0, 10);
+    const passee = derniereDatePassages(passages[n]);
+    const date = passee > posee ? passee : posee;
     if (!date) { aFixer++; continue; }
     /* Pièce arrivée APRÈS le dernier passage : il faut repasser, donc il
        reste un rendez-vous à caler. Le jour même compte comme après. */
@@ -243,4 +271,29 @@ export function controleCoherenceSav(
     if (e.necessiteRdv) manquants.push({ projet: p, raison: e.raison });
   }
   return manquants;
+}
+
+/**
+ * La prochaine intervention SAV calée sur ce chantier.
+ *
+ * Sert à ranger la liste « RDV SAV fixés » par date, comme les trois
+ * autres. On prend la plus PROCHE parmi les lots encore ouverts : c'est
+ * elle qui dit quand l'équipe repasse.
+ */
+export function prochaineDateSavPlanifiee(p: SourceSavCabines): string {
+  const cabs = cabinesAvecSav(p);
+  if (cabs.size === 0) return "";
+  const rdv = parseCabMap(p.datesRdvSavCabines);
+  const passages = parseCabMap(p.interventionsSavCabines);
+  const cloture = parseCabMap(p.datesSavClotureCabines);
+  let proche = "";
+  for (const n of cabs) {
+    if ((cloture[n] || "").trim()) continue;
+    const posee = (rdv[n] || "").slice(0, 10);
+    const passee = derniereDatePassages(passages[n]);
+    const d = passee > posee ? passee : posee;
+    if (!d) continue;
+    if (!proche || d < proche) proche = d;
+  }
+  return proche;
 }
