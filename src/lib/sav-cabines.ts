@@ -297,3 +297,30 @@ export function prochaineDateSavPlanifiee(p: SourceSavCabines): string {
   }
   return proche;
 }
+
+/**
+ * Le résumé d'une liste SAV, en une phrase.
+ *
+ * « 0 cabine à fixer » en tête d'une liste de rendez-vous DÉJÀ fixés ne
+ * veut rien dire. On n'annonce donc que ce qui est là, dans l'ordre où
+ * cela compte — ce qu'il reste à caler d'abord, ce qui est réglé en
+ * dernier — et le même résumé sert aux trois listes SAV, qui ne peuvent
+ * donc plus se contredire.
+ */
+export function resumeSav(comptes: ComptesSav[]): string {
+  const somme = (f: (c: ComptesSav) => number) => comptes.reduce((n, c) => n + f(c), 0);
+  const aFixer = somme((c) => c.aFixer);
+  const piece = somme((c) => c.enAttentePiece);
+  const planifies = somme((c) => c.planifies);
+  const regles = somme((c) => c.regles);
+  const flous = comptes.filter((c) => !c.detaille).length;
+  const cab = (n: number, suite: string) => `${n} cabine${n > 1 ? "s" : ""} ${suite}`;
+
+  const bouts: string[] = [];
+  if (aFixer) bouts.push(cab(aFixer, "à fixer"));
+  if (piece) bouts.push(`${piece} pièce${piece > 1 ? "s" : ""} attendue${piece > 1 ? "s" : ""}`);
+  if (planifies) bouts.push(cab(planifies, planifies > 1 ? "planifiées" : "planifiée"));
+  if (regles) bouts.push(cab(regles, regles > 1 ? "réglées" : "réglée"));
+  if (flous) bouts.push(`${flous} à vérifier`);
+  return bouts.join(" · ") || "aucune cabine en SAV";
+}

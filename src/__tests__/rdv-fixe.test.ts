@@ -3,7 +3,7 @@ import {
   rdvMontageFixe, rdvMesuresFixe, rdvServicesFixe,
   rdvMontageAFixer, rdvServicesAFixer,
 } from "@/lib/rdv-a-fixer";
-import { prochaineDateSavPlanifiee, comptesSavParCabine } from "@/lib/sav-cabines";
+import { prochaineDateSavPlanifiee, comptesSavParCabine, resumeSav } from "@/lib/sav-cabines";
 
 /**
  * Les rendez-vous déjà calés, comptés par métier.
@@ -92,5 +92,39 @@ describe("date du prochain passage SAV", () => {
     expect(comptesSavParCabine(p).planifies).toBe(1);
     expect(comptesSavParCabine(p).aFixer).toBe(0);
     expect(prochaineDateSavPlanifiee(p)).toBe("2026-10-19");
+  });
+});
+
+/**
+ * Le résumé en tête de liste.
+ *
+ * « 0 cabine à fixer » en tête d'une liste de rendez-vous DÉJÀ fixés ne
+ * veut rien dire : on n'annonce que ce qui est là.
+ */
+describe("résumé d'une liste SAV", () => {
+  const c = (p: Partial<ReturnType<typeof comptesSavParCabine>>) =>
+    ({ concernees: 0, aFixer: 0, planifies: 0, enAttentePiece: 0, regles: 0, detaille: true, ...p });
+
+  it("ne parle pas de ce qui vaut zéro", () => {
+    expect(resumeSav([c({ planifies: 1 })])).toBe("1 cabine planifiée");
+    expect(resumeSav([c({ aFixer: 3 })])).toBe("3 cabines à fixer");
+  });
+
+  it("cite tout ce qui est présent, du plus urgent au plus calme", () => {
+    expect(resumeSav([c({ aFixer: 2, enAttentePiece: 1, planifies: 1, regles: 4 })]))
+      .toBe("2 cabines à fixer · 1 pièce attendue · 1 cabine planifiée · 4 cabines réglées");
+  });
+
+  it("additionne les projets d'une liste", () => {
+    expect(resumeSav([c({ aFixer: 1 }), c({ aFixer: 2 }), c({ regles: 1 })]))
+      .toBe("3 cabines à fixer · 1 cabine réglée");
+  });
+
+  it("signale ce qu'on ne sait pas trancher", () => {
+    expect(resumeSav([c({ detaille: false })])).toBe("1 à vérifier");
+  });
+
+  it("le dit quand il n'y a rien", () => {
+    expect(resumeSav([])).toBe("aucune cabine en SAV");
   });
 });

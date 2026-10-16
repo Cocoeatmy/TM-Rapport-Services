@@ -37,7 +37,7 @@ import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, ST
 import type { Project } from "@/lib/notion";
 import { clientFacture } from "@/lib/analyses";
 import {
-  comptesSavParCabine, etatSavProjet, controleCoherenceSav, prochaineDateSavPlanifiee,
+  comptesSavParCabine, etatSavProjet, controleCoherenceSav, prochaineDateSavPlanifiee, resumeSav,
   type SourceSavCabines, type SourceSavProjet,
 } from "@/lib/sav-cabines";
 import { PersonalStats } from "@/components/personal-stats";
@@ -7822,17 +7822,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 )}
                 {vueSav && (() => {
                   const cs = panelProjects.map((p) => comptesSav(p));
-                  const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
-                  const piece = cs.reduce((s, c) => s + c.enAttentePiece, 0);
-                  const regles = cs.reduce((s, c) => s + c.regles, 0);
-                  const flous = cs.filter((c) => !c.detaille).length;
                   return (
-                    <span className="sg-panel-kpi">
-                      {aFixer} cabine{aFixer > 1 ? "s" : ""} à fixer
-                      {piece > 0 ? ` · ${piece} pièce${piece > 1 ? "s" : ""} attendue${piece > 1 ? "s" : ""}` : ""}
-                      {regles > 0 ? ` · ${regles} réglée${regles > 1 ? "s" : ""}` : ""}
-                      {flous > 0 ? ` · ${flous} à vérifier` : ""}
-                    </span>
+                    <span className="sg-panel-kpi">{resumeSav(cs)}</span>
                   );
                 })()}
               </div>
@@ -8181,17 +8172,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {panelTitle} ({rdvFiltered ? `${panelProjects.length} / ${rdvTotalCount}` : (rdvStatusFieldFn ? rdvTotalCount : panelProjects.length)})
                 {vueSav && (() => {
                   const cs = panelProjects.map((p) => comptesSav(p));
-                  const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
-                  const piece = cs.reduce((s, c) => s + c.enAttentePiece, 0);
-                  const regles = cs.reduce((s, c) => s + c.regles, 0);
-                  const flous = cs.filter((c) => !c.detaille).length;
                   return (
-                    <span className="ml-2 normal-case">
-                      <span className="text-rose-600 dark:text-rose-400">· {aFixer} cabine{aFixer > 1 ? "s" : ""} à fixer</span>
-                      {piece > 0 && <span className="text-amber-600 dark:text-amber-400"> · {piece} pièce{piece > 1 ? "s" : ""} attendue{piece > 1 ? "s" : ""}</span>}
-                      {regles > 0 && <span className="text-green-600 dark:text-green-400"> · {regles} réglée{regles > 1 ? "s" : ""}</span>}
-                      {flous > 0 && <span className="text-gray-400"> · {flous} à vérifier</span>}
-                    </span>
+                    <span className="ml-2 normal-case text-gray-500 dark:text-gray-400">· {resumeSav(cs)}</span>
                   );
                 })()}
                 {showSummaryPanel === "rdv-montage-a-fixer" && (() => {
