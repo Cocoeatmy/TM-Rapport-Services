@@ -3733,10 +3733,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </div>
             <div className="sg-plan">
               {([
-                { label: "RDV Montage", count: rdvMontageAFixerCount, meta: `${rdvMontageAFixerProjects.reduce((s, p) => s + cabinesRestantes(p), 0)} cabines à poser`, bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-a-fixer", Icon: Wrench, lead: true },
-                { label: "RDV Mesures", count: rdvMesuresAFixerCount, meta: "à contacter", bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-a-fixer", Icon: Ruler, lead: false },
-                { label: "RDV Services", count: rdvServicesAFixerCount, meta: "à planifier", bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-a-fixer", Icon: Settings, lead: false },
-                { label: "RDV SAV", count: rdvSavAFixerCount, meta: `${rdvSavAFixerProjects.reduce((s, p) => s + comptesSav(p).aFixer, 0)} cabines à fixer`, bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-a-fixer", Icon: AlertCircle, lead: false },
+                { label: "RDV Montage à fixer", count: rdvMontageAFixerCount, meta: `${rdvMontageAFixerProjects.reduce((s, p) => s + cabinesRestantes(p), 0)} cabines à poser`, bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-a-fixer", Icon: Wrench, lead: true },
+                { label: "RDV Mesures à fixer", count: rdvMesuresAFixerCount, meta: "à contacter", bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-a-fixer", Icon: Ruler, lead: false },
+                { label: "RDV Services à fixer", count: rdvServicesAFixerCount, meta: "à planifier", bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-a-fixer", Icon: Settings, lead: false },
+                { label: "RDV SAV à fixer", count: rdvSavAFixerCount, meta: `${rdvSavAFixerProjects.reduce((s, p) => s + comptesSav(p).aFixer, 0)} cabines à fixer`, bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-a-fixer", Icon: AlertCircle, lead: false },
               ]).map((t) => (
                 <button key={t.label} type="button" onClick={(e) => openPanel(t.panel as any, e)} className={`sg-tile${t.lead ? " is-lead" : ""}`}>
                   <span className="sg-tile-top">
@@ -3768,10 +3768,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </div>
             <div className="sg-plan">
               {([
-                { label: "RDV Montage", count: rdvMontageFixeProjects.length, meta: cab(rdvMontageFixeProjects.reduce((s, p) => s + cabinesRestantes(p), 0), "à poser"), bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-fixe" as const, Icon: Wrench },
-                { label: "RDV Mesures", count: rdvMesuresFixeProjects.length, meta: cab(rdvMesuresFixeProjects.reduce((s, p) => s + (p.nbCabines || 0), 0), "à mesurer"), bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-fixe" as const, Icon: Ruler },
-                { label: "RDV Services", count: rdvServicesFixeProjects.length, meta: cab(rdvServicesFixeProjects.reduce((s, p) => s + cabinesRestantes(p), 0), ""), bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-fixe" as const, Icon: Settings },
-                { label: "RDV SAV", count: rdvSavFixeProjects.length, meta: cab(rdvSavFixeProjects.reduce((s, p) => s + comptesSav(p).planifies, 0), "à reprendre"), bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-fixe" as const, Icon: AlertCircle },
+                { label: "RDV Montage établi", count: rdvMontageFixeProjects.length, meta: cab(rdvMontageFixeProjects.reduce((s, p) => s + cabinesRestantes(p), 0), "à poser"), bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-fixe" as const, Icon: Wrench },
+                { label: "RDV Mesures établi", count: rdvMesuresFixeProjects.length, meta: cab(rdvMesuresFixeProjects.reduce((s, p) => s + (p.nbCabines || 0), 0), "à mesurer"), bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-fixe" as const, Icon: Ruler },
+                { label: "RDV Services établi", count: rdvServicesFixeProjects.length, meta: cab(rdvServicesFixeProjects.reduce((s, p) => s + cabinesRestantes(p), 0), ""), bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-fixe" as const, Icon: Settings },
+                { label: "RDV SAV établi", count: rdvSavFixeProjects.length, meta: cab(rdvSavFixeProjects.reduce((s, p) => s + comptesSav(p).planifies, 0), "à reprendre"), bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-fixe" as const, Icon: AlertCircle },
               ]).map((t) => (
                 <button key={t.label} type="button" onClick={(e) => openPanel(t.panel, e)} className="sg-tile">
                   <span className="sg-tile-top">
@@ -5459,10 +5459,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           "rdv-mesures-a-fixer":  { label: "RDV Mesures à fixer",    color: "text-cyan-600 dark:text-cyan-400",     bg: "bg-cyan-100/80 dark:bg-cyan-900/30",     icon: <Calendar className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /> },
           "rdv-montage-a-fixer":  { label: "RDV Montage à fixer",    color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-100/80 dark:bg-blue-900/30",     icon: <Calendar className="w-4 h-4 text-blue-500 dark:text-blue-400" /> },
           "rdv-services-a-fixer": { label: "RDV Services à fixer",   color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-100/80 dark:bg-violet-900/30", icon: <Calendar className="w-4 h-4 text-violet-500 dark:text-violet-400" /> },
-          "rdv-montage-fixe":     { label: "RDV Montage fixés",     color: "text-green-600 dark:text-green-400",   bg: "bg-green-100/80 dark:bg-green-900/30",   icon: <CalendarCheck className="w-4 h-4 text-green-500 dark:text-green-400" /> },
-          "rdv-mesures-fixe":     { label: "RDV Mesures fixés",     color: "text-green-600 dark:text-green-400",   bg: "bg-green-100/80 dark:bg-green-900/30",   icon: <CalendarCheck className="w-4 h-4 text-green-500 dark:text-green-400" /> },
-          "rdv-services-fixe":    { label: "RDV Services fixés",    color: "text-green-600 dark:text-green-400",   bg: "bg-green-100/80 dark:bg-green-900/30",   icon: <CalendarCheck className="w-4 h-4 text-green-500 dark:text-green-400" /> },
-          "rdv-sav-fixe":         { label: "RDV SAV fixés",         color: "text-green-600 dark:text-green-400",   bg: "bg-green-100/80 dark:bg-green-900/30",   icon: <CalendarCheck className="w-4 h-4 text-green-500 dark:text-green-400" /> },
+          "rdv-montage-fixe":     { label: "RDV Montage établi",     color: "text-green-600 dark:text-green-400",   bg: "bg-green-100/80 dark:bg-green-900/30",   icon: <CalendarCheck className="w-4 h-4 text-green-500 dark:text-green-400" /> },
+          "rdv-mesures-fixe":     { label: "RDV Mesures établi",     color: "text-green-600 dark:text-green-400",   bg: "bg-green-100/80 dark:bg-green-900/30",   icon: <CalendarCheck className="w-4 h-4 text-green-500 dark:text-green-400" /> },
+          "rdv-services-fixe":    { label: "RDV Services établi",    color: "text-green-600 dark:text-green-400",   bg: "bg-green-100/80 dark:bg-green-900/30",   icon: <CalendarCheck className="w-4 h-4 text-green-500 dark:text-green-400" /> },
+          "rdv-sav-fixe":         { label: "RDV SAV établi",         color: "text-green-600 dark:text-green-400",   bg: "bg-green-100/80 dark:bg-green-900/30",   icon: <CalendarCheck className="w-4 h-4 text-green-500 dark:text-green-400" /> },
           "sav-ouverts":          { label: "Tous les SAV ouverts",  color: "text-amber-600 dark:text-amber-400",   bg: "bg-amber-100/80 dark:bg-amber-900/30",   icon: <ShieldAlert className="w-4 h-4 text-amber-500 dark:text-amber-400" /> },
           "rdv-sav-a-fixer":      { label: "RDV SAV à fixer",        color: "text-rose-600 dark:text-rose-400",     bg: "bg-rose-100/80 dark:bg-rose-900/30",     icon: <Calendar className="w-4 h-4 text-rose-500 dark:text-rose-400" /> },
         };
@@ -6371,16 +6371,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           panelTitle = "Tous les SAV ouverts";
           panelProjects = savOuvertsProjects;
         } else if (showSummaryPanel === "rdv-montage-fixe") {
-          panelTitle = "RDV Montage fixés";
+          panelTitle = "RDV Montage établi";
           panelProjects = rdvMontageFixeProjects;
         } else if (showSummaryPanel === "rdv-mesures-fixe") {
-          panelTitle = "RDV Mesures fixés";
+          panelTitle = "RDV Mesures établi";
           panelProjects = rdvMesuresFixeProjects;
         } else if (showSummaryPanel === "rdv-services-fixe") {
-          panelTitle = "RDV Services fixés";
+          panelTitle = "RDV Services établi";
           panelProjects = rdvServicesFixeProjects;
         } else if (showSummaryPanel === "rdv-sav-fixe") {
-          panelTitle = "RDV SAV fixés";
+          panelTitle = "RDV SAV établi";
           panelProjects = rdvSavFixeProjects;
         } else if (showSummaryPanel === "dossiers-en-cours") {
           /* ── PROJETS EN COURS ─────────────────────────────────── */
