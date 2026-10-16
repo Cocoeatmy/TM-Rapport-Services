@@ -41,6 +41,10 @@ export async function GET(req: NextRequest) {
   if (!ident) {
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
   }
+  // Normalise en NFC : le calendrier macOS envoie souvent les accents en NFD
+  // (« 2ème » = e + U+0300) ; sans ça la tokenisation crée des tokens parasites
+  // (« 2e ») qui cassent le rattachement par référence.
+  ident = ident.normalize("NFC");
   const tmMatch = ident.match(/TM-\d+/i);
   const tm = tmMatch ? tmMatch[0].toUpperCase() : "";
 
