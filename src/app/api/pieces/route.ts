@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { descripteurFichier } from "@/lib/notion-fichiers";
-import { verifyToken } from "@/lib/auth";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { getData, getDataFresh, setData } from "@/lib/kv-store";
 import { notion } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
@@ -47,8 +47,8 @@ interface PieceRequest {
 const KEY = "pieces";
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const v = await exigerDroit("signalements.voir");
+  if ("refus" in v) return v.refus;
 
   const projectId = request.nextUrl.searchParams.get("projectId");
   /* Lecture FRAÎCHE, et non le cache mémoire de l'instance : il dure soixante
@@ -63,10 +63,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  const user = await verifyToken(token);
-  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const v = await exigerDroit("signalements.creer");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   const body = await request.json();
   /* Lecture FRAÎCHE avant d'écrire : on réécrit la LISTE ENTIÈRE, donc partir
@@ -169,10 +168,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  const user = await verifyToken(token);
-  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const v = await exigerDroit("signalements.supprimer");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
@@ -225,10 +223,9 @@ export async function DELETE(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  const user = await verifyToken(token);
-  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const v = await exigerDroit("signalements.modifier");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   const body = await request.json();
   const { id, status, comment, description, reference, displayInRapport, resolved, cabineLabel, photoUrls, cabineIdx} = body;

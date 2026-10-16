@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { verifyToken } from "@/lib/auth";
 import { getData, getDataFresh, setData } from "@/lib/kv-store";
 
@@ -25,10 +26,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  const user = await verifyToken(token);
-  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const v = await exigerDroit("rapports.heures");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   const body = await request.json();
   const { projectId, noms } = body;

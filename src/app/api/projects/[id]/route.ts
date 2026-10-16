@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { verifierHeuresEntrantes, toucheDesHeures, COUPLES_HEURES } from "@/lib/heures-coherentes";
 import { getProject, updateProject } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache, publierSnapshot } from "@/lib/server-cache";
@@ -318,6 +319,11 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  /* Le contrôle vit ICI, pas seulement dans l'écran : sans lui, l'adresse
+     restait ouverte en écriture à n'importe quel compte connecté, et un
+     bouton masqué n'a jamais empêché personne d'appeler l'adresse. */
+  const v = await exigerDroit("projets.modifier");
+  if ("refus" in v) return v.refus;
   let id = "unknown";
   try {
     id = (await params).id;

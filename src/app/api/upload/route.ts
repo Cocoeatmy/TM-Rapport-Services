@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { v2 as cloudinary } from "cloudinary";
 import { notionWrite as notion } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
@@ -59,6 +60,8 @@ function withFieldLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
 }
 
 export async function POST(request: NextRequest) {
+  const v = await exigerDroit("documents.ajouter");
+  if ("refus" in v) return v.refus;
   try {
     const formData = await request.formData();
     const files = formData.getAll("files") as File[];

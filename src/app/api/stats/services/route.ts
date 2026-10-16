@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { cachedOrFetchLong } from "@/lib/server-cache";
 import { getStats } from "@/lib/stats-data";
 
@@ -8,6 +9,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
+  const v = await exigerDroit("stats.voir");
+  if ("refus" in v) return v.refus;
   try {
     // ?fresh=1 → relit Notion en direct (contourne le snapshot nocturne), pour
     // que la journée en cours soit comptée. Sans le paramètre : inchangé.

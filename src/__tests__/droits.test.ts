@@ -41,6 +41,8 @@ describe("inventaire des droits", () => {
     const niveaux = new Set([
       "ouvert", "signe", "signe-ou-connecte", "cle-secrete", "cron",
       "connecte", "connecte-middleware", "admin", "admin-ecran",
+      // Une autorisation nommée, pilotée depuis l'écran « Droits d'accès ».
+      "droit",
       // Plus strict qu'« admin » : verrouillé sur une adresse précise.
       "proprietaire",
     ]);
@@ -51,7 +53,9 @@ describe("inventaire des droits", () => {
   it("garde les pages d'administration hors de portée d'un collaborateur", () => {
     const admin = inventaire.entrees.filter((e) => e.url.startsWith("/admin/"));
     expect(admin.length).toBeGreaterThan(0);
-    const sansGarde = admin.filter((e) => e.niveau !== "admin-ecran" && e.niveau !== "admin");
+    const sansGarde = admin.filter(
+      (e) => e.niveau !== "admin-ecran" && e.niveau !== "admin" && e.niveau !== "droit",
+    );
     expect(sansGarde.map((e) => e.url)).toEqual([]);
   });
 });

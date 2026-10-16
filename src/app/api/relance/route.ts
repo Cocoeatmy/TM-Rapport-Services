@@ -14,6 +14,7 @@
  * ce qui évite de relire quarante fiches pour relancer un mois entier.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { verifyToken } from "@/lib/auth";
 import { getProject, resolveContactDetails, type ContactDetail } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
@@ -29,9 +30,9 @@ export const maxDuration = 60;
 const MAX_PROJETS = 60;
 
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  const user = token ? await verifyToken(token) : null;
-  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const v = await exigerDroit("argent.relances");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   const { ids } = await request.json().catch(() => ({ ids: [] }));
   const liste: string[] = Array.isArray(ids) ? ids.filter((x) => typeof x === "string").slice(0, MAX_PROJETS) : [];

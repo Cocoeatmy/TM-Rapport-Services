@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
-import { verifyToken } from "@/lib/auth";
+import { exigerDroit } from "@/lib/droits-serveur";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -16,10 +16,9 @@ cloudinary.config({
  *   FormData: file (File), type ("photo" | "pdf")
  */
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  const user = await verifyToken(token);
-  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const v = await exigerDroit("stock.modifier");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   try {
     const formData = await request.formData();

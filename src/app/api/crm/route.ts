@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { notion } from "@/lib/notion";
 import { getCached, setCache, invalidateCache } from "@/lib/server-cache";
 import { verifyToken } from "@/lib/auth";
+import { exigerDroit } from "@/lib/droits-serveur";
 
 export const dynamic = "force-dynamic";
 
@@ -321,10 +322,9 @@ async function authenticateRequest(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await authenticateRequest(request);
-  if (!user) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  }
+  const v = await exigerDroit("carnet.modifier");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   try {
     const body = await request.json();
@@ -367,10 +367,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const user = await authenticateRequest(request);
-  if (!user) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  }
+  const v = await exigerDroit("carnet.modifier");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   try {
     const body = await request.json();
@@ -421,13 +420,9 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const user = await authenticateRequest(request);
-  if (!user) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  }
-  if (user.role !== "admin") {
-    return NextResponse.json({ error: "Admin uniquement" }, { status: 403 });
-  }
+  const v = await exigerDroit("carnet.supprimer");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   try {
     const body = await request.json();

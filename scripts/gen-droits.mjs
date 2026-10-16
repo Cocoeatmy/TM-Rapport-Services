@@ -65,6 +65,10 @@ function niveauDe(source, url) {
      Le chiffre d'affaires est dans ce cas — un compte promu administrateur
      plus tard n'a aucune raison d'en heriter. */
   if (a(/PROPRIETAIRE|email\s*!==\s*["'][^"']+@/)) return "proprietaire";
+  /* Une autorisation nommee, verifiee cote serveur : c'est le controle le plus
+     fin dont dispose l'application, et celui que pilote l'ecran « Droits
+     d'acces ». Il se lit avant « admin » car une route peut exiger les deux. */
+  if (a(/exigerDroit\(/)) return "droit";
   if (a(/role\s*===\s*["']admin["']/)) return "admin";
   if (a(/role\s*!==\s*["']admin["'][\s\S]{0,200}?(40[13]|Admin requis)/)) return "admin";
   const signe = a(/sign(Fiche|Sav|Synthese|Pdf|PdfClient|Signalements|Arrivage|Chantier|Doc|Mesure|PhotosZip)/);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { v2 as cloudinary } from "cloudinary";
 
 /**
@@ -18,6 +19,8 @@ cloudinary.config({
 });
 
 export async function POST(request: NextRequest) {
+  const v = await exigerDroit("documents.ajouter");
+  if ("refus" in v) return v.refus;
   try {
     const { projectId, category } = await request.json();
     if (!projectId || !category) {

@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken, getAllUsers, updateUserPassword, updateUserRole, addUser, deleteUser, updateUserInfo } from "@/lib/auth";
+import { getAllUsers, updateUserPassword, updateUserRole, addUser, deleteUser, updateUserInfo } from "@/lib/auth";
 import { getUserPhones, setUserPhone, renameUserPhone, deleteUserPhone } from "@/lib/user-phones";
 import { getUserChatIds, deleteUserChatId } from "@/lib/user-chatids";
+import { aLeDroit } from "@/lib/droits-serveur";
 
-async function checkAdmin(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return false;
-  const user = await verifyToken(token);
-  return user?.role === "admin";
+/* Gérer les comptes est devenu une autorisation nommée, pilotée depuis
+   l'écran « Droits d'accès ». Un administrateur l'a toujours ; un autre profil
+   ne l'a que si on la lui a donnée. La requête n'est plus lue ici : le droit
+   se lit sur la session, par le cookie. */
+async function checkAdmin() {
+  return aLeDroit("administration.comptes");
 }
 
-export async function GET(request: NextRequest) {
-  if (!(await checkAdmin(request))) {
+export async function GET() {
+  if (!(await checkAdmin())) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
   const users = await getAllUsers();
@@ -30,7 +32,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await checkAdmin(request))) {
+  if (!(await checkAdmin())) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
   const { email, name, password, role, memeMotDePasseQue } = await request.json();
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!(await checkAdmin(request))) {
+  if (!(await checkAdmin())) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
   const { email, password, role, name, newEmail, phone } = await request.json();
@@ -84,7 +86,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!(await checkAdmin(request))) {
+  if (!(await checkAdmin())) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
   const { email } = await request.json();

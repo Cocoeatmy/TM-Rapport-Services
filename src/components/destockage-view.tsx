@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useDroits } from "@/lib/use-droits";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -220,6 +221,10 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
   const [form, setForm]             = useState<FormState>(EMPTY_FORM);
   // Photo hover zoom — position fixe pour échapper aux stacking contexts (backdrop-filter)
   const [hoveredPhoto, setHoveredPhoto] = useState<{ src: string; x: number; y: number } | null>(null);
+  /* Le crayon et la corbeille ne s'affichent que si le droit existe : le
+     serveur refuserait de toute façon, autant ne pas le proposer. */
+  const { peut } = useDroits();
+  const peutModifier = peut("stock.modifier");
   // Déstockage : modal (remplace prompt(), bloqué dans les PWA installées).
   const [destockTarget, setDestockTarget] = useState<StockCabine | null>(null);
   const [destockRef, setDestockRef] = useState("");
@@ -666,16 +671,18 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
               const base = `${taille} shrink-0 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 transition-colors`;
               return (
                 <>
-                  <button onClick={() => startEdit(e)} title="Modifier"
-                    className={`stk-ico ${base} text-gray-500 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 hover:border-blue-200`}>
-                    <Pencil className={glyphe} />
-                  </button>
+                  {peutModifier && (
+                    <button onClick={() => startEdit(e)} title="Modifier"
+                      className={`stk-ico ${base} text-gray-500 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 hover:border-blue-200`}>
+                      <Pencil className={glyphe} />
+                    </button>
+                  )}
                   <a href={`/api/destockage/pdf?id=${e.id}`} target="_blank" rel="noopener noreferrer"
                     title="Générer fiche PDF"
                     className={`stk-ico ${base} text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 hover:border-indigo-200`}>
                     <FileDown className={glyphe} />
                   </a>
-                  {isAdmin && (
+                  {isAdmin && peutModifier && (
                     <button onClick={() => handleDelete(e)} title="Supprimer (admin)"
                       className={`stk-ico stk-ico-rouge ${base} text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 hover:border-red-200`}>
                       <Trash2 className={glyphe} />

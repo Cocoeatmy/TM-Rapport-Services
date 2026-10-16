@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { getData, setData } from "@/lib/kv-store";
 
 export interface StockCabine {
@@ -44,10 +44,8 @@ function parsePrix(v: unknown): number | undefined {
 }
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  const user = await verifyToken(token);
-  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const v = await exigerDroit("stock.voir");
+  if ("refus" in v) return v.refus;
 
   const data = await getData<StockCabine>(KEY);
   data.sort((a, b) => b.createdAt - a.createdAt);
@@ -55,10 +53,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  const user = await verifyToken(token);
-  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const v = await exigerDroit("stock.modifier");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   const body = await request.json();
   if (!body.serie || typeof body.serie !== "string") {
@@ -100,10 +97,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  const user = await verifyToken(token);
-  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const v = await exigerDroit("stock.modifier");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   const body = await request.json();
   if (!body.id) return NextResponse.json({ error: "id requis" }, { status: 400 });
@@ -153,11 +149,9 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  const user = await verifyToken(token);
-  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "Admin requis" }, { status: 403 });
+  const v = await exigerDroit("stock.modifier");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   const body = await request.json();
   if (!body.id) return NextResponse.json({ error: "id requis" }, { status: 400 });

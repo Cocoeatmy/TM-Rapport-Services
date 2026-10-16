@@ -8,6 +8,7 @@
  * agrégées — quelques dizaines, au lieu des 1350 fiches.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { verifyToken } from "@/lib/auth";
 import { getAllProjectsRaw } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
@@ -27,10 +28,8 @@ export const maxDuration = 60;
 type Entree = { adresse: string; lat: number | null; lng: number | null };
 
 export async function GET(req: NextRequest) {
-  const token = req.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  try { if (!(await verifyToken(token))) throw new Error(); }
-  catch { return NextResponse.json({ error: "Non autorisé" }, { status: 401 }); }
+  const v = await exigerDroit("stats.voir");
+  if ("refus" in v) return v.refus;
 
   const de = req.nextUrl.searchParams.get("de") || undefined;
   const a = req.nextUrl.searchParams.get("a") || undefined;

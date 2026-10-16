@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { cachedOrFetchLong } from "@/lib/server-cache";
 import { getStats } from "@/lib/stats-data";
 
@@ -6,6 +7,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET() {
+  const v = await exigerDroit("stats.voir");
+  if ("refus" in v) return v.refus;
   try {
     const rows = await cachedOrFetchLong("stats-clients", () => getStats("clients"));
     return NextResponse.json(rows);

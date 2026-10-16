@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-16T21:48:02.756Z",
+  "genereLe": "2026-10-16T22:11:50.560Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -296,7 +296,7 @@
       "url": "/api/cabine-attribution",
       "type": "api",
       "fichier": "src/app/api/cabine-attribution/route.ts",
-      "niveau": "connecte",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -379,7 +379,7 @@
       "url": "/api/crm",
       "type": "api",
       "fichier": "src/app/api/crm/route.ts",
-      "niveau": "admin",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -392,7 +392,7 @@
       "url": "/api/crm/entry",
       "type": "api",
       "fichier": "src/app/api/crm/entry/route.ts",
-      "niveau": "connecte",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET"
@@ -502,7 +502,7 @@
       "url": "/api/defauts",
       "type": "api",
       "fichier": "src/app/api/defauts/route.ts",
-      "niveau": "connecte",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -526,7 +526,7 @@
       "url": "/api/destockage",
       "type": "api",
       "fichier": "src/app/api/destockage/route.ts",
-      "niveau": "admin",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -539,7 +539,7 @@
       "url": "/api/destockage-upload",
       "type": "api",
       "fichier": "src/app/api/destockage-upload/route.ts",
-      "niveau": "connecte",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "POST"
@@ -579,6 +579,27 @@
       "url": "/api/doc-proxy",
       "type": "api",
       "fichier": "src/app/api/doc-proxy/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/droits",
+      "type": "api",
+      "fichier": "src/app/api/droits/route.ts",
+      "niveau": "droit",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "PUT"
+      ]
+    },
+    {
+      "url": "/api/droits/moi",
+      "type": "api",
+      "fichier": "src/app/api/droits/moi/route.ts",
       "niveau": "connecte-middleware",
       "gardePage": false,
       "methodes": [
@@ -797,7 +818,7 @@
       "url": "/api/photos/attach",
       "type": "api",
       "fichier": "src/app/api/photos/attach/route.ts",
-      "niveau": "connecte-middleware",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "POST"
@@ -807,7 +828,7 @@
       "url": "/api/photos/sans",
       "type": "api",
       "fichier": "src/app/api/photos/sans/route.ts",
-      "niveau": "connecte",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -818,7 +839,7 @@
       "url": "/api/photos/sign",
       "type": "api",
       "fichier": "src/app/api/photos/sign/route.ts",
-      "niveau": "connecte-middleware",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "POST"
@@ -828,7 +849,7 @@
       "url": "/api/pieces",
       "type": "api",
       "fichier": "src/app/api/pieces/route.ts",
-      "niveau": "connecte",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -874,7 +895,7 @@
       "url": "/api/projects/[id]",
       "type": "api",
       "fichier": "src/app/api/projects/[id]/route.ts",
-      "niveau": "connecte-middleware",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -968,7 +989,7 @@
       "url": "/api/projects/creer",
       "type": "api",
       "fichier": "src/app/api/projects/creer/route.ts",
-      "niveau": "admin",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "POST"
@@ -1211,7 +1232,7 @@
       "url": "/api/relance",
       "type": "api",
       "fichier": "src/app/api/relance/route.ts",
-      "niveau": "connecte",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "POST"
@@ -1231,7 +1252,7 @@
       "url": "/api/relance/trace",
       "type": "api",
       "fichier": "src/app/api/relance/trace/route.ts",
-      "niveau": "connecte",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -1292,7 +1313,7 @@
       "url": "/api/stats/analyses",
       "type": "api",
       "fichier": "src/app/api/stats/analyses/route.ts",
-      "niveau": "connecte",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET"
@@ -1323,7 +1344,7 @@
       "url": "/api/stats/clients",
       "type": "api",
       "fichier": "src/app/api/stats/clients/route.ts",
-      "niveau": "connecte-middleware",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET"
@@ -1343,7 +1364,7 @@
       "url": "/api/stats/marques",
       "type": "api",
       "fichier": "src/app/api/stats/marques/route.ts",
-      "niveau": "connecte-middleware",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET"
@@ -1353,7 +1374,7 @@
       "url": "/api/stats/series",
       "type": "api",
       "fichier": "src/app/api/stats/series/route.ts",
-      "niveau": "connecte-middleware",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET"
@@ -1363,7 +1384,7 @@
       "url": "/api/stats/services",
       "type": "api",
       "fichier": "src/app/api/stats/services/route.ts",
-      "niveau": "connecte-middleware",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET"
@@ -1427,7 +1448,7 @@
       "url": "/api/upload",
       "type": "api",
       "fichier": "src/app/api/upload/route.ts",
-      "niveau": "connecte-middleware",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "POST"
@@ -1448,7 +1469,7 @@
       "url": "/api/users",
       "type": "api",
       "fichier": "src/app/api/users/route.ts",
-      "niveau": "admin",
+      "niveau": "connecte-middleware",
       "gardePage": false,
       "methodes": [
         "GET",

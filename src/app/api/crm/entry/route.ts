@@ -6,6 +6,7 @@
  * Les relations « Entreprise » sont résolues en nom.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { notion } from "@/lib/notion";
 import { verifyToken } from "@/lib/auth";
 
@@ -37,10 +38,8 @@ function extractValue(prop: any): any {
 }
 
 export async function GET(req: NextRequest) {
-  const token = req.cookies.get("auth-token")?.value;
-  if (!token || !(await verifyToken(token))) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  }
+  const v = await exigerDroit("carnet.voir");
+  if ("refus" in v) return v.refus;
   const id = req.nextUrl.searchParams.get("id") || "";
   if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
 

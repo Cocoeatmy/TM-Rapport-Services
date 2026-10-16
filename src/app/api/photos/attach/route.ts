@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { descripteurFichier, urlDuDescripteur, type DescripteurFichier } from "@/lib/notion-fichiers";
 import { notionWrite } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
@@ -79,6 +80,8 @@ async function withDistributedFieldLock<T>(
 }
 
 export async function POST(request: NextRequest) {
+  const v = await exigerDroit("documents.ajouter");
+  if ("refus" in v) return v.refus;
   let notionField = "";
   try {
     const body = await request.json();

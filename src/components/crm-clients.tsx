@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Tag, Pencil, Trash2, Plus, Check, X, Globe, MapPin, Hash, Camera, BarChart3, TrendingUp, Package, Layers, Filter, ChevronDown } from "lucide-react";
 import { createPortal } from "react-dom";
 import { thumbnailUrl } from "@/lib/image-url";
+import { useDroits } from "@/lib/use-droits";
 import { joursOuvresEntre } from "@/lib/jours-ouvres";
 
 interface CRMEntry {
@@ -1033,6 +1034,8 @@ function EntryCard({ entry, mode, isAdmin, onEdit, onDelete }: {
 
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"infos" | "stats">("infos");
+  /* Proposer un bouton que le serveur refusera n'aide personne. */
+  const { peut } = useDroits();
 
   // Stats disponibles pour tous sauf contacts
   const entityType = MODE_TO_TYPE[mode as ClientMode];
@@ -1063,10 +1066,12 @@ function EntryCard({ entry, mode, isAdmin, onEdit, onDelete }: {
           </div>
         </div>
         <div className="flex gap-1 shrink-0">
-          <button onClick={(e) => { e.stopPropagation(); onEdit(entry); }} className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center">
-            <Pencil className="w-3 h-3 text-gray-400" />
-          </button>
-          {isAdmin && (
+          {peut("carnet.modifier") && (
+            <button onClick={(e) => { e.stopPropagation(); onEdit(entry); }} className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center">
+              <Pencil className="w-3 h-3 text-gray-400" />
+            </button>
+          )}
+          {isAdmin && peut("carnet.supprimer") && (
             <button onClick={(e) => { e.stopPropagation(); onDelete(entry); }} className="w-7 h-7 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center">
               <Trash2 className="w-3 h-3 text-red-400" />
             </button>
@@ -1349,6 +1354,7 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
 }
 
 export function CRMClients({ mode, isAdmin, filterTag, initialSearch }: { mode: ClientMode; isAdmin?: boolean; filterTag?: string | null; initialSearch?: string }) {
+  const { peut } = useDroits();
   const [entries, setEntries] = useState<CRMEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1512,13 +1518,15 @@ export function CRMClients({ mode, isAdmin, filterTag, initialSearch }: { mode: 
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
         </button>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="shrink-0 h-10 px-4 rounded-xl bg-blue-600 text-white text-sm font-medium flex items-center gap-1.5 hover:bg-blue-700 active:scale-95 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Nouveau
-        </button>
+        {peut("carnet.modifier") && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="shrink-0 h-10 px-4 rounded-xl bg-blue-600 text-white text-sm font-medium flex items-center gap-1.5 hover:bg-blue-700 active:scale-95 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Nouveau
+          </button>
+        )}
       </div>
 
       <p className="text-xs text-gray-400 mb-3">{filtered.length} résultat{filtered.length !== 1 ? "s" : ""}</p>

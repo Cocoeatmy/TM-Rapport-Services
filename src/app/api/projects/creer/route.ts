@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { notion, notionWrite, databaseId } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
 import { normaliserSchema, champPar } from "@/lib/notion-schema";
@@ -18,10 +18,9 @@ import { ecrireValeur, TypeNonEcrivable, type ValeurChamp } from "@/lib/notion-v
  */
 
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  const user = await verifyToken(token);
-  if (!user || user.role !== "admin") return NextResponse.json({ error: "Admin requis" }, { status: 403 });
+  const v = await exigerDroit("projets.creer");
+  if ("refus" in v) return v.refus;
+  const user = v.user;
 
   const body = await request.json().catch(() => null);
   const valeurs = body?.valeurs as Record<string, ValeurChamp> | undefined;
