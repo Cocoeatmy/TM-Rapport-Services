@@ -5,6 +5,7 @@ import { fileDEnvoi } from "@/lib/envoi-en-serie";
 import { createPortal } from "react-dom";
 import { FicheComplete } from "@/components/fiche-complete";
 import { etatSavAffiche } from "@/lib/sav-cabines";
+import { repriseDepuisHeures } from "@/lib/sav-passages-reprise";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -6956,6 +6957,30 @@ function ProjectPageContent({ id }: { id: string }) {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, (project?.documentsMontagee || []).map((f) => f.name).join("|")]);
+
+  /**
+   * Rattrape les passages SAV restés dans les colonnes d'heures.
+   *
+   * Avant la correction du 16 octobre 2026, l'écran mono-cabine écrivait
+   * la liste des passages dans « Heure arrivée SAV » / « Heure départ
+   * SAV » et jamais dans les colonnes que les listes lisent. Trois
+   * chantiers étaient dans ce cas : leurs rendez-vous existaient à
+   * l'écran du chantier, et nulle part ailleurs.
+   *
+   * On les remet à leur place à l'ouverture de la fiche — une seule fois,
+   * puisqu'on ne touche à rien dès que la colonne par lot porte quelque
+   * chose. Rien n'est inventé : tout était déjà saisi.
+   */
+  useEffect(() => {
+    if (!project) return;
+    const r = repriseDepuisHeures(project);
+    if (!r) return;
+    saveCabineTexts(0, {
+      interventionsSavCabines: r.interventions,
+      datesRdvSavCabines: r.derniereDate,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id, project?.interventionsSavCabines, project?.heureArriveeSav, project?.heureDepartSav]);
 
   /**
    * Un SAV existe : la case « SAV » se coche, et l'état cesse de dire le
