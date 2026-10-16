@@ -445,10 +445,14 @@ function InterventionsLot({
           );
         })}
       </div>
+      {/* Même raison que son jumeau mono-cabine : en pointillés gris, il se
+          confondait avec la bordure d'un champ. Un second passage se décide
+          sur le chantier, et un bouton qu'on ne voit pas est un passage
+          noté ailleurs — ou nulle part. */}
       <button
         type="button"
         onClick={() => appliquer([...liste, { date: aujourdhui, collaborateurs: "", arrivee: "", depart: "" }])}
-        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600"
+        className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-sm hover:shadow transition-all"
       >
         <Plus className="w-3.5 h-3.5" />
         {liste.length === 0 ? "Dater l'intervention" : "Ajouter un passage"}
