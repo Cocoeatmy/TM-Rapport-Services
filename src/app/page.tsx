@@ -8,7 +8,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, Compass, Receipt, Coins, AlertTriangle, CheckCircle2, Clock, Truck, Building2, Sparkles } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, BarChart2, Archive, FolderOpen, Compass, Receipt, Coins, AlertTriangle, CheckCircle2, Clock, Truck, Building2, Sparkles } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -460,8 +460,11 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
           { id: "clients",      label: "CRM",             Icon: UsersIcon,   active: isClientsActive || open === "clients",                  act: () => setOpen(open === "clients" ? null : "clients") },
           { id: "grossistes",   label: "Grossistes",      Icon: ShoppingBag, active: isGrossisteActive || open === "grossistes",             act: () => setOpen(open === "grossistes" ? null : "grossistes") },
           { id: "fournisseurs", label: "Fournisseurs",    Icon: Package,     active: isFournisseursActive || open === "fournisseurs-menu",   act: () => setOpen(open === "fournisseurs-menu" ? null : "fournisseurs-menu") },
-          { id: "sanitaires",   label: "Sanitaires",      Icon: Droplets,    active: mode === "sanitaires",                                 act: () => { handleSelect("sanitaires"); setOpen(null); } },
-          { id: "rapport",      label: "Rapport",         Icon: FileText,    active: mode === "rapport",                                    act: () => { handleSelect("rapport"); setOpen(null); } },
+          /* Sanitaires et Rapport ont quitté le rail : deux vues jamais
+             consultées qui occupaient une place entre des destinations
+             ouvertes chaque jour. Les modes existent toujours — ?mode=
+             sanitaires et ?mode=rapport y mènent — et les autres thèmes
+             gardent leurs onglets. */
           { id: "destockage",   label: "Déstockage",      Icon: Archive,     active: mode === "destockage",                                 act: () => { handleSelect("destockage"); setOpen(null); } },
           { id: "chantiers",    label: "Chantiers PPE",   Icon: Building2,   active: mode === "chantiers",                                  act: () => { handleSelect("chantiers"); setOpen(null); } },
           /* Garanties a quitté ce rail pour le menu du profil : on le consulte
@@ -516,14 +519,21 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
             {isFournisseursActive && fournisseurActiveLabel && fournisseurActiveLabel !== "Tous" ? `Fournisseurs · ${fournisseurActiveLabel}` : "Fournisseurs"}
             <ChevronDown className={`w-3 h-3 transition-transform ${open === "fournisseurs-menu" ? "rotate-180" : ""}`} />
           </button>
-          <button onClick={() => { handleSelect("sanitaires"); setOpen(null); }} className={tabCls(mode === "sanitaires")}>
-            Sanitaires
-          </button>
-          <button onClick={() => { handleSelect("rapport"); setOpen(null); }} className={`shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 inline-flex items-center gap-1 ${
-            mode === "rapport" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
-          }`}>
-            Rapport
-          </button>
+          {/* Sanitaires et Rapport : retirés du thème Signal, sur le rail
+              comme ici, pour que les deux écrans disent la même chose. Les
+              autres thèmes les gardent à l'identique. */}
+          {!isSignal && (
+            <button onClick={() => { handleSelect("sanitaires"); setOpen(null); }} className={tabCls(mode === "sanitaires")}>
+              Sanitaires
+            </button>
+          )}
+          {!isSignal && (
+            <button onClick={() => { handleSelect("rapport"); setOpen(null); }} className={`shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 inline-flex items-center gap-1 ${
+              mode === "rapport" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
+            }`}>
+              Rapport
+            </button>
+          )}
           <button onClick={() => { handleSelect("destockage"); setOpen(null); }} className={tabCls(mode === "destockage")}>
             Déstockage
           </button>
