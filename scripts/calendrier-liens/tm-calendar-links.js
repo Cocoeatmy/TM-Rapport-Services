@@ -101,10 +101,19 @@ function run(argv) {
     }
     const wantsNotes = (type === 'montage' || type === 'mesures' || type === 'services' || type === 'sav');
 
-    // Identifiant : « TM-<chiffres> » OU « AS 2026/1707 » (mesures Duka).
+    // Identifiant : « TM-<chiffres> » OU « AS 2026/1707 » (mesures Duka) ; sinon,
+    // pour les MESURES, la RÉFÉRENCE texte = nom du projet (pas encore de n°),
+    // soit le titre après le préfixe « (PROV :) Mesures - ».
     const idMatch = title.match(/TM-\d+/i) || title.match(/AS\s*\d{4}\s*\/?\s*\d+/i);
-    if (!idMatch) continue;
-    const ident = idMatch[0].trim();
+    let ident;
+    if (idMatch) {
+      ident = idMatch[0].trim();
+    } else if (type === 'mesures') {
+      ident = title.replace(/^\s*(?:PROV\s*[:\-]\s*)?Mesures?\s*[-–:]\s*/i, '').trim();
+      if (ident.length < 4) continue;
+    } else {
+      continue;
+    }
 
     const curURL = ObjC.unwrap(ev.URL ? ev.URL.absoluteString : $()) || '';
     const curNotes = ObjC.unwrap(ev.notes) || '';

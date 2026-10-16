@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
         filter: { property: "N° OFR TM", rich_text: { contains: tm } },
         page_size: 10,
       });
-    } else {
+    } else if (/AS\s*\d{4}/i.test(ident)) {
       // Recherche par N° « AS … ». Il vit normalement dans « N° Serv. Mesures
       // Fournisseurs » (rich_text, ex. « AS 2026/2071 ») ; repli sur le TITRE
       // (certains projets ont l'AS dans le nom). On essaie plusieurs variantes de
@@ -82,6 +82,25 @@ export async function GET(req: NextRequest) {
           if (resp.results?.length) { found = true; break; }
         }
         if (found) break;
+      }
+    } else {
+      // Référence TEXTE = nom du projet (pas encore de n°). On rattache par MOTS
+      // ASCII distinctifs en AND — robuste aux accents (Notion stocke parfois en
+      // NFD, « à » = a + U+0300 → un `contains` sur la chaîne accentuée échoue) et
+      // à la ponctuation/tirets. On exige ≥ 3 mots pour éviter les faux positifs.
+      const STOP = new Set(["rue", "route", "chemin", "avenue", "place", "impasse", "villa",
+        "appartement", "etage", "suisse", "sarl", "chez", "residence", "batiment", "immeuble", "lot"]);
+      const words = ident.split(/[^A-Za-z]+/).filter((w) => w.length >= 4 && !STOP.has(w.toLowerCase()));
+      const uniq = Array.from(new Set(words));
+      resp = { results: [] };
+      if (uniq.length >= 3) {
+        const byLen = [...uniq].sort((a, b) => b.length - a.length);
+        const andFilter = (ws: string[]) => ({ and: ws.map((w) => ({ property: "Projet", title: { contains: w } })) });
+        const attempts = [uniq, byLen.slice(0, 4)];
+        for (const ws of attempts) {
+          resp = await notion.databases.query({ database_id: databaseId, filter: andFilter(ws) as any, page_size: 10 });
+          if (resp.results?.length) break;
+        }
       }
     }
 
