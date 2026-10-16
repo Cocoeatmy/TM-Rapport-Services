@@ -84,20 +84,31 @@ export async function GET(req: NextRequest) {
         if (found) break;
       }
     } else {
-      // Référence TEXTE = nom du projet (pas encore de n°). On rattache par MOTS
-      // ASCII distinctifs en AND — robuste aux accents (Notion stocke parfois en
-      // NFD, « à » = a + U+0300 → un `contains` sur la chaîne accentuée échoue) et
-      // à la ponctuation/tirets. On exige ≥ 3 mots pour éviter les faux positifs.
+      // Référence TEXTE = nom du projet (pas encore de n°). On rattache par
+      // TOKENS distinctifs en AND sur le titre — robuste aux accents (Notion
+      // stocke parfois en NFD, « à » = a+U+0300 → un `contains` sur la chaîne
+      // accentuée échoue) et à la ponctuation/tirets (« REZ Gauche » == « REZ-
+      // Gauche »). On GARDE les codes d'appartement « 1B/2A/1er » (chiffre+lettre)
+      // qui distinguent les lots d'un même immeuble, et les mots ≥3 lettres ;
+      // on écarte les tokens accentués et les nombres purs (adresses).
       const STOP = new Set(["rue", "route", "chemin", "avenue", "place", "impasse", "villa",
         "appartement", "etage", "suisse", "sarl", "chez", "residence", "batiment", "immeuble", "lot"]);
-      const words = ident.split(/[^A-Za-z]+/).filter((w) => w.length >= 4 && !STOP.has(w.toLowerCase()));
-      const uniq = Array.from(new Set(words));
+      const tokens = Array.from(new Set(
+        ident.split(/[^0-9A-Za-zÀ-ÿ]+/).filter(Boolean).filter((t) => {
+          if (/[À-ÿ]/.test(t)) return false;                 // accent → NFC/NFD : on écarte
+          if (/\d/.test(t)) return /[A-Za-z]/.test(t) && t.length >= 2; // code appart. « 1B »
+          return t.length >= 3 && !STOP.has(t.toLowerCase());
+        })
+      ));
       resp = { results: [] };
-      if (uniq.length >= 3) {
-        const byLen = [...uniq].sort((a, b) => b.length - a.length);
+      if (tokens.length >= 3) {
+        const codes = tokens.filter((t) => /\d/.test(t));
+        const letters = tokens.filter((t) => !/\d/.test(t)).sort((a, b) => b.length - a.length);
         const andFilter = (ws: string[]) => ({ and: ws.map((w) => ({ property: "Projet", title: { contains: w } })) });
-        const attempts = [uniq, byLen.slice(0, 4)];
+        // 1) tous les tokens ; 2) codes + 3 mots les plus longs (tolère un token en trop).
+        const attempts = [tokens, Array.from(new Set([...codes, ...letters.slice(0, 3)]))];
         for (const ws of attempts) {
+          if (ws.length < 2) continue;
           resp = await notion.databases.query({ database_id: databaseId, filter: andFilter(ws) as any, page_size: 10 });
           if (resp.results?.length) break;
         }
