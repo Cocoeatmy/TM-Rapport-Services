@@ -135,3 +135,72 @@ export function heuresPhotosDuJour(
     nombre: instants.length,
   };
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   LA DATE DE PRISE DE VUE, QUAND LA PHOTO LA PORTE
+
+   Deux heures cohabitent désormais dans le nom d'un fichier :
+
+       Montage gauche.1.1792134182687.p1792107600000.jpg
+                        └ ajout         └ prise de vue (EXIF)
+
+   La première a toujours existé : c'est l'instant où la photo entre dans
+   la file d'envoi. La seconde est lue dans le fichier AVANT compression
+   (voir lib/exif-photo) et n'existe que depuis le 16 octobre 2026.
+
+   Elles ne disent pas la même chose et l'écran ne doit jamais les
+   confondre : « 9 h 02 pour une photo d'avant montage » était l'heure
+   d'ajout, et elle ne voulait rien dire sur le chantier.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/** Le morceau à coller dans le nom du fichier, vide si l'EXIF est muet. */
+export function suffixePriseDeVue(ms: number | null | undefined): string {
+  return typeof ms === "number" && Number.isFinite(ms) ? `.p${ms}` : "";
+}
+
+/** La date de prise de vue inscrite dans le nom, si elle y est. */
+export function priseDeVueDuNom(nom?: string | null): number | null {
+  const m = String(nom || "").match(/\.p(\d{13})\./);
+  if (!m) return null;
+  const ms = parseInt(m[1], 10);
+  const annee = new Date(ms).getFullYear();
+  if (annee < 2000 || annee > 2100) return null;
+  return ms;
+}
+
+export interface HeuresPhotosSourcees extends HeuresPhotos {
+  /** « prise » = lu dans la photo ; « ajout » = entrée dans la file. */
+  source: "prise" | "ajout";
+}
+
+/**
+ * Première et dernière photo du jour, en préférant la prise de vue.
+ *
+ * Si AU MOINS une photo du jour porte sa date de prise de vue, on ne
+ * travaille que sur celles-là : mélanger les deux horloges donnerait une
+ * amplitude qui n'appartient à aucune des deux. Sinon on retombe sur
+ * l'heure d'ajout — en le DISANT, pour qu'on ne la lise pas comme une
+ * heure de prise de vue.
+ */
+export function heuresPhotosSourcees(
+  buckets: Record<string, unknown>,
+  jourISO: string,
+  options: { lot?: number; fuseau?: string } = {},
+): HeuresPhotosSourcees | null {
+  const avecPrise: Record<string, { name: string }[]> = {};
+  for (const [champ, valeur] of Object.entries(buckets || {})) {
+    if (!champ.startsWith("photos") || !Array.isArray(valeur)) continue;
+    const gardees = (valeur as FichierHorodate[])
+      .filter((f) => priseDeVueDuNom(f?.name) !== null)
+      /* On réécrit le nom pour que le calcul porte sur la prise de vue. */
+      .map((f) => ({ name: String(f.name).replace(/\.(\d{13})\./, `.${priseDeVueDuNom(f.name)}.`) }));
+    if (gardees.length) avecPrise[champ] = gardees;
+  }
+
+  if (Object.keys(avecPrise).length > 0) {
+    const h = heuresPhotosDuJour(avecPrise, jourISO, options);
+    if (h) return { ...h, source: "prise" };
+  }
+  const h = heuresPhotosDuJour(buckets, jourISO, options);
+  return h ? { ...h, source: "ajout" } : null;
+}

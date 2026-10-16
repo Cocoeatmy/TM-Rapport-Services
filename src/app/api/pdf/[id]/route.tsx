@@ -25,7 +25,7 @@ import { emailEnabled } from "@/lib/email-prefs";
 import { formatSwissDate, formatSwissDateTime } from "@/lib/time-utils";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
 import { parseInterventions, minutesInterventions, type InterventionSav } from "@/lib/sav-interventions";
-import { heuresPhotosDuJour } from "@/lib/heures-photos";
+import { heuresPhotosSourcees } from "@/lib/heures-photos";
 import {
   type PhotoBucketKey,
   BUCKET_LABEL,
@@ -895,10 +895,23 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                moment de la prise. */
             const photosDe = (jour: string, lot?: number) =>
               heuresPhotosVisibles
-                ? heuresPhotosDuJour(project as unknown as Record<string, unknown>, jour, { lot })
+                ? heuresPhotosSourcees(project as unknown as Record<string, unknown>, jour, { lot })
                 : null;
-            const SousHeure = ({ valeur }: { valeur?: string }) =>
-              valeur ? <Text style={styles.timePhoto}>photos {valeur}</Text> : null;
+            /* Deux horloges, deux mots. « prise » vient de l'EXIF de la
+               photo — l'heure du cliché. « ajoutée » est l'instant où la
+               photo est entrée dans la file d'envoi : c'est ce qu'on
+               affichait, et c'est ce qui a fait dire « 9 h 02 pour une
+               photo d'avant montage ». Les confondre serait pire que de
+               ne rien afficher du tout. */
+            const SousHeure = ({ h, quoi }: {
+              h: { premiere: string; derniere: string; source: "prise" | "ajout" } | null;
+              quoi: "premiere" | "derniere";
+            }) =>
+              h ? (
+                <Text style={styles.timePhoto}>
+                  {h.source === "prise" ? "photo prise " : "photo ajoutée "}{h[quoi]}
+                </Text>
+              ) : null;
             /* Sans passage daté, la journée de référence est celle du
                montage : c'est la seule date que porte alors la fiche. */
             const photosDuMontage = photosDe(String(project.dateMontage || "").split("T")[0]);
@@ -999,12 +1012,12 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                                   <View style={{ ...styles.timeBox, flex: 1, marginRight: 4 }}>
                                     <Text style={styles.timeLabel}>Arrivée</Text>
                                     <Text style={styles.timeValue}>{pa.arrivee || "--:--"}</Text>
-                                    <SousHeure valeur={ph?.premiere} />
+                                    <SousHeure h={ph} quoi="premiere" />
                                   </View>
                                   <View style={{ ...styles.timeBox, flex: 1 }}>
                                     <Text style={styles.timeLabel}>Départ</Text>
                                     <Text style={styles.timeValue}>{pa.depart || "--:--"}</Text>
-                                    <SousHeure valeur={ph?.derniere} />
+                                    <SousHeure h={ph} quoi="derniere" />
                                   </View>
                                 </View>
                                 );
@@ -1045,12 +1058,12 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                         {/* Une cabine sous-traitée n'est pas pointée par TM :
                             ses photos ne témoignent de la présence de
                             personne chez nous. */}
-                        {!sousTraitMap[i] && <SousHeure valeur={photosDe(dateMap[i] || "", i + 1)?.premiere} />}
+                        {!sousTraitMap[i] && <SousHeure h={photosDe(dateMap[i] || "", i + 1)} quoi="premiere" />}
                       </View>
                       <View style={{ ...styles.timeBox, flex: 1 }}>
                         <Text style={styles.timeLabel}>Départ</Text>
                         <Text style={styles.timeValue}>{sousTraitMap[i] ? "--:--" : (departMap[i] || "--:--")}</Text>
-                        {!sousTraitMap[i] && <SousHeure valeur={photosDe(dateMap[i] || "", i + 1)?.derniere} />}
+                        {!sousTraitMap[i] && <SousHeure h={photosDe(dateMap[i] || "", i + 1)} quoi="derniere" />}
                       </View>
                     </View>
                     );
@@ -1085,12 +1098,12 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                         <View style={{ ...styles.timeBox, flex: 1, marginRight: 4 }}>
                           <Text style={styles.timeLabel}>Arrivée</Text>
                           <Text style={styles.timeValue}>{p.arrivee || "--:--"}</Text>
-                          <SousHeure valeur={ph?.premiere} />
+                          <SousHeure h={ph} quoi="premiere" />
                         </View>
                         <View style={{ ...styles.timeBox, flex: 1 }}>
                           <Text style={styles.timeLabel}>Départ</Text>
                           <Text style={styles.timeValue}>{p.depart || "--:--"}</Text>
-                          <SousHeure valeur={ph?.derniere} />
+                          <SousHeure h={ph} quoi="derniere" />
                         </View>
                       </View>
                       );
@@ -1105,12 +1118,12 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                 <View style={styles.timeBox}>
                   <Text style={styles.timeLabel}>Arrivée</Text>
                   <Text style={styles.timeValue}>{project.heureArrivee || "--:--"}</Text>
-                  <SousHeure valeur={photosDuMontage?.premiere} />
+                  <SousHeure h={photosDuMontage} quoi="premiere" />
                 </View>
                 <View style={styles.timeBox}>
                   <Text style={styles.timeLabel}>Départ</Text>
                   <Text style={styles.timeValue}>{project.heureDepart || "--:--"}</Text>
-                  <SousHeure valeur={photosDuMontage?.derniere} />
+                  <SousHeure h={photosDuMontage} quoi="derniere" />
                 </View>
               </View>
             );

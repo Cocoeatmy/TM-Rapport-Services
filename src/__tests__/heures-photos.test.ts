@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { heuresPhotosDuJour, horodatageDuNom, lotDuNom } from "@/lib/heures-photos";
+import {
+  heuresPhotosDuJour, horodatageDuNom, lotDuNom,
+  heuresPhotosSourcees, suffixePriseDeVue, priseDeVueDuNom,
+} from "@/lib/heures-photos";
 
 /**
  * L'heure que disent les photos.
@@ -104,5 +107,65 @@ describe("heuresPhotosDuJour", () => {
     expect(heuresPhotosDuJour(PROJET, "")).toBeNull();
     expect(heuresPhotosDuJour(PROJET, "2026-10-17")).toBeNull();
     expect(heuresPhotosDuJour({}, "2026-10-16")).toBeNull();
+  });
+});
+
+/**
+ * Deux horloges, et il ne faut jamais les confondre.
+ *
+ * « Je doute que la première photo ait été prise à 9 h 02, si c'est une
+ * photo d'avant montage et que ce montage prend minimum 45 minutes. »
+ * L'heure affichée était celle de l'ajout dans la file. La vraie est
+ * désormais lue dans l'EXIF, avant compression, et inscrite dans le nom.
+ */
+describe("prise de vue contre heure d'ajout", () => {
+  it("écrit le suffixe seulement quand l'EXIF a parlé", () => {
+    expect(suffixePriseDeVue(1792107600000)).toBe(".p1792107600000");
+    expect(suffixePriseDeVue(null)).toBe("");
+    expect(suffixePriseDeVue(undefined)).toBe("");
+  });
+
+  it("relit la prise de vue sans se tromper avec l'heure d'ajout", () => {
+    const nom = "Montage gauche.1.1792134182687.p1792107600000.jpg";
+    expect(priseDeVueDuNom(nom)).toBe(1792107600000);
+    expect(horodatageDuNom(nom)).toBe(1792134182687);   // l'ajout, intact
+    expect(lotDuNom("Montage.Cab3.1.1792134182687.p1792107600000.jpg")).toBe(3);
+  });
+
+  it("PRÉFÈRE la prise de vue dès qu'une seule photo la porte", () => {
+    /* 08:20 (prise) plutôt que 09:02 (ajout) : c'est toute la question. */
+    const projet = {
+      photosAvant: [{ name: "Avant.1.1792134148223.p1792131600000.jpg" }],
+      photosMontage: [{ name: "Montage.1.1792134182687.p1792138800000.jpg" }],
+    };
+    const h = heuresPhotosSourcees(projet, "2026-10-16");
+    expect(h?.source).toBe("prise");
+    expect(h?.premiere).toBe("08:20");
+    expect(h?.derniere).toBe("10:20");
+  });
+
+  it("NE MÉLANGE PAS les deux horloges", () => {
+    /* Une photo avec EXIF, une sans : on ne travaille que sur celles qui
+       en ont. Mélanger donnerait une amplitude qui n'appartient à aucune
+       des deux horloges. */
+    const projet = {
+      photosAvant: [{ name: "Avant.1.1792134148223.p1792131600000.jpg" }],  // prise 08:20
+      photosMontage: [{ name: "Montage.1.1792145000000.jpg" }],             // ajout 12:03
+    };
+    const h = heuresPhotosSourcees(projet, "2026-10-16");
+    expect(h?.source).toBe("prise");
+    expect(h?.derniere).toBe("08:20");
+  });
+
+  it("retombe sur l'heure d'ajout en le DISANT", () => {
+    /* Toutes les photos d'avant le 16 octobre 2026 sont dans ce cas :
+       leur EXIF a été détruit par la compression, il est perdu. */
+    const h = heuresPhotosSourcees(PROJET, "2026-10-16");
+    expect(h?.source).toBe("ajout");
+    expect(h?.premiere).toBe("09:02");
+  });
+
+  it("ne rend rien plutôt que de deviner", () => {
+    expect(heuresPhotosSourcees({}, "2026-10-16")).toBeNull();
   });
 });

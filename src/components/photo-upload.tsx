@@ -5,6 +5,8 @@ import { Camera, ImagePlus, X, Loader2, Download, CloudUpload, RotateCcw, Rotate
 import { thumbnailUrl, rotateCloudinaryUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
 import { compressImage } from "@/lib/compress-image";
+import { priseDeVueDuFichier } from "@/lib/exif-photo";
+import { suffixePriseDeVue } from "@/lib/heures-photos";
 import { refusFichier } from "@/lib/video-limites";
 import { dureeVideo } from "@/lib/video-duree";
 import { saveFilesToDeviceGallery, enregistrerUnFichier } from "@/lib/save-to-gallery";
@@ -144,11 +146,19 @@ export function PhotoUpload({
     // ── Nommage des fichiers ─────────────────────────────────────────────────
     const currentCount = existingPhotos.length + pendingCountRef.current;
     const ts = Date.now();
+    /* LA DATE DE PRISE DE VUE SE LIT MAINTENANT, PAS APRÈS.
+       La compression qui suit redessine l'image sur un canvas et n'en
+       ressort que des pixels : l'EXIF est perdu, et avec lui la seule
+       heure qui dise vraiment quand le cliché a été pris. On la lit donc
+       sur le fichier tel que le téléphone le donne, et on l'inscrit dans
+       le nom — le seul endroit qui traverse la file d'attente hors ligne
+       sans rien coûter. */
+    const prises = await Promise.all(originals.map((f) => priseDeVueDuFichier(f)));
     const renamed: File[] = originals.map((file, i) => {
       const idx = currentCount + i + 1;
       const ext = file.name.split(".").pop() || "jpg";
       const newName = filePrefix
-        ? `${filePrefix}.${idx}.${ts}.${ext}`
+        ? `${filePrefix}.${idx}.${ts}${suffixePriseDeVue(prises[i])}.${ext}`
         : file.name;
       return new File([file], newName, { type: file.type });
     });
