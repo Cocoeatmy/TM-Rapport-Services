@@ -31,6 +31,12 @@ export type SignalStatsMonth = {
 
 type SerieId = keyof SignalStatsMonth;
 
+/* Le chiffre d'affaires se compte en francs : mille fois l'échelle des
+   autres séries. Le tracer à côté d'elles les écrase toutes contre l'axe.
+   Il n'entre donc pas dans la vue combinée — on ne peut l'afficher qu'en
+   le METTANT AU POINT, seul, depuis sa tuile. */
+const SERIE_SEULE = new Set<SerieId>(["ca"]);
+
 const SERIES: { id: SerieId; label: string; color: string; unit?: string }[] = [
   { id: "montages",   label: "Montages",   color: "#3b82f6" },
   { id: "cabines",    label: "Cabines",    color: "#22c55e" },
@@ -39,6 +45,12 @@ const SERIES: { id: SerieId; label: string; color: string; unit?: string }[] = [
   { id: "sav",        label: "SAV",        color: "#f59e0b" },
   { id: "demontages", label: "Démontages", color: "#f43f5e" },
   { id: "ofr",        label: "OFR",        color: "#94a3b8" },
+];
+
+/** Toutes les séries traçables, y compris celles réservées au point unique. */
+const SERIES_TOUTES: { id: SerieId; label: string; color: string; money?: boolean }[] = [
+  ...SERIES,
+  { id: "ca", label: "Chiffre d'affaires", color: "#0f766e", money: true },
 ];
 
 const KPIS: { id: SerieId; label: string; color: string; money?: boolean }[] = [
@@ -272,6 +284,13 @@ export function SignalStats({
 }) {
   const [hidden, setHidden] = useState<Set<SerieId>>(() => new Set<SerieId>(["ofr", "demontages"]));
   const [shape, setShape] = useState<"line" | "area" | "bar">("area");
+  /* Une tuile cliquée met SA série au point : le graphe ne montre plus
+     qu'elle. Huit courbes empilées ne répondent à aucune question
+     précise ; une seule, oui. Recliquer rend la vue d'ensemble. */
+  const [focus, setFocus] = useState<SerieId | null>(null);
+  /* La même période, un an plus tôt, en pointillé par-dessus. C'est la
+     comparaison qu'on fait de tête devant ce genre de courbe. */
+  const [compareN1, setCompareN1] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
   /** Mois épinglés pour comparaison. Vide = tous les mois de la période. */
   const [picked, setPicked] = useState<Set<string>>(() => new Set<string>());
@@ -1060,8 +1079,26 @@ export function SignalStats({
     return `${label} — ${cmp.curLabel} : ${b}  ·  ${cmp.prevLabel} : ${a}`;
   };
 
-  const visible = SERIES.filter((s) => !hidden.has(s.id));
-  const max = Math.max(1, ...rows.flatMap((r) => visible.map((s) => r.v[s.id] || 0)));
+  const visible = focus
+    ? SERIES_TOUTES.filter((s) => s.id === focus)
+    : SERIES.filter((s) => !hidden.has(s.id));
+
+  /** La valeur du même mois, douze mois plus tôt. */
+  const valeurN1 = (cleMois: string, id: SerieId): number | null => {
+    const src = allByMonth || byMonth;
+    const [y, m] = cleMois.split("-");
+    const v = src[`${Number(y) - 1}-${m}`];
+    return v ? (v[id] as number) || 0 : null;
+  };
+
+  /* L'échelle doit contenir la comparaison : sans cela, une année passée
+     plus forte sortirait du cadre par le haut, et l'on croirait que la
+     courbe s'arrête. */
+  const max = Math.max(
+    1,
+    ...rows.flatMap((r) => visible.map((s) => r.v[s.id] || 0)),
+    ...(compareN1 ? rows.flatMap((r) => visible.map((s) => valeurN1(r.key, s.id) ?? 0)) : []),
+  );
 
   // Géométrie du graphe
   const W = 1000, H = 340, PL = 44, PR = 16, PT = 18, PB = 34;
@@ -1202,7 +1239,19 @@ export function SignalStats({
             y: 26 - (v / sMax) * 22,
           }));
           return (
-            <div key={k.id} className="sgs-kpi" style={{ animationDelay: `${i * 45}ms` }}>
+            <button
+              key={k.id}
+              type="button"
+              /* Cliquer une tuile met SA série au point sur le graphe du
+                 dessous. C'est le geste qu'on fait naturellement devant
+                 un chiffre qui surprend : on veut voir sa courbe, pas
+                 celle des sept autres. */
+              onClick={() => setFocus((f) => (f === k.id ? null : k.id))}
+              aria-pressed={focus === k.id}
+              title={focus === k.id ? "Revenir à la vue d'ensemble" : `Voir la tendance de « ${k.label} » seule`}
+              className={`sgs-kpi${focus === k.id ? " is-focus" : ""}`}
+              style={{ animationDelay: `${i * 45}ms`, ...(focus === k.id ? { borderColor: k.color } : {}) }}
+            >
               <div className="sgs-kpi-top">
                 <span className="sgs-kpi-label">{k.label}</span>
                 {d !== null && (
@@ -1235,7 +1284,7 @@ export function SignalStats({
               <svg className="sgs-spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
                 <path d={smoothPath(sPts)} fill="none" stroke={k.color} strokeWidth="2" strokeLinecap="round" opacity="0.75" />
               </svg>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -1244,13 +1293,38 @@ export function SignalStats({
       <div className="sgs-card">
         <div className="sgs-card-head">
           <div>
-            <h2 className="sgs-card-title">Tendance mensuelle</h2>
-            <p className="sgs-card-meta">{rows.length} mois · cliquez une série pour l'afficher ou la masquer</p>
+            <h2 className="sgs-card-title">
+              Tendance mensuelle
+              {focus && (() => {
+                const s2 = SERIES_TOUTES.find((x) => x.id === focus);
+                return s2 ? <span className="sgs-focus-tag" style={{ color: s2.color, borderColor: s2.color }}>{s2.label}</span> : null;
+              })()}
+            </h2>
+            <p className="sgs-card-meta">
+              {rows.length} mois ·{" "}
+              {focus
+                ? <>série mise au point — <button type="button" className="sgs-lien" onClick={() => setFocus(null)}>revenir à la vue d&apos;ensemble</button></>
+                : "cliquez un indicateur ci-dessus pour isoler sa courbe"}
+            </p>
           </div>
-          <div className="sgs-seg">
-            {([["area", "Aires"], ["line", "Lignes"], ["bar", "Barres"]] as const).map(([v, lbl]) => (
-              <button key={v} type="button" onClick={() => setShape(v)} className={shape === v ? "is-on" : ""}>{lbl}</button>
-            ))}
+          <div className="sgs-head-outils">
+            {/* La comparaison qu'on fait de tête devant ce genre de courbe :
+                le même mois, l'an dernier. En pointillé, pour qu'on ne la
+                confonde jamais avec l'année en cours. */}
+            <button
+              type="button"
+              onClick={() => setCompareN1((v) => !v)}
+              aria-pressed={compareN1}
+              className={`sgs-cmp-btn${compareN1 ? " is-on" : ""}`}
+              title="Superposer les mêmes mois de l'année précédente"
+            >
+              Année précédente
+            </button>
+            <div className="sgs-seg">
+              {([["area", "Aires"], ["line", "Lignes"], ["bar", "Barres"]] as const).map(([v, lbl]) => (
+                <button key={v} type="button" onClick={() => setShape(v)} className={shape === v ? "is-on" : ""}>{lbl}</button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -1285,6 +1359,21 @@ export function SignalStats({
               });
             })}
 
+            {/* L'année précédente, sous les courbes de l'année en cours :
+                en pointillé fin, sans aplat et sans points, pour qu'elle
+                se lise comme un repère et jamais comme une mesure. */}
+            {compareN1 && visible.map((s) => {
+              const pts = rows
+                .map((r, i) => ({ x: x(i), v: valeurN1(r.key, s.id) }))
+                .filter((p) => p.v !== null)
+                .map((p) => ({ x: p.x, y: y(p.v as number) }));
+              if (pts.length < 2) return null;
+              return (
+                <path key={`n1-${s.id}`} d={smoothPath(pts)} fill="none" stroke={s.color}
+                  strokeWidth="1.6" strokeDasharray="5 4" strokeLinecap="round" opacity="0.5" />
+              );
+            })}
+
             {shape !== "bar" && visible.map((s, si) => {
               const pts = rows.map((r, i) => ({ x: x(i), y: y(r.v[s.id] || 0) }));
               const d = smoothPath(pts);
@@ -1316,13 +1405,36 @@ export function SignalStats({
           {hover !== null && rows[hover] && (
             <div className="sgs-tip" style={{ left: `${(x(hover) / W) * 100}%` }}>
               <span className="sgs-tip-title">{rows[hover].label}</span>
-              {visible.map((s) => (
-                <span key={s.id} className="sgs-tip-row">
-                  <i style={{ background: s.color }} />
-                  <span className="sgs-tip-k">{s.label}</span>
-                  <span className="sgs-tip-v">{fmt(rows[hover].v[s.id] || 0)}</span>
-                </span>
-              ))}
+              {visible.map((s) => {
+                const v = rows[hover].v[s.id] || 0;
+                const argent = SERIES_TOUTES.find((x2) => x2.id === s.id)?.money;
+                /* L'écart contre le MÊME MOIS de l'année précédente : c'est
+                   la seule comparaison qui ait un sens sur une activité
+                   saisonnière. Vert si l'on fait plus, rouge si moins. */
+                const n1 = valeurN1(rows[hover].key, s.id);
+                const ecart = n1 !== null && n1 > 0 ? ((v - n1) / n1) * 100 : null;
+                return (
+                  <span key={s.id} className="sgs-tip-row">
+                    <i style={{ background: s.color }} />
+                    <span className="sgs-tip-k">{s.label}</span>
+                    <span className="sgs-tip-v">{fmt(v, argent)}</span>
+                    {n1 !== null && (
+                      <span className="sgs-tip-n1" title={`${monthLabel(rows[hover].key.replace(/^(\d{4})/, (y) => String(Number(y) - 1)))} : ${fmt(n1, argent)}`}>
+                        {ecart === null ? (
+                          <span className="sgs-delta flat">—</span>
+                        ) : (
+                          <span className={`sgs-delta ${ecart > 0.5 ? "up" : ecart < -0.5 ? "down" : "flat"}`}>
+                            {ecart > 0.5 ? "+" : ""}{Math.round(ecart)}%
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+              {visible.some((s) => valeurN1(rows[hover].key, s.id) !== null) && (
+                <span className="sgs-tip-pied">écart contre le même mois de l&apos;an dernier</span>
+              )}
             </div>
           )}
         </div>
