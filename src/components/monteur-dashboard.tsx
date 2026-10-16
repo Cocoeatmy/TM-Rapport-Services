@@ -1627,6 +1627,13 @@ const RDV_STATUS_FIELD: Record<string, (p: Project) => string> = {
   "rdv-mesures-a-fixer":  (p) => p.etatMesures || "",
   "rdv-sav-a-fixer":      (p) => p.etatSAV || "",
   "sav-ouverts":          (p) => p.etatSAV || "",
+  /* Les trois listes « établi » n'avaient pas de champ d'état déclaré. Or
+     c'est lui qui donne droit à la liste Signal — et donc à la date du
+     rendez-vous sous la pastille de délai. Elles retombaient sur
+     l'ancienne présentation, et seul le SAV avait le nouveau bloc. */
+  "rdv-montage-fixe":     (p) => p.etatCMD || "",
+  "rdv-services-fixe":    (p) => p.etatCMD || "",
+  "rdv-mesures-fixe":     (p) => p.etatMesures || "",
 };
 // Ordre canonique d'affichage des chips d'état par panneau.
 const RDV_STATUS_ORDER: Record<string, string[]> = {
@@ -1635,6 +1642,11 @@ const RDV_STATUS_ORDER: Record<string, string[]> = {
   "rdv-mesures-a-fixer":  ["Pas contacté", "Contact sans réponse", "RDV - Attendre news"],
   "rdv-sav-a-fixer":      ["A contacter", "Contact sans réponse", "Attente news"],
   "sav-ouverts":          ["A contacter", "Contact sans réponse", "Attente news", "En cours de traitement", "RDV fixé"],
+  /* Un rendez-vous calé n'a qu'un état : le nommer évite une rangée de
+     pastilles qui ne filtreraient rien. */
+  "rdv-montage-fixe":     ["RDV - fixé"],
+  "rdv-services-fixe":    ["RDV - fixé"],
+  "rdv-mesures-fixe":     ["RDV - Fixé"],
 };
 
 type ForcedPanel = "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer";
