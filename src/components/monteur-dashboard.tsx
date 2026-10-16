@@ -33,7 +33,7 @@ import {
 } from "@/lib/rdv-a-fixer";
 import { TourneeAssistant } from "@/components/tournee-assistant";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
-import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
+import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SAV_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 import { clientFacture } from "@/lib/analyses";
 import {
@@ -8090,7 +8090,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                              l'inscrire pour de bon. */
                           const etatSav = vueSav ? etatSavChoisi(p) : null;
                           const etat = etatSav ? etatSav.etat : (rdvStatusFieldFn(p) || "—");
-                          const cls = STATUS_CMD_COLORS[etat] || STATUS_MESURES_COLORS[etat] || "bg-gray-100 text-gray-700";
+                          /* Les états SAV ont leurs propres couleurs : sans
+                             elles, « A contacter » tombait sur le gris des
+                             états inconnus et toute la colonne se
+                             ressemblait. */
+                          const cls = (etatSav ? STATUS_SAV_COLORS[etat] : undefined)
+                            || STATUS_CMD_COLORS[etat] || STATUS_MESURES_COLORS[etat]
+                            || "bg-gray-100 text-gray-700";
                           const tm = parseTMNumbers(p.ofrTM || "");
                           const on = sel && sel.id === p.id;
                           return (

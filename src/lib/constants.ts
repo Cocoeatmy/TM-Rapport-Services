@@ -289,3 +289,23 @@ export function getISOWeek(d: Date = new Date()): number {
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
   return Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
 }
+
+/**
+ * Couleurs de la colonne « État - SAV ».
+ *
+ * Elles manquaient : « A contacter » tombait sur le gris par défaut des
+ * états inconnus, et toute la colonne se ressemblait. Le rouge appelle, le
+ * vert rassure — c'est tout ce qu'on demande à une pastille lue de loin.
+ */
+export const STATUS_SAV_COLORS: Record<string, string> = {
+  "Aucun SAV":              "bg-gray-100 text-gray-500 dark:bg-gray-700/40 dark:text-gray-400",
+  "A contacter":            "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  "Contact sans réponse":   "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+  "Attente news":           "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+  "En cours de traitement": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  /* Notion l'écrit avec une majuscule, l'ancien code sans : les deux. */
+  "RDV Fixé":               "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  "RDV fixé":               "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  "Terminé":                "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  "Annulé":                 "bg-gray-100 text-gray-400 dark:bg-gray-700/40 dark:text-gray-500",
+};

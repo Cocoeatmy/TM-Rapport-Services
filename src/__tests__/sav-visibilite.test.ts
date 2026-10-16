@@ -335,3 +335,31 @@ describe("état SAV affiché", () => {
     ]);
   });
 });
+
+/**
+ * La contrainte Notion sur l'état, vérifiée en production le 16 octobre
+ * 2026 : « Invalid status option. Status option "…" does not exist ».
+ *
+ * « État - SAV » est une colonne de type STATUT. Contrairement à une
+ * sélection, l'API refuse d'en inventer une valeur. On ne peut donc pas
+ * promettre la saisie d'un état quelconque depuis la liste — on peut
+ * seulement proposer ceux qui existent, et dire quoi faire pour en
+ * ajouter un.
+ */
+describe("états proposés", () => {
+  it("tous les états proposés existent dans la colonne Notion", () => {
+    /* Relevé du schéma le 16 octobre 2026. Proposer un état absent
+       ferait échouer l'enregistrement avec un message incompréhensible. */
+    const dansNotion = [
+      "Aucun SAV", "A contacter", "Contact sans réponse",
+      "Attente news", "En cours de traitement", "RDV Fixé", "Terminé",
+    ];
+    for (const e of ETATS_SAV) expect(dansNotion, e).toContain(e);
+  });
+
+  it("les états déduits font partie des états proposables", () => {
+    /* Sinon la correction automatique échouerait silencieusement. */
+    const deduits = ["A contacter", "RDV Fixé"];
+    for (const d of deduits) expect([...ETATS_SAV], d).toContain(d);
+  });
+});

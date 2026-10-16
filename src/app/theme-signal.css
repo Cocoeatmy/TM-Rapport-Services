@@ -5590,14 +5590,11 @@ html[data-ui="signal"] .sg-state-btn {
   border: none; cursor: pointer; font: inherit;
   max-width: 100%; text-align: left;
 }
-html[data-ui="signal"] .sg-state-btn:hover { text-decoration: underline; }
+/* Le survol se contente d'un léger relief : la pastille reste une
+   pastille. Une première version en italique souligné de pointillés
+   transformait la liste en formulaire — et cela se voyait. */
+html[data-ui="signal"] .sg-state-btn:hover { filter: brightness(0.94); }
 html[data-ui="signal"] .sg-state-btn:disabled { opacity: .6; cursor: progress; }
-/* Déduit des douches : en italique, parce que ce n'est pas encore écrit
-   dans Notion — on ne le donne pas pour acquis. */
-html[data-ui="signal"] .sg-state-btn.is-deduit {
-  font-style: italic;
-  border-bottom: 1px dotted currentColor;
-}
 html[data-ui="signal"] .sg-etatsav-menu {
   position: absolute; z-index: 60; top: calc(100% + 4px); left: 0;
   display: flex; flex-direction: column; min-width: 190px;
@@ -5616,3 +5613,36 @@ html[data-ui="signal"] .sg-etatsav-item {
 }
 html[data-ui="signal"] .sg-etatsav-item:hover { background: var(--sg-paper-2); }
 html[data-ui="signal"] .sg-etatsav-item.is-on { font-weight: 700; }
+
+
+/* Champ « Autre état » : Notion n'accepte que les valeurs déjà créées
+   dans la colonne, on le dit plutôt que de laisser buter sur un refus. */
+html[data-ui="signal"] .sg-etatsav-sep {
+  display: block; height: 1px; margin: 4px 2px;
+  background: var(--sg-line);
+}
+html[data-ui="signal"] .sg-etatsav-libre { display: flex; gap: 4px; padding: 2px; }
+html[data-ui="signal"] .sg-etatsav-libre input {
+  flex: 1; min-width: 0; padding: 5px 7px;
+  font-size: 12.5px; color: var(--sg-text-1);
+  background: var(--sg-paper-2); border: 1px solid var(--sg-line);
+  border-radius: 7px; outline: none;
+}
+html[data-ui="signal"] .sg-etatsav-libre input:focus { border-color: #1b4ed8; }
+html[data-ui="signal"] .sg-etatsav-libre button {
+  padding: 5px 9px; font-size: 11.5px; font-weight: 700;
+  border: 1px solid var(--sg-line); border-radius: 7px;
+  background: var(--sg-paper-2); color: var(--sg-text-1); cursor: pointer;
+}
+html[data-ui="signal"] .sg-etatsav-libre button:disabled { opacity: .45; cursor: default; }
+html[data-ui="signal"] .sg-etatsav-refus {
+  display: block; padding: 6px 8px; margin-top: 3px;
+  font-size: 11px; line-height: 1.4;
+  color: #8a2c1d; background: #fdf3e2;
+  border: 1px solid #f0c27a; border-radius: 7px;
+}
+html[data-ui="signal"] .sg-etatsav-refus button {
+  display: block; margin-top: 4px;
+  font-size: 11px; font-weight: 700; text-decoration: underline;
+  background: none; border: none; color: inherit; cursor: pointer; padding: 0;
+}
