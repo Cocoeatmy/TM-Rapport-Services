@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive, Package, Plus, Search, Loader2, Check, Trash2, Undo2,
   Calendar, MapPin, Hash, FileText, Camera, X, Banknote, Ruler, Pencil, FileDown, FolderDown,
+  LayoutGrid, Rows3,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +43,9 @@ interface StockCabine {
 }
 
 type Filter = "all" | "stock" | "destocke";
+type Vue = "liste" | "grille";
+
+const CLE_VUE = "tm-destockage-vue";
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -209,6 +213,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
   const [loading, setLoading]       = useState(true);
   const [filter, setFilter]         = useState<Filter>("stock");
   const [search, setSearch]         = useState("");
+  const [vue, setVue]               = useState<Vue>("liste");
   const [showAdd, setShowAdd]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId]   = useState<string | null>(null);
@@ -234,13 +239,25 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // La vue choisie survit au rechargement.
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(CLE_VUE);
+      if (v === "liste" || v === "grille") setVue(v);
+    } catch { /* stockage indisponible */ }
+  }, []);
+  const changerVue = (v: Vue) => {
+    setVue(v);
+    try { localStorage.setItem(CLE_VUE, v); } catch { /* stockage indisponible */ }
+  };
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return entries.filter((e) => {
       if (filter !== "all" && e.status !== filter) return false;
       if (!q) return true;
       return [
-        e.serie, e.fournisseur, e.emplacement, e.commentaires,
+        e.serie, e.fournisseur, e.emplacement, e.commentaires, e.numeroArticle,
         e.destockedProjectRef, e.mesuresApprox,
         ...(e.configuration || []), ...(e.version || []),
         ...(e.typeVerre || []), ...(e.traitementVerre || []), ...(e.couleur || []),
@@ -454,8 +471,24 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
         </div>
         <div className="relative max-w-sm flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input placeholder="Rechercher série, fournisseur…" className="pl-9 h-10 rounded-xl glass-input"
+          <Input placeholder="Rechercher série, fournisseur, référence…" className="pl-9 h-10 rounded-xl glass-input"
             value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <div className="inline-flex glass-tabs rounded-xl p-1 shrink-0">
+          {([
+            { id: "liste" as const,  icone: Rows3,      titre: "Vue liste" },
+            { id: "grille" as const, icone: LayoutGrid, titre: "Vue grille" },
+          ]).map(({ id, icone: Icone, titre }) => (
+            <button key={id} onClick={() => changerVue(id)} title={titre} aria-label={titre}
+              aria-pressed={vue === id}
+              className={`w-8 h-7 flex items-center justify-center rounded-lg transition-all ${
+                vue === id
+                  ? "glass-tab-active text-[#1e3a5f] dark:text-white"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              }`}>
+              <Icone className="w-4 h-4" />
+            </button>
+          ))}
         </div>
       </div>
 
@@ -588,180 +621,244 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
           <p>Aucune cabine dans cette vue</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((e) => (
-            <div key={e.id} className={`glass-card rounded-2xl p-4 ${e.status === "destocke" ? "opacity-75" : ""}`}>
-              <div className="flex items-start gap-3">
+        <div className={vue === "grille"
+          ? "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5"
+          : "space-y-2.5"}>
+          {filtered.map((e) => {
+            const destocke = e.status === "destocke";
+            const tags = [
+              ...(e.configuration || []).map((t) => ({ t, cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" })),
+              ...(e.typeMontage || []).map((t) => ({ t, cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" })),
+              ...(e.version || []).map((t) => ({ t, cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" })),
+              ...(e.typeVerre || []).map((t) => ({ t, cls: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" })),
+              ...(e.traitementVerre || []).map((t) => ({ t, cls: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" })),
+              ...(e.couleur || []).map((t) => ({ t, cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" })),
+            ];
 
-                {/* Photo miniature — zoom fixe au survol, cliquable pour ouvrir */}
-                {e.photoCabine && (
-                  <div
-                    className="shrink-0"
-                    onMouseEnter={(ev) => {
-                      const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect();
-                      const pw = 224, ph = 224, mg = 12;
-                      let x = rect.right + mg;
-                      let y = rect.top;
-                      if (x + pw > window.innerWidth)  x = rect.left - pw - mg;
-                      if (y + ph > window.innerHeight) y = window.innerHeight - ph - mg;
-                      setHoveredPhoto({ src: e.photoCabine!, x, y });
-                    }}
-                    onMouseLeave={() => setHoveredPhoto(null)}
-                  >
-                    <a href={e.photoCabine} target="_blank" rel="noopener noreferrer" title="Ouvrir la photo">
-                      <img
-                        src={e.photoCabine}
-                        alt={e.serie}
-                        className="w-14 h-14 object-cover rounded-xl border border-gray-200 dark:border-gray-600 cursor-zoom-in hover:opacity-90 transition-opacity"
-                      />
-                    </a>
+            const pastilleStatut = (
+              <span className={`stk-statut text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                destocke
+                  ? "bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-gray-300"
+                  : "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+              }`}>
+                {destocke ? "Déstocké" : "En stock"}
+              </span>
+            );
+
+            // Le bouton Déstocker garde exactement le dégradé bleu d'origine.
+            const boutonPrincipal = !isAdmin ? null : destocke ? (
+              <Button onClick={() => handleRestock(e)} size="sm" variant="outline"
+                className="flex-1 min-w-0 gap-1.5">
+                <Undo2 className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Remettre en stock</span>
+              </Button>
+            ) : (
+              <Button onClick={() => handleDestock(e)} size="sm"
+                className="flex-1 min-w-0 gap-1.5 bg-gradient-to-r from-blue-500 to-cyan-400 text-white hover:from-blue-600 hover:to-cyan-500">
+                <Archive className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Déstocker</span>
+              </Button>
+            );
+
+            const iconesAction = (petit: boolean) => {
+              const taille = petit ? "w-7 h-7" : "w-9 h-9";
+              const glyphe = petit ? "w-3.5 h-3.5" : "w-4 h-4";
+              const base = `${taille} shrink-0 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 transition-colors`;
+              return (
+                <>
+                  <button onClick={() => startEdit(e)} title="Modifier"
+                    className={`stk-ico ${base} text-gray-500 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 hover:border-blue-200`}>
+                    <Pencil className={glyphe} />
+                  </button>
+                  <a href={`/api/destockage/pdf?id=${e.id}`} target="_blank" rel="noopener noreferrer"
+                    title="Générer fiche PDF"
+                    className={`stk-ico ${base} text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 hover:border-indigo-200`}>
+                    <FileDown className={glyphe} />
+                  </a>
+                  {isAdmin && (
+                    <button onClick={() => handleDelete(e)} title="Supprimer (admin)"
+                      className={`stk-ico stk-ico-rouge ${base} text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 hover:border-red-200`}>
+                      <Trash2 className={glyphe} />
+                    </button>
+                  )}
+                </>
+              );
+            };
+
+            const survolPhoto = {
+              onMouseEnter: (ev: React.MouseEvent<HTMLElement>) => {
+                if (!e.photoCabine) return;
+                const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+                const pw = 224, ph = 224, mg = 12;
+                let x = rect.right + mg;
+                let y = rect.top;
+                if (x + pw > window.innerWidth)  x = rect.left - pw - mg;
+                if (y + ph > window.innerHeight) y = window.innerHeight - ph - mg;
+                setHoveredPhoto({ src: e.photoCabine, x, y });
+              },
+              onMouseLeave: () => setHoveredPhoto(null),
+            };
+
+            // ── Vue grille ──────────────────────────────────────────────────
+            if (vue === "grille") {
+              return (
+                <div key={e.id} className={`glass-card stk-tuile rounded-2xl overflow-hidden flex flex-col ${destocke ? "opacity-75" : ""}`}>
+                  <div className="stk-tuile-photo relative aspect-[4/3] bg-gray-50 dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700 flex items-center justify-center">
+                    {e.photoCabine ? (
+                      <a href={e.photoCabine} target="_blank" rel="noopener noreferrer" title="Ouvrir la photo" className="block w-full h-full">
+                        <img src={e.photoCabine} alt={e.serie} className="w-full h-full object-cover" />
+                      </a>
+                    ) : (
+                      <Camera className="w-6 h-6 text-gray-300 dark:text-gray-600" />
+                    )}
+                    <span className="absolute left-2 top-2">{pastilleStatut}</span>
+                    {e.mesuresApprox && (
+                      <span className="stk-dim absolute left-2 bottom-2 px-1.5 py-0.5 rounded-full bg-black/70 text-white text-[9.5px] font-mono">
+                        {e.mesuresApprox}
+                      </span>
+                    )}
                   </div>
-                )}
+                  <div className="p-2.5 flex flex-col gap-1 flex-1">
+                    <div className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{e.serie}</div>
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                      {[e.fournisseur, e.emplacement].filter(Boolean).join(" · ") || "—"}
+                    </div>
+                    {e.prixVente != null && (
+                      <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{formatPrix(e.prixVente)}</div>
+                    )}
+                    <div className="mt-auto pt-2 flex flex-col gap-1.5">
+                      {boutonPrincipal && <div className="flex">{boutonPrincipal}</div>}
+                      <div className="flex items-center gap-1">{iconesAction(true)}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
 
-                {/* Contenu — pleine largeur, actions intégrées dans le titre */}
-                <div className="flex-1 min-w-0">
+            // ── Vue liste ───────────────────────────────────────────────────
+            return (
+              <div key={e.id} className={`glass-card stk-carte rounded-2xl p-3.5 ${destocke ? "opacity-75" : ""}`}>
+                <div className="flex items-start gap-3.5">
 
-                  {/* Ligne titre : série + badges + icônes action */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                      <h4 className="font-semibold text-gray-900 dark:text-gray-100">{e.serie}</h4>
+                  {/* Photo — zoom fixe au survol, cliquable pour ouvrir */}
+                  <div className="shrink-0" {...survolPhoto}>
+                    {e.photoCabine ? (
+                      <a href={e.photoCabine} target="_blank" rel="noopener noreferrer" title="Ouvrir la photo">
+                        <img src={e.photoCabine} alt={e.serie}
+                          className="stk-photo w-[88px] h-[88px] sm:w-24 sm:h-24 object-cover rounded-xl border border-gray-200 dark:border-gray-600 cursor-zoom-in hover:opacity-90 transition-opacity" />
+                      </a>
+                    ) : (
+                      <div className="stk-photo stk-photo-vide w-[88px] h-[88px] sm:w-24 sm:h-24 rounded-xl border border-dashed border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
+                        <Camera className="w-5 h-5 text-gray-300 dark:text-gray-600" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Identité + caractéristiques */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {pastilleStatut}
                       {e.quantity > 1 && (
-                        <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                           × {e.quantity}
                         </span>
                       )}
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        e.status === "stock"
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                          : "bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-gray-300"
-                      }`}>
-                        {e.status === "stock" ? "En stock" : "Déstocké"}
-                      </span>
                     </div>
-                    {/* Icônes — PDF + crayon + poubelle (petits, ne volent pas d'espace) */}
-                    <div className="flex items-center gap-0.5 shrink-0 -mt-0.5">
-                      <a href={`/api/destockage/pdf?id=${e.id}`} target="_blank" rel="noopener noreferrer"
-                        title="Générer fiche PDF"
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors">
-                        <FileDown className="w-3.5 h-3.5" />
-                      </a>
-                      <button onClick={() => startEdit(e)} title="Modifier"
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-colors">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      {isAdmin && (
-                        <button onClick={() => handleDelete(e)} title="Supprimer (admin)"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Bouton Déstocker / Remettre en stock — admin seulement */}
-                  {isAdmin && (e.status === "stock" ? (
-                    <div className="mt-2">
-                      <Button onClick={() => handleDestock(e)} size="sm"
-                        className="gap-1.5 bg-gradient-to-r from-blue-500 to-cyan-400 text-white hover:from-blue-600 hover:to-cyan-500">
-                        <Archive className="w-3.5 h-3.5" />
-                        Déstocker
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="mt-1.5">
-                      <button onClick={() => handleRestock(e)} title="Remettre en stock"
-                        className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
-                        <Undo2 className="w-3.5 h-3.5" />
-                        Remettre en stock
-                      </button>
-                    </div>
-                  ))}
+                    <h4 className="stk-titre mt-1 font-semibold text-[15px] leading-tight text-gray-900 dark:text-gray-100 break-words">
+                      {e.serie}
+                    </h4>
 
-                  {/* Meta */}
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-gray-600 dark:text-gray-400">
-                    {e.fournisseur && (
-                      <div className="flex items-center gap-1"><Hash className="w-3 h-3 shrink-0" /><span>{e.fournisseur}</span></div>
-                    )}
-                    {e.numeroArticle && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-mono text-[10px] bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
-                          {e.numeroArticle}
-                        </span>
-                      </div>
-                    )}
-                    {e.emplacement && (
-                      <div className="flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0" /><span>{e.emplacement}</span></div>
-                    )}
-                    {e.dateArrivee && (
-                      <div className="flex items-center gap-1"><Calendar className="w-3 h-3 shrink-0" /><span>Arrivé {formatDate(e.dateArrivee)}</span></div>
-                    )}
-                    {e.status === "destocke" && e.destockedAt && (
-                      <div className="flex items-center gap-1"><Archive className="w-3 h-3 shrink-0" /><span>Sorti {formatDate(e.destockedAt)}{e.destockedBy ? ` · ${e.destockedBy}` : ""}</span></div>
-                    )}
-                    {(e.prixAchat != null || e.prixVente != null) && (
-                      <div className="flex items-center gap-1">
-                        <Banknote className="w-3 h-3 shrink-0" />
-                        <span>
-                          {[
-                            e.prixAchat != null && `Achat ${formatPrix(e.prixAchat)}`,
-                            e.prixVente != null && `Vente ${formatPrix(e.prixVente)}`,
-                          ].filter(Boolean).join(" · ")}
-                        </span>
-                      </div>
-                    )}
-                    {e.mesuresApprox && (
-                      <div className="flex items-center gap-1"><Ruler className="w-3 h-3 shrink-0" /><span>{e.mesuresApprox}</span></div>
-                    )}
-                  </div>
-
-                  {/* Badges — défilement horizontal (une ligne swipeable) */}
-                  {(() => {
-                    const tags = [
-                      ...(e.configuration || []).map((t) => ({ t, cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" })),
-                      ...(e.typeMontage || []).map((t) => ({ t, cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" })),
-                      ...(e.version || []).map((t) => ({ t, cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" })),
-                      ...(e.typeVerre || []).map((t) => ({ t, cls: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" })),
-                      ...(e.traitementVerre || []).map((t) => ({ t, cls: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" })),
-                      ...(e.couleur || []).map((t) => ({ t, cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" })),
-                    ];
-                    if (!tags.length) return null;
-                    return (
-                      <div className="mt-2 overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
-                        <div className="flex gap-1 flex-nowrap pb-0.5">
-                          {tags.map(({ t, cls }, i) => (
-                            <span key={i} className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 ${cls}`}>{t}</span>
-                          ))}
+                    <div className="stk-meta mt-1.5 flex flex-col gap-1 text-xs text-gray-600 dark:text-gray-400">
+                      {(e.fournisseur || e.numeroArticle) && (
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Hash className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                          {e.fournisseur && <span className="truncate">{e.fournisseur}</span>}
+                          {e.numeroArticle && (
+                            <span className="stk-ref font-mono text-[10px] bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded truncate">
+                              {e.numeroArticle}
+                            </span>
+                          )}
                         </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Commentaires / ref / PDF */}
-                  {(e.commentaires || e.destockedProjectRef || e.mesuresCabinePdf) && (
-                    <div className="mt-2 flex items-start gap-3 flex-wrap">
-                      {(e.commentaires || e.destockedProjectRef) && (
-                        <div className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
-                          <FileText className="w-3 h-3 shrink-0 mt-0.5" />
-                          <span className="line-clamp-2">
-                            {e.destockedProjectRef && <strong className="text-gray-800 dark:text-gray-200">{e.destockedProjectRef}</strong>}
-                            {e.destockedProjectRef && e.commentaires && " — "}
-                            {e.commentaires}
+                      )}
+                      {e.emplacement && (
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <MapPin className="w-3.5 h-3.5 shrink-0 text-gray-400" /><span className="truncate">{e.emplacement}</span>
+                        </div>
+                      )}
+                      {e.dateArrivee && (
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Calendar className="w-3.5 h-3.5 shrink-0 text-gray-400" /><span className="truncate">Arrivé {formatDate(e.dateArrivee)}</span>
+                        </div>
+                      )}
+                      {destocke && e.destockedAt && (
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Archive className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                          <span className="truncate">Sorti {formatDate(e.destockedAt)}{e.destockedBy ? ` · ${e.destockedBy}` : ""}</span>
+                        </div>
+                      )}
+                      {(e.prixAchat != null || e.prixVente != null) && (
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Banknote className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                          <span className="truncate tabular-nums">
+                            {[
+                              e.prixAchat != null && `Achat ${formatPrix(e.prixAchat)}`,
+                              e.prixVente != null && `Vente ${formatPrix(e.prixVente)}`,
+                            ].filter(Boolean).join(" · ")}
                           </span>
                         </div>
                       )}
-                      {e.mesuresCabinePdf && (
-                        <a href={e.mesuresCabinePdf} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:underline">
-                          <FileText className="w-3 h-3" />
-                          {e.mesuresCabinePdfName || "Mesures PDF"}
-                        </a>
+                      {e.mesuresApprox && (
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Ruler className="w-3.5 h-3.5 shrink-0 text-gray-400" /><span className="truncate">{e.mesuresApprox}</span>
+                        </div>
                       )}
                     </div>
-                  )}
+                  </div>
+                </div>
+
+                {/* Badges — défilement horizontal (une ligne swipeable) */}
+                {tags.length > 0 && (
+                  <div className="mt-2.5 overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+                    <div className="flex gap-1 flex-nowrap pb-0.5">
+                      {tags.map(({ t, cls }, i) => (
+                        <span key={i} className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 ${cls}`}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Commentaires / ref / PDF */}
+                {(e.commentaires || e.destockedProjectRef || e.mesuresCabinePdf) && (
+                  <div className="mt-2 flex items-start gap-3 flex-wrap">
+                    {(e.commentaires || e.destockedProjectRef) && (
+                      <div className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
+                        <FileText className="w-3 h-3 shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">
+                          {e.destockedProjectRef && <strong className="text-gray-800 dark:text-gray-200">{e.destockedProjectRef}</strong>}
+                          {e.destockedProjectRef && e.commentaires && " — "}
+                          {e.commentaires}
+                        </span>
+                      </div>
+                    )}
+                    {e.mesuresCabinePdf && (
+                      <a href={e.mesuresCabinePdf} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                        <FileText className="w-3 h-3" />
+                        {e.mesuresCabinePdfName || "Mesures PDF"}
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Barre d'action */}
+                <div className="stk-actions mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 flex items-center gap-1.5">
+                  {boutonPrincipal ?? <div className="flex-1" />}
+                  {iconesAction(false)}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -5718,3 +5718,72 @@ html[data-ui="signal"] .sgs-tip-pied {
   border-top: 1px solid var(--sg-line);
   font-size: 10px; color: var(--sg-text-3);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Déstockage — la carte d'article : photo à gauche, caractéristiques lisibles
+   l'une sous l'autre, et la barre d'action détachée en bas. Le bouton
+   « Déstocker » garde son dégradé bleu : il n'est pas touché ici.
+   ───────────────────────────────────────────────────────────────────────────── */
+html[data-ui="signal"] .stk-carte { padding: 13px; }
+html[data-ui="signal"] .stk-photo {
+  border-color: var(--sg-line);
+  border-radius: 10px;
+}
+html[data-ui="signal"] .stk-photo-vide {
+  background: var(--sg-paper-2);
+  border-style: dashed;
+  border-color: var(--sg-line-strong);
+}
+html[data-ui="signal"] .stk-titre {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--sg-text);
+  letter-spacing: -0.005em;
+}
+html[data-ui="signal"] .stk-meta { font-size: 11.5px; color: var(--sg-text-2); }
+html[data-ui="signal"] .stk-meta svg { color: var(--sg-text-3); }
+html[data-ui="signal"] .stk-ref {
+  background: var(--sg-grp-bg);
+  color: var(--sg-text-2);
+  border: 1px solid var(--sg-grp-line);
+  border-radius: 5px;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+}
+html[data-ui="signal"] .stk-statut {
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+html[data-ui="signal"] .stk-actions {
+  border-top: 1px solid var(--sg-line);
+  margin-top: 11px;
+  padding-top: 10px;
+}
+html[data-ui="signal"] .stk-ico {
+  background: var(--sg-paper);
+  border-color: var(--sg-line-strong);
+  color: var(--sg-text-3);
+  border-radius: 9px;
+}
+html[data-ui="signal"] .stk-ico:hover {
+  background: var(--sg-paper-2);
+  border-color: var(--sg-signal);
+  color: var(--sg-signal);
+}
+html[data-ui="signal"] .stk-ico-rouge { color: #b42318; }
+html[data-ui="signal"] .stk-ico-rouge:hover {
+  background: #fef2f2;
+  border-color: #b42318;
+  color: #b42318;
+}
+
+/* La vue grille : la photo porte la carte, le texte reste court. */
+html[data-ui="signal"] .stk-tuile-photo {
+  background: var(--sg-grp-bg);
+  border-bottom: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .stk-dim {
+  background: rgba(11, 18, 32, 0.78);
+  letter-spacing: 0.02em;
+}
