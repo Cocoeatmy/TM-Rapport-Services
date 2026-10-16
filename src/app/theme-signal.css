@@ -5790,3 +5790,58 @@ html[data-ui="signal"] .stk-dim {
   background: rgba(11, 18, 32, 0.78);
   letter-spacing: 0.02em;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Kanban — les projets rangés par avancement.
+
+   Les teintes des colonnes viennent de Notion et sont posées en style direct
+   sur l'élément : on ne les redéfinit pas ici. Ce bloc ne règle que ce qui
+   appartient au thème — les bords, les ombres, la typographie des cartes.
+   ───────────────────────────────────────────────────────────────────────────── */
+html[data-ui="signal"] .kb-plateau {
+  /* Le plateau prend la hauteur qui reste, et chaque colonne défile seule :
+     un défilement de page ferait disparaître les en-têtes. */
+  scrollbar-width: thin;
+  padding-bottom: 10px;
+}
+html[data-ui="signal"] .kb-col {
+  border: 1px solid var(--sg-line);
+  border-radius: 12px;
+}
+html[data-ui="signal"] .kb-col-tete h3 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--sg-text);
+}
+html[data-ui="signal"] .kb-col-corps {
+  scrollbar-width: thin;
+}
+html[data-ui="signal"] .kb-carte {
+  background: var(--sg-paper);
+  border: 1px solid var(--sg-line);
+  border-radius: 10px;
+  box-shadow: none;
+  transition: border-color 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html[data-ui="signal"] .kb-carte:hover {
+  border-color: var(--sg-line-strong);
+}
+html[data-ui="signal"] .kb-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sg-signal);
+  letter-spacing: 0.01em;
+}
+html[data-ui="signal"] .kb-col-cible {
+  /* La colonne visée pendant un glisser : assez net pour qu'on sache où on
+     lâche, assez sobre pour ne pas faire sursauter tout le tableau. */
+  outline-offset: -2px;
+}
+
+@media (max-width: 640px) {
+  /* Au doigt, une colonne occupe presque l'écran : on la lit, on la fait
+     glisser, on passe à la suivante. */
+  html[data-ui="signal"] .kb-col { width: 84vw; }
+}

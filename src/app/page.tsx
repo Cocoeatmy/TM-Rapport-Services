@@ -8,11 +8,12 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, BarChart2, Archive, FolderOpen, Compass, Receipt, Coins, AlertTriangle, CheckCircle2, Clock, Truck, Building2, Sparkles } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, BarChart2, Archive, Columns3, FolderOpen, Compass, Receipt, Coins, AlertTriangle, CheckCircle2, Clock, Truck, Building2, Sparkles } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
+import { foldSearch as foldSearchPartage, correspond as correspondPartage } from "@/lib/recherche-projets";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { computeMonteurCabStats } from "@/lib/monteur-stats";
 import { useNotionColors } from "@/lib/notion-colors";
@@ -89,6 +90,10 @@ const CRMClients = dynamic(() => import("@/components/crm-clients").then(m => ({
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
+const KanbanView = dynamic(() => import("@/components/kanban-view").then(m => ({ default: m.KanbanView })), {
+  ssr: false,
+  loading: () => <div className="py-16 text-center text-sm text-gray-400">Chargement du Kanban…</div>,
+});
 const DestockageView = dynamic(() => import("@/components/destockage-view").then(m => ({ default: m.DestockageView })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
@@ -465,6 +470,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
              ouvertes chaque jour. Les modes existent toujours — ?mode=
              sanitaires et ?mode=rapport y mènent — et les autres thèmes
              gardent leurs onglets. */
+          { id: "kanban",       label: "Kanban",          Icon: Columns3,    active: mode === "kanban",                                     act: () => { handleSelect("kanban"); setOpen(null); } },
           { id: "destockage",   label: "Déstockage",      Icon: Archive,     active: mode === "destockage",                                 act: () => { handleSelect("destockage"); setOpen(null); } },
           { id: "chantiers",    label: "Chantiers PPE",   Icon: Building2,   active: mode === "chantiers",                                  act: () => { handleSelect("chantiers"); setOpen(null); } },
           /* Garanties a quitté ce rail pour le menu du profil : on le consulte
@@ -534,6 +540,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
               Rapport
             </button>
           )}
+          <button onClick={() => { handleSelect("kanban"); setOpen(null); }} className={tabCls(mode === "kanban")}>
+            Kanban
+          </button>
           <button onClick={() => { handleSelect("destockage"); setOpen(null); }} className={tabCls(mode === "destockage")}>
             Déstockage
           </button>
@@ -1036,32 +1045,16 @@ export default function Page() {
 // Si `prebuilt` est fourni (chaîne pré-indexée en minuscules), une seule
 // comparaison .includes() suffit → beaucoup plus rapide.
 // Minuscule + suppression des accents (recherche insensible casse ET accents).
-function foldSearch(s: string): string {
-  return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
-
-// Recherche multi-mots : chaque mot doit être présent (ET), dans n'importe
-// quel ordre. Ex. « cvs a2 » ou « cvs payerne » trouvent le même projet.
-// `prebuilt` (l'index) est déjà en minuscules sans accents → pas de re-fold.
-function matchesSearch(
+/* Le moteur vit désormais dans `@/lib/recherche-projets`, partagé avec le
+   Kanban : deux copies d'un moteur de recherche finissent toujours par ne
+   plus répondre pareil à la même frappe. Les deux noms sont conservés ici,
+   le reste du fichier les appelle par dizaines. */
+const foldSearch = foldSearchPartage;
+const matchesSearch = (
   p: import("@/lib/notion").Project,
   q: string,
   prebuilt?: string,
-): boolean {
-  const tokens = foldSearch(q).split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return true;
-  if (prebuilt !== undefined) return tokens.every((t) => prebuilt.includes(t));
-  const hay = foldSearch([
-    p.projet, p.ofrTM, p.ofrGrossiste, p.nomChantier, p.adresseChantier,
-    p.cmdTM, p.cmdTMUsine, p.cmdGrossiste, p.cmdFournisseurs,
-    p.servCmdFournisseurs, p.servMesuresFournisseurs, p.bonLivraison,
-    p.collaborateurs, p.contacts, p.emplacementCabine,
-    ...(p.fournisseurs || []), ...(p.fournisseursNames || []),
-    ...(p.grossistesNames || []), ...(p.sanitaireNames || []),
-    ...(p.seriesCabines || []),
-  ].filter(Boolean).join(" "));
-  return tokens.every((t) => hay.includes(t));
-}
+): boolean => correspondPartage(p, q, prebuilt);
 
 function HomePage() {
   useNotionColors(); // couleurs Notion : applique aux badges/menus de statut
@@ -1075,8 +1068,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "facturation" | "ca-bexio" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv" | "arrivage" | "chantiers";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "facturation", "ca-bexio", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts", "arrivage", "chantiers"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "facturation" | "ca-bexio" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv" | "arrivage" | "chantiers" | "kanban";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "facturation", "ca-bexio", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts", "arrivage", "chantiers", "kanban"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -1619,6 +1612,9 @@ function HomePage() {
     stats: "/api/projects/all-active",
     archives: "/api/projects/all",
     "projets-tous": "/api/projects/all",
+    /* Le Kanban range les dossiers EN COURS : un chantier terminé n'a plus
+       de colonne à rejoindre. Le filtre « terminés » les rappelle. */
+    kanban: "/api/projects/all-active",
     sanitaires: "/api/projects/all-active",
     // À facturer : les projets facturables sont TERMINÉS (État-CMD = « Terminé »),
     // donc absents de all-active. On lit la liste des Terminé (cmd-termine) puis on
@@ -2372,7 +2368,7 @@ function HomePage() {
               (SignalHeaderBar) : on ne le duplique pas ici. */}
           {floatingWindowButton}
 
-          {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
+          {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "kanban" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
             <button
               onClick={() => setShowNewProject(true)}
               className="w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
@@ -4763,7 +4759,7 @@ function HomePage() {
       })()}
 
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "kanban" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
         <div className="flex gap-3 mb-4 sgv-tiles">
           <button
             onClick={() => setViewMode("calendar")}
@@ -5712,6 +5708,11 @@ function HomePage() {
         );
       })()}
 
+      {/* VUE KANBAN — les projets en cours, rangés par avancement */}
+      {mode === "kanban" && (
+        <KanbanView projets={projectsData["kanban"] || []} chargement={loading} />
+      )}
+
       {/* VUE DÉSTOCKAGE — inventaire des cabines en stock + action déstocker */}
       {mode === "destockage" && (
         <DestockageView isAdmin={currentUser?.role === "admin"} />
@@ -5756,7 +5757,7 @@ function HomePage() {
       {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
       {/* ======================================================== */}
       {(() => {
-        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage";
+        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "kanban" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage";
       })() && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {

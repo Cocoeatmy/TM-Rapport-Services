@@ -329,6 +329,19 @@ export async function PATCH(
     id = (await params).id;
     const body = await request.json();
 
+    /* Les deux états du Kanban se verrouillent séparément : on peut confier à
+       quelqu'un l'avancement des mesures sans lui confier celui des
+       commandes. Le contrôle est ici, et non dans le Kanban, parce que ces
+       deux propriétés se modifient aussi depuis d'autres écrans. */
+    if ("etatMesures" in body) {
+      const m = await exigerDroit("kanban.mesures");
+      if ("refus" in m) return m.refus;
+    }
+    if ("etatCMD" in body) {
+      const c = await exigerDroit("kanban.cmd");
+      if ("refus" in c) return c.refus;
+    }
+
     // ── Merge heureArrivee / heureDepart / nomsCabines / attributionCabines ─
     // Invalider le cache d'abord pour forcer un fetch frais depuis Notion,
     // puis merger : les cabines présentes dans Notion mais absentes du payload

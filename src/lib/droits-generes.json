@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-16T22:17:51.085Z",
+  "genereLe": "2026-10-16T22:31:27.605Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -687,6 +687,16 @@
       "gardePage": false,
       "methodes": [
         "POST"
+      ]
+    },
+    {
+      "url": "/api/kanban/colonnes",
+      "type": "api",
+      "fichier": "src/app/api/kanban/colonnes/route.ts",
+      "niveau": "droit",
+      "gardePage": false,
+      "methodes": [
+        "GET"
       ]
     },
     {

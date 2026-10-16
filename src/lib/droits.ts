@@ -116,6 +116,29 @@ export const CATALOGUE: Categorie[] = [
     ],
   },
   {
+    id: "kanban",
+    titre: "Tableau Kanban",
+    emoji: "🗂️",
+    resume: "Le pilotage des projets par colonnes, et le déplacement des cartes.",
+    droits: [
+      {
+        id: "kanban.voir",
+        libelle: "Ouvrir le Kanban",
+        description: "Voir les projets rangés en colonnes par avancement.",
+      },
+      {
+        id: "kanban.mesures",
+        libelle: "Changer l'avancement des mesures",
+        description: "Déplacer une carte dans la vue des mesures, ce qui change son état.",
+      },
+      {
+        id: "kanban.cmd",
+        libelle: "Changer l'avancement des commandes",
+        description: "Déplacer une carte dans la vue des commandes, ce qui change son état.",
+      },
+    ],
+  },
+  {
     id: "documents",
     titre: "Photos et documents",
     emoji: "📸",
