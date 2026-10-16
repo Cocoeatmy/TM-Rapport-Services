@@ -3277,6 +3277,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
      Même partage que pour les « à fixer » — Montage et Services se
      distinguent par le type de projet — pour que les deux lignes de
      tuiles se répondent exactement. */
+  /** « 1 cabine », « 2 cabines » — le pluriel se voit, surtout à l'unité. */
+  const cab = (n: number, suite: string) => `${n} cabine${n > 1 ? "s" : ""}${suite ? " " + suite : ""}`;
   const triDate = (champ: (p: Project) => string | null | undefined) =>
     (a: Project, b: Project) => ((champ(a) || "").split("T")[0]).localeCompare((champ(b) || "").split("T")[0]);
 
@@ -3766,10 +3768,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </div>
             <div className="sg-plan">
               {([
-                { label: "RDV Montage", count: rdvMontageFixeProjects.length, meta: `${rdvMontageFixeProjects.reduce((s, p) => s + cabinesRestantes(p), 0)} cabines à poser`, bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-fixe" as const, Icon: Wrench },
-                { label: "RDV Mesures", count: rdvMesuresFixeProjects.length, meta: `${rdvMesuresFixeProjects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cabines à mesurer`, bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-fixe" as const, Icon: Ruler },
-                { label: "RDV Services", count: rdvServicesFixeProjects.length, meta: `${rdvServicesFixeProjects.reduce((s, p) => s + cabinesRestantes(p), 0)} cabines`, bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-fixe" as const, Icon: Settings },
-                { label: "RDV SAV", count: rdvSavFixeProjects.length, meta: `${rdvSavFixeProjects.reduce((s, p) => s + comptesSav(p).planifies, 0)} cabines à reprendre`, bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-fixe" as const, Icon: AlertCircle },
+                { label: "RDV Montage", count: rdvMontageFixeProjects.length, meta: cab(rdvMontageFixeProjects.reduce((s, p) => s + cabinesRestantes(p), 0), "à poser"), bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-fixe" as const, Icon: Wrench },
+                { label: "RDV Mesures", count: rdvMesuresFixeProjects.length, meta: cab(rdvMesuresFixeProjects.reduce((s, p) => s + (p.nbCabines || 0), 0), "à mesurer"), bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-fixe" as const, Icon: Ruler },
+                { label: "RDV Services", count: rdvServicesFixeProjects.length, meta: cab(rdvServicesFixeProjects.reduce((s, p) => s + cabinesRestantes(p), 0), ""), bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-fixe" as const, Icon: Settings },
+                { label: "RDV SAV", count: rdvSavFixeProjects.length, meta: cab(rdvSavFixeProjects.reduce((s, p) => s + comptesSav(p).planifies, 0), "à reprendre"), bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-fixe" as const, Icon: AlertCircle },
               ]).map((t) => (
                 <button key={t.label} type="button" onClick={(e) => openPanel(t.panel, e)} className="sg-tile">
                   <span className="sg-tile-top">
