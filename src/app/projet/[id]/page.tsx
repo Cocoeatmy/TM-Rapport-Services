@@ -6916,19 +6916,39 @@ function ProjectPageContent({ id }: { id: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, (project?.documentsMontagee || []).map((f) => f.name).join("|")]);
 
-  // Coche automatiquement « SAV » dès qu'un contenu SAV existe (réclamation ou
-  // photos). Garde `project.sav` en garde-fou → aucune boucle.
+  /**
+   * Un SAV existe : la case « SAV » se coche, et l'état cesse de dire le
+   * contraire.
+   *
+   * La colonne « État - SAV » se remplit à la main dans Notion. Un SAV
+   * signalé ici sur une douche ne la touchait pas : neuf chantiers se
+   * retrouvaient dans « RDV SAV à fixer » avec « Aucun SAV » écrit en
+   * face. On la corrige au moment où le SAV apparaît — pas à la lecture
+   * d'une liste, qui déclencherait des écritures en rafale.
+   *
+   * Seuls « Aucun SAV » et le vide sont remplacés : « Attente news » ou
+   * « Contact sans réponse » en savent plus que nous, et personne n'a
+   * envie de voir son suivi réécrit par l'application.
+   */
   useEffect(() => {
-    if (!project || project.sav) return;
+    if (!project) return;
     const t = (s?: string) => !!(s && s.trim());
     const hasSav =
       t(project.commentairesSav) || t(project.causeSavCabines) ||
       t(project.datesRdvSavCabines) || t(project.collaborateursSavCabines) ||
+      t(project.interventionsSavCabines) ||
       (project.documentsSavDemande || []).length > 0 ||
       (project.photosSavRetouches || []).length > 0;
-    if (hasSav) saveProjectField({ sav: true });
+    if (!hasSav) return;
+    const patch: Record<string, unknown> = {};
+    if (!project.sav) patch.sav = true;
+    const etat = (project.etatSAV || "").trim();
+    /* Garde-fou contre la boucle : on n'écrit que si l'état est vide ou
+       « Aucun SAV », et ce qu'on écrit n'est ni l'un ni l'autre. */
+    if (!etat || etat === "Aucun SAV") patch.etatSAV = "A contacter";
+    if (Object.keys(patch).length > 0) saveProjectField(patch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.sav, project?.commentairesSav, project?.causeSavCabines, project?.datesRdvSavCabines, project?.collaborateursSavCabines, project?.documentsSavDemande, project?.photosSavRetouches]);
+  }, [project?.sav, project?.etatSAV, project?.commentairesSav, project?.causeSavCabines, project?.datesRdvSavCabines, project?.collaborateursSavCabines, project?.interventionsSavCabines, project?.documentsSavDemande, project?.photosSavRetouches]);
 
   // Polling: re-fetch project data toutes les 15 s pour la collaboration
   // temps réel. Visibility-aware : si l'onglet n'est pas visible, on

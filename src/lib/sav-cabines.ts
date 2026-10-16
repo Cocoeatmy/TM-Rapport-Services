@@ -324,3 +324,59 @@ export function resumeSav(comptes: ComptesSav[]): string {
   if (flous) bouts.push(`${flous} à vérifier`);
   return bouts.join(" · ") || "aucune cabine en SAV";
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   L'ÉTAT AFFICHÉ, QUAND LA COLONNE NOTION N'A PAS SUIVI
+
+   Neuf chantiers dans « RDV SAV à fixer », et neuf fois « Aucun SAV » en
+   face. La colonne « État - SAV » est renseignée à la main dans Notion ;
+   un SAV signalé depuis l'application sur une douche ne la touche pas. Le
+   tableau contredisait donc la liste qui le contenait.
+
+   On n'invente rien : on dit ce que les lots disent. Quand la colonne
+   annonce « Aucun SAV » alors qu'une douche attend une reprise, c'est la
+   douche qui a raison, et l'écran affiche l'état déduit — signalé comme
+   tel, pour qu'on sache qu'il reste à confirmer d'un clic.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/** Les états possibles de la colonne « État - SAV », dans l'ordre Notion. */
+export const ETATS_SAV = [
+  "Aucun SAV",
+  "A contacter",
+  "Contact sans réponse",
+  "Attente news",
+  "En cours de traitement",
+  "RDV Fixé",
+  "Terminé",
+] as const;
+
+/** Les deux états qui veulent dire « rien à faire ». */
+const SANS_SUITE = new Set(["", "aucun sav"]);
+
+export interface EtatSavAffiche {
+  /** Ce qu'il faut écrire dans la colonne. */
+  etat: string;
+  /** Vrai = déduit des lots, la colonne Notion dit encore autre chose. */
+  deduit: boolean;
+}
+
+export function etatSavAffiche(
+  p: SourceSavCabines & { etatSAV?: string | null },
+): EtatSavAffiche {
+  const brut = String(p.etatSAV || "").trim();
+  const c = comptesSavParCabine(p);
+  const ouvert = c.aFixer + c.planifies + c.enAttentePiece;
+
+  /* La colonne dit quelque chose d'utile : on la respecte, c'est elle que
+     l'on tient à jour à la main et elle en sait souvent plus que nous
+     (« Contact sans réponse », « Attente news »). */
+  if (!SANS_SUITE.has(brut.toLowerCase())) return { etat: brut, deduit: false };
+
+  /* Elle dit « Aucun SAV » et aucune douche ne la contredit : elle a raison. */
+  if (ouvert === 0) return { etat: brut || "Aucun SAV", deduit: false };
+
+  /* Une reprise est déjà calée partout → le rendez-vous est pris. Sinon il
+     reste quelqu'un à appeler. */
+  const tout = c.planifies > 0 && c.aFixer === 0 && c.enAttentePiece === 0;
+  return { etat: tout ? "RDV Fixé" : "A contacter", deduit: true };
+}

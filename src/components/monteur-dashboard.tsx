@@ -38,8 +38,10 @@ import type { Project } from "@/lib/notion";
 import { clientFacture } from "@/lib/analyses";
 import {
   comptesSavParCabine, etatSavProjet, controleCoherenceSav, prochaineDateSavPlanifiee, resumeSav,
+  etatSavAffiche,
   type SourceSavCabines, type SourceSavProjet,
 } from "@/lib/sav-cabines";
+import { EtatSavRapide } from "@/components/etat-sav-rapide";
 import { PersonalStats } from "@/components/personal-stats";
 
 // ─── Citations motivantes quotidiennes (365) ────────────────────────────────
@@ -2230,6 +2232,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     return [...vus.values()];
   })();
   const [terminatedLoading, setTerminatedLoading] = useState(false);
+  /* États SAV changés depuis la liste, en attendant la relecture. */
+  const [etatsSavLocaux, setEtatsSavLocaux] = useState<Record<string, string>>({});
   const [archivesCount, setArchivesCount] = useState<number | null>(null);
 
   // ── Animation ouverture/fermeture panneau ─────────────────────────────────
@@ -3214,6 +3218,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
    * exactement la même chose ; un seul endroit en décide.
    */
   const comptesSav = (p: Project) => comptesSavParCabine(p as unknown as SourceSavCabines);
+  /* Un état changé depuis la liste s'affiche AVANT que le serveur n'ait
+     répondu, puis avant que la liste entière ne soit relue : sans cette
+     mémoire, la pastille reviendrait à sa valeur d'origine sous les
+     doigts. `null` = on revient à ce que disent les données. */
+  const etatSavChoisi = (p: Project): { etat: string; deduit: boolean } => {
+    const force = etatsSavLocaux[p.id];
+    if (typeof force === "string") return { etat: force, deduit: false };
+    return etatSavAffiche(p as unknown as SourceSavCabines & { etatSAV?: string | null });
+  };
   const etatSav = (p: Project) => etatSavProjet(p as unknown as SourceSavProjet);
 
   /* Le vivier complet : actifs ET terminés, car un SAV naît presque toujours
@@ -7605,11 +7618,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         // Le TOTAL (rdvTotalCount) est mémorisé AVANT filtrage → il correspond
         // toujours au chiffre de la tuile du dashboard. Quand un filtre est actif,
         // le titre affiche "X / total" pour lever toute ambiguïté.
-        const rdvStatusFieldFn = showSummaryPanel ? RDV_STATUS_FIELD[showSummaryPanel] : undefined;
         /* Les deux listes SAV se lisent de la même façon : colonne « SAV »,
            pastilles par cabine, totaux par groupe. Seul le choix des lignes
            les distingue. */
         const vueSav = showSummaryPanel === "rdv-sav-a-fixer" || showSummaryPanel === "sav-ouverts" || showSummaryPanel === "rdv-sav-fixe";
+        /* Sur les listes SAV, le filtre porte sur l'état AFFICHÉ, pas sur
+           la colonne Notion : sinon masquer « Aucun SAV » ferait
+           disparaître des lignes qui affichent « A contacter », et l'on ne
+           comprendrait plus ce qu'on filtre. */
+        const rdvStatusFieldFn = vueSav
+          ? (p: Project) => etatSavChoisi(p).etat
+          : (showSummaryPanel ? RDV_STATUS_FIELD[showSummaryPanel] : undefined);
         let rdvStatusOptions: string[] = [];
         let rdvHiddenCount = 0;
         const rdvTotalCount = panelProjects.length;
@@ -7993,7 +8012,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {/* `is-region` : en tri par région, la pastille J+x n'est plus
                     portée par l'en-tête de groupe — elle doit rester sur la
                     ligne. En tri par date elle y ferait doublon. */}
-                <div className={`sg-list${sgRegion ? " is-region" : ""}`}>
+                <div className={`sg-list${sgRegion ? " is-region" : ""}${vueSav ? " is-sav" : ""}`}>
                   <div className="sg-cols">
                     <span>DÉLAI</span><span>N° OFR TM</span><span>N° FOURN.</span>
                     <span>PROJET</span><span>ÉTAT</span><span>EMPLACEMENT</span>
@@ -8064,7 +8083,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           const j = (!dateRef && p.previsionLivraison
                             ? sgPrevision(p.previsionLivraison) : null)
                             || sgDelay(dateRef);
-                          const etat = rdvStatusFieldFn(p) || "—";
+                          /* Sur les listes SAV, la colonne « État - SAV »
+                             se remplit à la main dans Notion et ignore les
+                             SAV signalés par douche : on affiche ce que
+                             les lots disent, et un clic suffit à
+                             l'inscrire pour de bon. */
+                          const etatSav = vueSav ? etatSavChoisi(p) : null;
+                          const etat = etatSav ? etatSav.etat : (rdvStatusFieldFn(p) || "—");
                           const cls = STATUS_CMD_COLORS[etat] || STATUS_MESURES_COLORS[etat] || "bg-gray-100 text-gray-700";
                           const tm = parseTMNumbers(p.ofrTM || "");
                           const on = sel && sel.id === p.id;
@@ -8102,7 +8127,21 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 })()}
                               </span>
                               <span className="sg-pname">{p.projet}</span>
-                              <span className={`sg-state ${cls}`}>{etat}</span>
+                              {etatSav ? (
+                                <EtatSavRapide
+                                  projectId={p.id}
+                                  etat={etat}
+                                  deduit={etatSav.deduit}
+                                  classe={cls}
+                                  onChange={(v) => setEtatsSavLocaux((m) => {
+                                    const n = { ...m };
+                                    if (v === null) delete n[p.id]; else n[p.id] = v;
+                                    return n;
+                                  })}
+                                />
+                              ) : (
+                                <span className={`sg-state ${cls}`}>{etat}</span>
+                              )}
                               <span className="sg-place">
                                 <MapPin className="w-3 h-3" />
                                 <span>{p.emplacementCabine || "—"}</span>

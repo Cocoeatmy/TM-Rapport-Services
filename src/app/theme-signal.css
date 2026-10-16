@@ -5555,3 +5555,64 @@ html[data-ui="signal"] .sg-savcnt .sav-piece-txt {
 html[data-ui="signal"] .sg-alerte-note {
   margin: 0 0 8px; font-size: 11.5px; color: #6b7280;
 }
+
+/* ── Listes SAV : la colonne « SAV » a besoin de place ──────────────────
+   Elle porte des pastilles chiffrées ET la mention « pièce attendue ».
+   Calée sur les 56 px prévus pour un nombre de personnes, elle débordait
+   par la gauche et passait PAR-DESSUS l'emplacement : on lisait
+   « Dépô1 pièce attendue ». Le nom du projet, lui, s'étire — c'est à lui
+   de céder les quelques pixels. */
+html[data-ui="signal"] .sg-list.is-sav .sg-cols,
+html[data-ui="signal"] .sg-list.is-sav .sg-prow {
+  grid-template-columns: 56px 112px 92px minmax(0, 1fr) 128px 92px 136px 40px;
+}
+@media (min-width: 768px) and (max-width: 1279px) {
+  html[data-ui="signal"] .sg-list.is-sav .sg-cols,
+  html[data-ui="signal"] .sg-list.is-sav .sg-prow {
+    grid-template-columns: 50px 104px 80px minmax(0, 1fr) 104px 74px 124px 26px;
+  }
+}
+/* Et si le compte est long malgré tout, les pastilles passent à la ligne
+   au lieu de sortir de leur colonne. */
+html[data-ui="signal"] .sg-list.is-sav .sg-savcnt {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 2px;
+}
+
+/* ── État SAV, modifiable d'un clic depuis la liste ─────────────────────
+   La pastille devient un bouton. Elle garde exactement l'allure d'un
+   état figé — seul le curseur et un soulignement discret au survol
+   disent qu'on peut la changer : une liste n'a pas à ressembler à un
+   formulaire. */
+html[data-ui="signal"] .sg-etatsav { position: relative; display: inline-flex; min-width: 0; }
+html[data-ui="signal"] .sg-state-btn {
+  border: none; cursor: pointer; font: inherit;
+  max-width: 100%; text-align: left;
+}
+html[data-ui="signal"] .sg-state-btn:hover { text-decoration: underline; }
+html[data-ui="signal"] .sg-state-btn:disabled { opacity: .6; cursor: progress; }
+/* Déduit des douches : en italique, parce que ce n'est pas encore écrit
+   dans Notion — on ne le donne pas pour acquis. */
+html[data-ui="signal"] .sg-state-btn.is-deduit {
+  font-style: italic;
+  border-bottom: 1px dotted currentColor;
+}
+html[data-ui="signal"] .sg-etatsav-menu {
+  position: absolute; z-index: 60; top: calc(100% + 4px); left: 0;
+  display: flex; flex-direction: column; min-width: 190px;
+  padding: 4px;
+  background: var(--sg-paper); border: 1px solid var(--sg-line);
+  border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
+}
+html[data-ui="signal"] .sg-etatsav-aide {
+  padding: 6px 8px 7px; font-size: 11px; line-height: 1.35;
+  color: var(--sg-text-3); border-bottom: 1px solid var(--sg-line); margin-bottom: 3px;
+}
+html[data-ui="signal"] .sg-etatsav-item {
+  text-align: left; padding: 6px 8px; border-radius: 7px;
+  font-size: 12.5px; color: var(--sg-text-1); background: transparent; border: none;
+  cursor: pointer; white-space: nowrap;
+}
+html[data-ui="signal"] .sg-etatsav-item:hover { background: var(--sg-paper-2); }
+html[data-ui="signal"] .sg-etatsav-item.is-on { font-weight: 700; }

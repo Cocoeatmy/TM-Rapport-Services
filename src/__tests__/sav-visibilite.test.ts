@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  etatSavProjet, controleCoherenceSav, comptesSavParCabine, type SourceSavProjet,
+  etatSavProjet, controleCoherenceSav, comptesSavParCabine,
+  etatSavAffiche, ETATS_SAV, type SourceSavProjet,
 } from "@/lib/sav-cabines";
 
 /**
@@ -258,5 +259,79 @@ describe("la date saisie dans « Interventions SAV » compte", () => {
       interventionsSavCabines: "Cab1:~Miguel",
     });
     expect(c.aFixer).toBe(1);
+  });
+});
+
+/**
+ * « Aucun SAV » en face d'un chantier listé dans « RDV SAV à fixer ».
+ *
+ * Neuf lignes, neuf fois la contradiction. La colonne « État - SAV » se
+ * remplit à la main dans Notion ; un SAV signalé depuis l'application sur
+ * une douche ne la touche pas. Le tableau contredisait donc la liste qui
+ * le contenait.
+ *
+ * On n'invente rien : quand la colonne dit « Aucun SAV » alors qu'une
+ * douche attend une reprise, c'est la douche qui a raison.
+ */
+describe("état SAV affiché", () => {
+  it("LE CAS RÉEL : « Aucun SAV » alors qu'une douche attend", () => {
+    const e = etatSavAffiche({ etatSAV: "Aucun SAV", causeSavCabines: "Cab1:Erreur TM" });
+    expect(e.etat).toBe("A contacter");
+    expect(e.deduit).toBe(true);
+  });
+
+  it("une colonne vide se comporte pareil", () => {
+    expect(etatSavAffiche({ etatSAV: "", causeSavCabines: "Cab1:x" }).etat).toBe("A contacter");
+  });
+
+  it("toutes les reprises calées → « RDV Fixé »", () => {
+    const e = etatSavAffiche({
+      etatSAV: "Aucun SAV",
+      causeSavCabines: "Cab1:x",
+      interventionsSavCabines: "Cab1:2026-10-19~Miguel",
+    });
+    expect(e.etat).toBe("RDV Fixé");
+    expect(e.deduit).toBe(true);
+  });
+
+  it("une pièce attendue n'est pas un rendez-vous pris", () => {
+    const e = etatSavAffiche({
+      etatSAV: "Aucun SAV",
+      causeSavCabines: "Cab1:x",
+      datesCmdPiecesSavCabines: "Cab1:2026-10-15",
+    });
+    expect(e.etat).toBe("A contacter");
+  });
+
+  it("RESPECTE la colonne quand elle dit quelque chose d'utile", () => {
+    /* « Contact sans réponse », « Attente news » : elle en sait plus que
+       nous, c'est elle qu'on tient à jour à la main. */
+    for (const v of ["Contact sans réponse", "Attente news", "En cours de traitement", "Terminé"]) {
+      const e = etatSavAffiche({ etatSAV: v, causeSavCabines: "Cab1:x" });
+      expect(e.etat, v).toBe(v);
+      expect(e.deduit, v).toBe(false);
+    }
+  });
+
+  it("ne déduit rien quand aucune douche n'a de SAV", () => {
+    const e = etatSavAffiche({ etatSAV: "Aucun SAV" });
+    expect(e.etat).toBe("Aucun SAV");
+    expect(e.deduit).toBe(false);
+  });
+
+  it("un SAV entièrement clôturé laisse « Aucun SAV » tranquille", () => {
+    const e = etatSavAffiche({
+      etatSAV: "Aucun SAV",
+      causeSavCabines: "Cab1:x",
+      datesSavClotureCabines: "Cab1:2026-10-01",
+    });
+    expect(e.deduit).toBe(false);
+  });
+
+  it("la liste des états proposés est celle de Notion", () => {
+    expect([...ETATS_SAV]).toEqual([
+      "Aucun SAV", "A contacter", "Contact sans réponse",
+      "Attente news", "En cours de traitement", "RDV Fixé", "Terminé",
+    ]);
   });
 });
