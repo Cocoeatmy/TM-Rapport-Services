@@ -312,6 +312,15 @@ export function DroitsView() {
               Voir un projet ne donne pas le droit de le modifier : ce sont deux
               autorisations séparées.
             </p>
+            {/* Dire ce qui n'est pas encore vrai vaut mieux qu'un réglage qui
+                ne fait rien : le filtrage des listes par collaborateur touche
+                seize écrans et reste à poser. Le choix est enregistré. */}
+            <p className="text-[11px] text-amber-700 dark:text-amber-300 mb-3 flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+              Ce choix est enregistré mais <b>pas encore appliqué</b> aux listes de
+              projets : tout le monde voit encore tous les chantiers. Les autres
+              autorisations de cette page, elles, sont bien en vigueur.
+            </p>
             <div className="grid sm:grid-cols-2 gap-2">
               {([
                 { id: "siens" as const, titre: "Uniquement les siens", texte: "Les chantiers sur lesquels cette personne est inscrite." },
