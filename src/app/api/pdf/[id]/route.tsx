@@ -25,6 +25,7 @@ import { emailEnabled } from "@/lib/email-prefs";
 import { formatSwissDate, formatSwissDateTime } from "@/lib/time-utils";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
 import { parseInterventions, minutesInterventions, type InterventionSav } from "@/lib/sav-interventions";
+import { heuresPhotosDuJour } from "@/lib/heures-photos";
 import {
   type PhotoBucketKey,
   BUCKET_LABEL,
@@ -345,6 +346,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Helvetica-Bold",
     color: "#1e3a5f",
+  },
+  /* L'heure des photos : volontairement effacée. Elle éclaire l'heure
+     saisie, elle ne la conteste pas — et elle ne doit pas se lire avant
+     elle. */
+  timePhoto: {
+    fontSize: 6.5,
+    color: "#9aa3ad",
+    marginTop: 1,
   },
   textBlock: {
     backgroundColor: "#fafafa",
@@ -743,7 +752,7 @@ async function loadCabineAttribution(projectId: string): Promise<CabineAttributi
   }
 }
 
-function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient }: {
+function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient, heuresPhotosVisibles }: {
   project: any;
   pieces: PieceRequest[];
   defauts: DefautRequest[];
@@ -757,6 +766,8 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
    * qui décrit un seul de ses effets se serait mis à mentir.
    */
   versionClient?: boolean;
+  /** Heures déduites des photos : administration et rapport interne seulement. */
+  heuresPhotosVisibles?: boolean;
 }) {
   // "Généré le" = instant de génération du PDF (et PAS la date de
   // montage qui serait trompeuse — le label dit bien "Généré"). Le
@@ -876,6 +887,21 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Horaires</Text>
           {(() => {
+            /* L'heure que disent les photos, sous celle que dit le monteur.
+               Elle ne corrige rien et ne remplace rien : elle met côte à
+               côte ce qui a été saisi et ce qui a été photographié. Voir
+               lib/heures-photos — ce n'est PAS l'EXIF, que notre
+               compression détruit, mais l'horodatage pose par l'app au
+               moment de la prise. */
+            const photosDe = (jour: string, lot?: number) =>
+              heuresPhotosVisibles
+                ? heuresPhotosDuJour(project as unknown as Record<string, unknown>, jour, { lot })
+                : null;
+            const SousHeure = ({ valeur }: { valeur?: string }) =>
+              valeur ? <Text style={styles.timePhoto}>photos {valeur}</Text> : null;
+            /* Sans passage daté, la journée de référence est celle du
+               montage : c'est la seule date que porte alors la fiche. */
+            const photosDuMontage = photosDe(String(project.dateMontage || "").split("T")[0]);
             // Détection du format multi-cabine "Cab1:08:00 | Cab2:09:30 | ..."
             // Si trouvé, on affiche une ligne par cabine au lieu d'une paire
             // globale — demande utilisateur pour les chantiers multi-cabine.
@@ -962,7 +988,9 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                               {monteurNom ? <Text style={{ fontSize: 7, color: "#888", marginTop: 1 }}>{monteurNom}</Text> : null}
                             </View>
                             <View style={{ flex: 1 }}>
-                              {passages.map((pa, k) => (
+                              {passages.map((pa, k) => {
+                                const ph = photosDe(pa.date, i + 1);
+                                return (
                                 <View key={k} style={{ flexDirection: "row", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
                                   <View style={{ ...styles.timeBox, flex: 1.5, marginRight: 4 }}>
                                     <Text style={styles.timeLabel}>Date</Text>
@@ -971,13 +999,16 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                                   <View style={{ ...styles.timeBox, flex: 1, marginRight: 4 }}>
                                     <Text style={styles.timeLabel}>Arrivée</Text>
                                     <Text style={styles.timeValue}>{pa.arrivee || "--:--"}</Text>
+                                    <SousHeure valeur={ph?.premiere} />
                                   </View>
                                   <View style={{ ...styles.timeBox, flex: 1 }}>
                                     <Text style={styles.timeLabel}>Départ</Text>
                                     <Text style={styles.timeValue}>{pa.depart || "--:--"}</Text>
+                                    <SousHeure valeur={ph?.derniere} />
                                   </View>
                                 </View>
-                              ))}
+                                );
+                              })}
                               {(passages.length > 1 || minutes > 0) && (
                                 <Text style={{ fontSize: 7, color: "#888", marginTop: 1 }}>
                                   {passages.length} passage{passages.length > 1 ? "s" : ""}
@@ -1011,10 +1042,15 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                       <View style={{ ...styles.timeBox, flex: 1, marginRight: 4 }}>
                         <Text style={styles.timeLabel}>Arrivée</Text>
                         <Text style={styles.timeValue}>{sousTraitMap[i] ? "--:--" : (arriveeMap[i] || "--:--")}</Text>
+                        {/* Une cabine sous-traitée n'est pas pointée par TM :
+                            ses photos ne témoignent de la présence de
+                            personne chez nous. */}
+                        {!sousTraitMap[i] && <SousHeure valeur={photosDe(dateMap[i] || "", i + 1)?.premiere} />}
                       </View>
                       <View style={{ ...styles.timeBox, flex: 1 }}>
                         <Text style={styles.timeLabel}>Départ</Text>
                         <Text style={styles.timeValue}>{sousTraitMap[i] ? "--:--" : (departMap[i] || "--:--")}</Text>
+                        {!sousTraitMap[i] && <SousHeure valeur={photosDe(dateMap[i] || "", i + 1)?.derniere} />}
                       </View>
                     </View>
                     );
@@ -1030,7 +1066,9 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
               if (pts.length) {
                 return (
                   <View>
-                    {pts.map((p, i) => (
+                    {pts.map((p, i) => {
+                      const ph = photosDe(p.date);
+                      return (
                       <View key={i} wrap={false} style={{ flexDirection: "row", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                         <View style={{ width: 90, alignSelf: "center" }}>
                           <Text style={{ fontSize: 8, color: "#888" }}>Intervention {i + 1}</Text>
@@ -1047,13 +1085,16 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                         <View style={{ ...styles.timeBox, flex: 1, marginRight: 4 }}>
                           <Text style={styles.timeLabel}>Arrivée</Text>
                           <Text style={styles.timeValue}>{p.arrivee || "--:--"}</Text>
+                          <SousHeure valeur={ph?.premiere} />
                         </View>
                         <View style={{ ...styles.timeBox, flex: 1 }}>
                           <Text style={styles.timeLabel}>Départ</Text>
                           <Text style={styles.timeValue}>{p.depart || "--:--"}</Text>
+                          <SousHeure valeur={ph?.derniere} />
                         </View>
                       </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 );
               }
@@ -1064,10 +1105,12 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                 <View style={styles.timeBox}>
                   <Text style={styles.timeLabel}>Arrivée</Text>
                   <Text style={styles.timeValue}>{project.heureArrivee || "--:--"}</Text>
+                  <SousHeure valeur={photosDuMontage?.premiere} />
                 </View>
                 <View style={styles.timeBox}>
                   <Text style={styles.timeLabel}>Départ</Text>
                   <Text style={styles.timeValue}>{project.heureDepart || "--:--"}</Text>
+                  <SousHeure valeur={photosDuMontage?.derniere} />
                 </View>
               </View>
             );
@@ -1708,7 +1751,13 @@ export async function GET(
     const sigValidInternal = !!(secret && s && eq(s, signPdf(id)));
     const sigValidClient = !!(secret && s && eq(s, signPdfClient(id)));
     const authToken = request.cookies.get("auth-token")?.value;
-    const authed = authToken ? !!(await verifyToken(authToken).catch(() => null)) : false;
+    const utilisateur = authToken ? await verifyToken(authToken).catch(() => null) : null;
+    const authed = !!utilisateur;
+    /* L'heure des photos ne s'affiche que pour l'administration : c'est un
+       contrôle, pas une information de chantier, et un monteur n'a pas à
+       lire un relevé de ses propres allées et venues dans un document
+       qu'il génère lui-même. */
+    const estAdmin = utilisateur?.role === "admin";
     if (wantLink) {
       if (!authed) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
       if (!secret) return NextResponse.json({ error: "SHARE_LINK_KEY non configuré" }, { status: 503 });
@@ -1733,6 +1782,10 @@ export async function GET(
 
     // Rapport CLIENT (?client=1) : masque les heures d'arrivée/départ.
     const versionClient = request.nextUrl.searchParams.get("client") === "1" || forceClient;
+    /* Heures déduites des photos : rapport INTERNE et administration
+       seulement. Un lien signé, même interne, n'y donne pas accès — il
+       circule, et ce relevé n'a pas à circuler. */
+    const heuresPhotosVisibles = !versionClient && estAdmin;
 
     const pieces = await loadPiecesForProject(id, project);
     const defauts = await loadDefautsForProject(id, project);
@@ -1769,7 +1822,7 @@ export async function GET(
     }
 
     const pdfStream = await ReactPDF.renderToStream(
-      <RapportPDF project={project} pieces={pieces} defauts={defauts} cabineAttribution={cabineAttribution} versionClient={versionClient} />
+      <RapportPDF project={project} pieces={pieces} defauts={defauts} cabineAttribution={cabineAttribution} versionClient={versionClient} heuresPhotosVisibles={heuresPhotosVisibles} />
     );
 
     const chunks: Buffer[] = [];

@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-16T16:34:37.408Z",
+  "genereLe": "2026-10-16T16:47:49.271Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -777,7 +777,7 @@
       "url": "/api/pdf/[id]",
       "type": "api",
       "fichier": "src/app/api/pdf/[id]/route.tsx",
-      "niveau": "signe-ou-connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET"
