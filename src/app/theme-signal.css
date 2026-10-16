@@ -2608,6 +2608,9 @@ html[data-ui="signal"] .sg-pv-pers b { font-weight: 500; color: var(--sg-text-2)
 html[data-ui="signal"] .sg-pv-mail {
   font-size: 11.5px; color: var(--sg-signal); text-decoration: none;
   overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  /* Une adresse longue se coupe plutôt que d'élargir la page : sans ceci,
+     elle n'a aucun point de césure et pousse tout le contenu vers la droite. */
+  overflow-wrap: anywhere;
 }
 html[data-ui="signal"] .sg-pv-mail:hover { text-decoration: underline; }
 

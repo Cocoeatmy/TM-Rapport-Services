@@ -871,8 +871,9 @@ function PropertyValue({ label, value }: { label: string; value: any }) {
   // Email - clickable
   if ((k.includes("email") || k.includes("mail")) && typeof value === "string" && value.includes("@")) {
     return (
-      <a href={`mailto:${value}`} className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 hover:underline truncate">
-        {icon} <span className="text-gray-400 shrink-0">{label}:</span> {value}
+      <a href={`mailto:${value}`} className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 hover:underline min-w-0">
+        {icon} <span className="text-gray-400 shrink-0">{label}:</span>
+        <span className="truncate">{value}</span>
       </a>
     );
   }
@@ -880,8 +881,9 @@ function PropertyValue({ label, value }: { label: string; value: any }) {
   // Phone - clickable
   if ((k.includes("téléphone") || k.includes("portable") || k.includes("phone") || k.includes("mobile")) && typeof value === "string" && value) {
     return (
-      <a href={`tel:${value}`} className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 hover:underline">
-        {icon} <span className="text-gray-400 shrink-0">{label}:</span> {value}
+      <a href={`tel:${value}`} className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 hover:underline min-w-0">
+        {icon} <span className="text-gray-400 shrink-0">{label}:</span>
+        <span className="truncate">{value}</span>
       </a>
     );
   }
@@ -890,8 +892,9 @@ function PropertyValue({ label, value }: { label: string; value: any }) {
   if ((k.includes("site") || k.includes("web") || k.includes("url")) && typeof value === "string" && value) {
     const url = value.startsWith("http") ? value : `https://${value}`;
     return (
-      <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline truncate">
-        {icon} <span className="text-gray-400 shrink-0">{label}:</span> {value}
+      <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline min-w-0">
+        {icon} <span className="text-gray-400 shrink-0">{label}:</span>
+        <span className="truncate">{value}</span>
       </a>
     );
   }
@@ -899,9 +902,9 @@ function PropertyValue({ label, value }: { label: string; value: any }) {
   // Arrays (multi-select, relations)
   if (Array.isArray(value)) {
     return (
-      <div className="flex items-start gap-2 text-xs">
+      <div className="flex items-start gap-2 text-xs min-w-0">
         {icon} <span className="text-gray-400 shrink-0">{label}:</span>
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1 min-w-0">
           {value.map((v, i) => (
             <span key={i} className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded text-[10px]">{String(v)}</span>
           ))}
@@ -916,7 +919,7 @@ function PropertyValue({ label, value }: { label: string; value: any }) {
     if (!isNaN(num)) {
       const pct = num < 1 ? Math.round(num * 100) : Math.round(num);
       return (
-        <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+        <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 min-w-0">
           {icon} <span className="text-gray-400">{label}:</span> <span className="font-medium">{pct} %</span>
         </div>
       );
@@ -944,7 +947,7 @@ function PropertyValue({ label, value }: { label: string; value: any }) {
 
   // Default string/number
   return (
-    <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 truncate">
+    <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 min-w-0">
       {icon} <span className="text-gray-400 shrink-0">{label}:</span> <span className="truncate">{String(value)}</span>
     </div>
   );
@@ -1036,9 +1039,9 @@ function EntryCard({ entry, mode, isAdmin, onEdit, onDelete }: {
   const hasStats = entityType && entityType !== "contacts";
 
   return (
-    <div className="glass-card rounded-2xl p-4 hover:shadow-lg transition-shadow">
+    <div className="glass-card rounded-2xl p-4 min-w-0 hover:shadow-lg transition-shadow">
       {/* ── En-tête : toujours visible ── */}
-      <div className="flex items-start justify-between gap-2 cursor-pointer" onClick={() => setExpanded((v) => !v)}>
+      <div className="flex items-start justify-between gap-2 min-w-0 cursor-pointer" onClick={() => setExpanded((v) => !v)}>
         <div className="flex items-center gap-2 mb-1 min-w-0">
           {isImage ? (
             <LogoImage src={entry.icon} name={entry.name} />
@@ -1073,7 +1076,7 @@ function EntryCard({ entry, mode, isAdmin, onEdit, onDelete }: {
 
       {/* ── Contenu expansible ── */}
       {expanded && (
-        <div className="mt-2">
+        <div className="mt-2 min-w-0">
           {/* Onglets Infos / Statistiques */}
           {hasStats && (
             <div className="flex gap-1 mb-3 border-b border-gray-100 dark:border-gray-700/60 pb-2">
@@ -1095,7 +1098,7 @@ function EntryCard({ entry, mode, isAdmin, onEdit, onDelete }: {
 
           {/* Contenu de l'onglet actif */}
           {(!hasStats || activeTab === "infos") ? (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 min-w-0">
               {displayProps.map(([k, v]) => (
                 <PropertyValue key={k} label={k} value={v} />
               ))}
