@@ -5587,8 +5587,13 @@ html[data-ui="signal"] .sg-list.is-sav .sg-savcnt {
    formulaire. */
 html[data-ui="signal"] .sg-etatsav { position: relative; display: inline-flex; min-width: 0; }
 html[data-ui="signal"] .sg-state-btn {
-  border: none; cursor: pointer; font: inherit;
+  border: none; cursor: pointer;
   max-width: 100%; text-align: left;
+  /* `font: inherit` — le raccourci — remettait AUSSI la taille, la graisse
+     et l'interligne du texte courant : la pastille passait de 10 px à
+     16 px et grossissait d'un tiers. On ne reprend que la fonte ; la
+     typographie reste celle de .sg-state, comme pour un état figé. */
+  font-family: inherit;
 }
 /* Le survol se contente d'un léger relief : la pastille reste une
    pastille. Une première version en italique souligné de pointillés
