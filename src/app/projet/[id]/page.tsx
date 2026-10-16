@@ -6105,7 +6105,11 @@ function ProjectPageContent({ id }: { id: string }) {
           </div>
           </BlocFige>
         ))}
-        <button type="button" onClick={onAdd} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors">
+        {/* Un second passage se décide SUR LE CHANTIER, au moment où l'on
+            constate qu'il en faudra un. En pointillés gris, le bouton se
+            confondait avec la bordure d'un champ : on ne le voyait pas, et
+            le passage finissait noté ailleurs — ou nulle part. */}
+        <button type="button" onClick={onAdd} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold shadow-sm hover:shadow transition-all">
           <Plus className="w-4 h-4" />
           Ajouter une intervention
         </button>
@@ -10422,7 +10426,7 @@ function ProjectPageContent({ id }: { id: string }) {
                     <button
                       type="button"
                       onClick={addPointage}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors"
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold shadow-sm hover:shadow transition-all"
                     >
                       <Plus className="w-4 h-4" />
                       Ajouter une intervention
