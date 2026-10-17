@@ -15,7 +15,8 @@
 import type { Project } from "./notion";
 import { correspond, foldSearch, indexDeProjet } from "./recherche-projets";
 import {
-  estDansMesPriorites, situationDe, type Contexte, type Indicateur,
+  ORDRE_INDICATEURS, estDansMesPriorites, situationDe,
+  type Contexte, type Indicateur,
 } from "./kanban-indicateurs";
 import { jourDe } from "./signaux";
 
@@ -184,10 +185,11 @@ export function estDuJour(p: Project, aujourdhui: string): boolean {
    Tri
    ─────────────────────────────────────────────────────────────────────────── */
 
-export type Tri = "manuel" | "recent" | "ancien" | "modifie" | "numero" | "client" | "localite";
+export type Tri = "manuel" | "priorite" | "recent" | "ancien" | "modifie" | "numero" | "client" | "localite";
 
 export const TRIS: { id: Tri; libelle: string }[] = [
   { id: "manuel", libelle: "Ordre manuel" },
+  { id: "priorite", libelle: "Priorité automatique" },
   { id: "recent", libelle: "Plus récent" },
   { id: "ancien", libelle: "Plus ancien" },
   { id: "modifie", libelle: "Dernière modification" },
@@ -206,8 +208,20 @@ const date = (s?: string | null) => (s ? new Date(s).getTime() : 0);
  * un projet nouvellement arrivé dans la colonne ne se cache pas tout en bas
  * d'un ordre établi il y a trois semaines.
  */
-export function trier(projets: Project[], tri: Tri, ordreManuel: string[] = []): Project[] {
+export function trier(
+  projets: Project[],
+  tri: Tri,
+  ordreManuel: string[] = [],
+  contexte?: Contexte,
+): Project[] {
   const liste = [...projets];
+  if (tri === "priorite") {
+    /* Ce qui demande une action remonte. Sans contexte on ne devine pas la
+       gravité : on retombe alors sur le plus récent, qui ne ment pas. */
+    if (!contexte) return liste.sort((a, b) => date(b.createdTime) - date(a.createdTime));
+    const rang = (p: Project) => ORDRE_INDICATEURS.indexOf(situationDe(p, contexte).principal);
+    return liste.sort((a, b) => rang(a) - rang(b) || date(b.createdTime) - date(a.createdTime));
+  }
   if (tri === "manuel") {
     const rang = new Map(ordreManuel.map((id, i) => [id, i]));
     return liste.sort((a, b) => {
@@ -270,6 +284,7 @@ export function construireColonnes(
   vue: Vue,
   options: OptionColonne[],
   reglages: ReglagesColonnes = REGLAGES_COLONNES_PAR_DEFAUT,
+  contexte?: Contexte,
 ): Colonne[] {
   const parStatut = new Map<string, Project[]>();
   for (const p of projets) {
@@ -297,7 +312,7 @@ export function construireColonnes(
       id: o.nom,
       titre: o.nom === SANS_STATUT ? LIBELLE_SANS_STATUT : o.nom,
       couleur: o.couleur,
-      projets: trier(parStatut.get(o.nom) || [], reglages.tri, reglages.ordreManuel[o.nom] || []),
+      projets: trier(parStatut.get(o.nom) || [], reglages.tri, reglages.ordreManuel[o.nom] || [], contexte),
     }))
     .filter((c) => {
       if (masquees.has(c.id)) return false;

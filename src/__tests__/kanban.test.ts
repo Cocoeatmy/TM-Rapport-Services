@@ -11,7 +11,7 @@ import type { Project } from "../lib/notion";
 import {
   SANS_STATUT, LIBELLE_SANS_STATUT, FILTRES_VIDES, REGLAGES_COLONNES_PAR_DEFAUT,
   construireColonnes, comptesParColonne, estClos, filtrer, indexer,
-  collaborateursDe, localiteDe, statutDe, trier, valeursDeFiltres, filtresActifs,
+  collaborateursDe, localiteDe, statutDe, trier, valeursDeFiltres, filtresActifs, TRIS,
   type OptionColonne,
 } from "../lib/kanban";
 import { correspond, foldSearch } from "../lib/recherche-projets";
@@ -315,5 +315,26 @@ describe("les vues enregistrées", () => {
 
   it("donnent un identifiant même à un nom qui n'a que des symboles", () => {
     expect(idDepuisNom("###")).toMatch(/^vue-\d+$/);
+  });
+});
+
+describe("le tri « Priorité automatique »", () => {
+  const calme = projet({ id: "calme", etatMesures: "RDV - Fixé", createdTime: "2026-01-01T00:00:00.000Z" });
+  const bloque = projet({ id: "bloque", etatCMD: "Soucis montage", createdTime: "2026-01-01T00:00:00.000Z" });
+  const urgent = projet({ id: "urgent", priorite: "Haute", createdTime: "2026-01-01T00:00:00.000Z" });
+
+  it("fait remonter ce qui demande une action", () => {
+    const r = trier([calme, bloque, urgent], "priorite", [], contexteTest());
+    expect(r.map((p) => p.id)).toEqual(["urgent", "bloque", "calme"]);
+  });
+
+  it("retombe sur le plus récent quand la gravité est inconnue", () => {
+    const vieux = projet({ id: "v", createdTime: "2026-01-01T00:00:00.000Z" });
+    const neuf = projet({ id: "n", createdTime: "2026-06-01T00:00:00.000Z" });
+    expect(trier([vieux, neuf], "priorite").map((p) => p.id)).toEqual(["n", "v"]);
+  });
+
+  it("est proposé dans la liste des tris", () => {
+    expect(TRIS.map((t) => t.id)).toContain("priorite");
   });
 });

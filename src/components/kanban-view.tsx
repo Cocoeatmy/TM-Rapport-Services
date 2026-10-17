@@ -176,8 +176,8 @@ export function KanbanView({ projets, chargement = false }: Props) {
   const indexes = useMemo(() => indexer(projetsVus), [projetsVus]);
   const retenus = useMemo(() => filtrer(indexes, filtres, contexte), [indexes, filtres, contexte]);
   const colonnes = useMemo(
-    () => construireColonnes(retenus, vue, options[vue], reglages),
-    [retenus, vue, options, reglages],
+    () => construireColonnes(retenus, vue, options[vue], reglages, contexte),
+    [retenus, vue, options, reglages, contexte],
   );
   const comptes = useMemo(() => comptesParColonne(retenus, vue), [retenus, vue]);
   const valeurs = useMemo(() => valeursDeFiltres(projetsVus), [projetsVus]);
