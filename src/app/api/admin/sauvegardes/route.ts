@@ -17,6 +17,7 @@ import { getBlob, setData } from "@/lib/kv-store";
 import {
   CLES_SAUVEGARDEES, apercuRestauration, emplacementsDe, inventaireDe,
 } from "@/lib/sauvegarde";
+import { etatConfiguration } from "@/lib/sauvegarde-config";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -54,7 +55,14 @@ export async function GET(request: NextRequest) {
 
   const inventaire: Record<string, unknown> = {};
   for (const k of CLES_SAUVEGARDEES) inventaire[k] = await inventaireDe(k);
-  return NextResponse.json({ cles: CLES_SAUVEGARDEES, inventaire });
+  /* `configuration` ne contient que des OUI/NON : c'est la seule façon de
+     vérifier qu'un secret est bien arrivé jusqu'à l'application, puisqu'on
+     ne peut pas le relire depuis l'extérieur. */
+  return NextResponse.json({
+    cles: CLES_SAUVEGARDEES,
+    inventaire,
+    configuration: etatConfiguration(),
+  });
 }
 
 /**

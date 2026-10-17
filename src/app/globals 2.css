@@ -1,0 +1,856 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+/* Thème « Signal » — fichier isolé, toutes ses règles sont préfixées
+   html[data-ui="signal"] : il ne peut pas affecter les autres thèmes. */
+@import "./theme-signal.css";
+/* Le confort au doigt, isolé derrière `pointer: coarse` : macOS ne peut pas
+   l'atteindre. Chargé en dernier pour passer devant les utilitaires. */
+@import "./tactile.css";
+
+/* ===== Économie de batterie (iOS / macOS) =====
+   Les fonds animés en boucle infinie (gradientShift, auroraFlow) repeignent un
+   grand dégradé à 60 fps en continu → forte consommation GPU et batterie. On
+   les met en pause dans deux cas : */
+
+/* 1) App PAS au premier plan (onglet caché / app en arrière-plan) : la classe
+      `anim-paused` est posée sur <html> par un listener visibilitychange. */
+html.anim-paused *,
+html.anim-paused *::before,
+html.anim-paused *::after {
+  animation-play-state: paused !important;
+}
+
+/* 1bis) Pendant le SCROLL : on met en pause uniquement les fonds animés (pas
+      tout le reste). Le fond dégradé qui s'anime en continu est re-échantillonné
+      par chaque backdrop-filter à chaque frame → micro-saccades sur GPU modeste.
+      Le figer le temps du scroll est invisible mais supprime ces repaints.
+      La classe `is-scrolling` est posée/retirée par un listener dans layout.tsx. */
+html.is-scrolling .lg-bg,
+html.is-scrolling .lg-bg::before,
+html.is-scrolling .lg-bg::after,
+html.is-scrolling [class*="-bg"],
+html.is-scrolling [class*="-bg"]::before,
+html.is-scrolling [class*="-bg"]::after {
+  animation-play-state: paused !important;
+}
+
+/* 2) L'utilisateur a activé "Réduire les animations" (réglage iOS/macOS souvent
+      utilisé pour économiser la batterie) → on coupe les animations de fond. */
+@media (prefers-reduced-motion: reduce) {
+  .lg-bg,
+  .aurora-bg,
+  [class*="-bg"] {
+    animation: none !important;
+  }
+}
+
+/* 3) AU REPOS AUSSI — le vrai correctif batterie : on FIGE les grands dégradés
+      de fond animés en boucle. Même app immobile au premier plan, un dégradé
+      plein écran qui s'anime en continu (et qui force chaque flou « glass » à se
+      recalculer à chaque frame) est la 1ʳᵉ cause de consommation batterie de
+      l'app, sur iOS COMME sur macOS, dans les deux thèmes qui en ont un
+      (classic et aurora). Le rendu reste STRICTEMENT identique — le dégradé est
+      juste immobile. Une seule règle suffit : toutes les variantes de fond
+      (gradientShift / auroraFlow) sont posées sur
+      `.lg-bg` SANS `!important`, donc ce `!important` les neutralise toutes.
+      Les animations utiles (apparitions, spinners de chargement, pulsations)
+      ne sont PAS touchées. */
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.45 0.2 260);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* PAS d'overflow-x sur BODY : sur iOS Safari, un overflow sur <body> casse
+       le `position: fixed` des enfants (le bouton chat « scrollait » avec le
+       contenu au lieu de rester figé). Le clip horizontal est assuré par <html>
+       ci-dessous, ce qui empêche le scroll horizontal fantôme sans ce défaut. */
+    max-width: 100%;
+    /* Supprime le rebond « rubber-band » iOS (bandes blanches quand on glisse à
+       droite/gauche ou en bas). Le pull-to-refresh est géré en JS (composant
+       PullToRefresh, événements tactiles) → il continue de fonctionner. */
+    overscroll-behavior: none;
+  }
+  html {
+    @apply font-sans;
+    /* `clip` (pas `hidden`) : ne crée pas de conteneur de défilement, donc ne
+       casse pas les `sticky`, tout en empêchant le scroll horizontal fantôme. */
+    overflow-x: clip;
+    max-width: 100%;
+    /* Idem body : pas de rebond élastique (aucune bande blanche hors champ). */
+    overscroll-behavior: none;
+  }
+}
+
+/* Barre du haut sur mobile : les icônes d'action (36px) sont réduites à 30px
+   pour que TOUTES tiennent à l'écran — jusqu'à 10 pour un admin sur une page
+   projet (retour + recherche + créer + cloche + actualiser + nuage + avion +
+   orange + menu) — sans chevauchement ni découpe, tout en gardant l'espacement
+   gap-2 (8px). Sélecteur `#main-header .w-9.h-9` : spécificité > utilitaires
+   Tailwind. */
+@media (max-width: 639px) {
+  #main-header .w-9.h-9 {
+    width: 1.875rem;
+    height: 1.875rem;
+  }
+}
+
+/* ===== Liquid Glass Design System ===== */
+
+/* Dark mode backgrounds */
+.dark .lg-bg {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #0f172a 50%, #1e293b 75%, #0f172a 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+.dark .glass-card {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.dark .glass-card:hover {
+  background: rgba(30, 41, 59, 0.85);
+}
+.dark .glass-header {
+  background: rgba(15, 23, 42, 0.85);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+.dark .glass-tabs {
+  background: rgba(30, 41, 59, 0.5);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.dark .glass-tab-active {
+  background: rgba(51, 65, 85, 0.8);
+}
+.dark .glass-input {
+  background: rgba(30, 41, 59, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #e2e8f0 !important;
+  /* Override du inset blanc hérité de .glass-input : sur fond sombre
+     il apparaissait comme un trait blanc au-dessus de l'input. */
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 1px 4px rgba(0, 0, 0, 0.15) !important;
+}
+.dark .glass-panel {
+  background: rgba(30, 41, 59, 0.5);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.dark .glass-btn {
+  background: rgba(59, 130, 246, 0.8);
+}
+
+/* Animated gradient background */
+.lg-bg {
+  background: linear-gradient(135deg, #e8edf5 0%, #d5dce8 25%, #e0e7f1 50%, #dce4f0 75%, #e8edf5 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Désactive le lift (translateY) au hover pour les panneaux de contenu
+   (panneaux non-cliquables) afin d'éviter le décalage zone visuelle vs zone de clic. */
+.glass-panel:hover,
+.glass-panel:active {
+  transform: none !important;
+}
+
+/* Glass card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+}
+
+.glass-card:active {
+  transform: scale(0.98) translateY(0);
+}
+
+/* Glass header */
+.glass-header {
+  background: rgba(30, 58, 95, 0.75);
+  backdrop-filter: blur(30px) saturate(200%);
+  -webkit-backdrop-filter: blur(30px) saturate(200%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 4px 30px rgba(0, 0, 0, 0.15),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Barre d'onglets de navigation collée sous le header. Fond
+   translucide + flou pour que les onglets restent lisibles quand on
+   scrolle un contenu coloré derrière. Une fine bordure inférieure
+   marque la séparation avec le contenu. */
+.glass-navbar {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+}
+.dark .glass-navbar {
+  background: rgba(15, 23, 42, 0.7);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+}
+html[data-ui="aurora"] .glass-navbar {
+  background: rgba(245, 240, 255, 0.6);
+  border-bottom-color: rgba(99, 102, 241, 0.12);
+}
+html[data-ui="aurora"].dark .glass-navbar {
+  background: rgba(25, 18, 60, 0.72);
+  border-bottom-color: rgba(167, 139, 250, 0.18);
+}
+
+/* Badge accueil dans le header — couleurs reprises du thème actif.
+   Texte (icône) toujours blanc pour rester lisible sur le header
+   sombre, mais le fond suit la palette du thème courant. */
+.home-badge {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2c5d99 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.home-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+.home-badge:active {
+  transform: translateY(0);
+}
+html[data-ui="aurora"] .home-badge {
+  background: linear-gradient(135deg, #6366f1 0%, #d946ef 100%);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+/* Bouton retour arrière dans le header */
+.back-btn {
+  transition: background 120ms ease, color 120ms ease;
+}
+.back-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.back-btn:active {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Glass tabs */
+.glass-tabs {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.glass-tab-active {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Glass input */
+.glass-input {
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.2s ease;
+}
+
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(30, 58, 95, 0.3) !important;
+  box-shadow:
+    0 0 0 3px rgba(30, 58, 95, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Glass badge */
+.glass-badge {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* Glass button */
+.glass-btn {
+  background: rgba(30, 58, 95, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 4px 16px rgba(30, 58, 95, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: all 0.2s ease;
+}
+
+.glass-btn:hover {
+  background: rgba(30, 58, 95, 0.95);
+  box-shadow:
+    0 6px 24px rgba(30, 58, 95, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Glass panel (sidebar) */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Status badge glass */
+.glass-status {
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Scrollbar hide */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ============================================================ */
+/* Sticky glass cards : plus opaques que les cartes flottantes   */
+/* ============================================================ */
+/* Une carte en position sticky (ex: header du détail projet)   */
+/* se superpose au contenu qui défile derrière elle. Si elle     */
+/* hérite de la transparence standard des .glass-card (≈65-70%), */
+/* le texte derrière bleed à travers et rend le titre illisible. */
+/* On bump l'opacité à ~95% tout en gardant un léger effet verre. */
+
+.sticky.glass-card {
+  background: rgba(255, 255, 255, 0.94);
+}
+.dark .sticky.glass-card {
+  background: rgba(30, 41, 59, 0.94);
+}
+
+html[data-ui="aurora"] .sticky.glass-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 245, 255, 0.92) 100%);
+}
+html[data-ui="aurora"].dark .sticky.glass-card {
+  background: linear-gradient(180deg, rgba(40, 28, 80, 0.94) 0%, rgba(28, 18, 60, 0.90) 100%);
+}
+
+/* ============================================================ */
+/*                        AURORA THEME                           */
+/* ============================================================ */
+/* Activé par html[data-ui="aurora"]. Réécrit les classes        */
+/* glass-* du Liquid Glass existant sans toucher au JSX.         */
+/* Pensé pour apporter un look "spatial / iOS 18 / Vision Pro" : */
+/*   - fond aurore multi-hues en animation lente                 */
+/*   - cartes à rayon plus généreux et ombres teintées indigo    */
+/*   - header violet profond avec halo supérieur                 */
+/*   - boutons et status en gradient vif                         */
+/*   - typographie légèrement plus serrée sur les chiffres clés  */
+/*                                                               */
+/* Supporte light ET dark. La détection dark reste `.dark` sur   */
+/* la même racine <html>, donc dark+aurora = palette "midnight". */
+
+/* ---------- Background : aurore (light) ---------- */
+html[data-ui="aurora"] .lg-bg {
+  background:
+    radial-gradient(ellipse 100% 50% at 10% 0%,   rgba(186, 130, 255, 0.55) 0%, transparent 55%),
+    radial-gradient(ellipse  80% 45% at 90% 5%,   rgba(255, 140, 200, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse  70% 60% at 50% 100%,  rgba(100, 150, 255, 0.45) 0%, transparent 60%),
+    radial-gradient(ellipse  60% 40% at 75% 55%,   rgba(160, 200, 255, 0.30) 0%, transparent 55%),
+    linear-gradient(150deg, #f0eaff 0%, #e8eeff 35%, #eef5ff 65%, #fceeff 100%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 300% 300%;
+  animation: auroraFlow 28s ease-in-out infinite;
+}
+
+html[data-ui="aurora"].dark .lg-bg {
+  background:
+    radial-gradient(ellipse 90% 50% at 15% 0%,    rgba(130, 70, 230, 0.65) 0%, transparent 55%),
+    radial-gradient(ellipse 75% 45% at 85% 8%,    rgba(220, 70, 170, 0.50) 0%, transparent 55%),
+    radial-gradient(ellipse 85% 65% at 50% 100%,  rgba(50, 90, 230, 0.55) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 40% at 70% 55%,   rgba(80, 40, 180, 0.35) 0%, transparent 55%),
+    linear-gradient(150deg, #080620 0%, #0f0828 35%, #090820 65%, #120820 100%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 300% 300%;
+  animation: auroraFlow 28s ease-in-out infinite;
+}
+
+@keyframes auroraFlow {
+  0%, 100% { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 50%; }
+  33%      { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 60% 30%; }
+  66%      { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 100% 70%; }
+}
+
+/* ---------- Cartes ---------- */
+html[data-ui="aurora"] .glass-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.72) 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 10px 30px -12px rgba(99, 73, 220, 0.18),
+    0 4px 12px -6px rgba(0, 0, 0, 0.06);
+  transition:
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.25s ease;
+}
+
+html[data-ui="aurora"] .glass-card:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.82) 100%);
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 18px 40px -14px rgba(99, 73, 220, 0.30),
+    0 6px 16px -6px rgba(236, 72, 153, 0.12);
+}
+
+html[data-ui="aurora"] .glass-card:active {
+  transform: translateY(0) scale(0.985);
+  transition-duration: 0.12s;
+}
+
+html[data-ui="aurora"].dark .glass-card {
+  background:
+    linear-gradient(180deg, rgba(40, 28, 80, 0.55) 0%, rgba(28, 18, 60, 0.45) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 14px 36px -16px rgba(130, 80, 220, 0.55),
+    0 4px 14px -6px rgba(0, 0, 0, 0.5);
+}
+
+html[data-ui="aurora"].dark .glass-card:hover {
+  background:
+    linear-gradient(180deg, rgba(55, 38, 105, 0.70) 0%, rgba(40, 28, 80, 0.60) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.1) inset,
+    0 22px 50px -18px rgba(160, 100, 255, 0.65),
+    0 6px 18px -6px rgba(236, 72, 153, 0.25);
+}
+
+/* ---------- Header ---------- */
+html[data-ui="aurora"] .glass-header {
+  background:
+    linear-gradient(180deg, rgba(45, 20, 105, 0.85) 0%, rgba(30, 30, 120, 0.82) 100%);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    0 8px 32px rgba(45, 20, 105, 0.35);
+}
+
+html[data-ui="aurora"].dark .glass-header {
+  background:
+    linear-gradient(180deg, rgba(20, 10, 50, 0.92) 0%, rgba(15, 15, 55, 0.88) 100%);
+  border-bottom-color: rgba(255, 255, 255, 0.10);
+}
+
+/* ---------- Tabs ---------- */
+html[data-ui="aurora"] .glass-tabs {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 4px 14px -6px rgba(99, 73, 220, 0.15);
+}
+
+html[data-ui="aurora"] .glass-tab-active {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  color: #ffffff !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 4px 12px -3px rgba(99, 102, 241, 0.5);
+}
+
+html[data-ui="aurora"] .glass-tab-active,
+html[data-ui="aurora"] .glass-tab-active * {
+  color: #ffffff !important;
+}
+
+html[data-ui="aurora"].dark .glass-tabs {
+  background: rgba(30, 20, 60, 0.55);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- Input ---------- */
+html[data-ui="aurora"] .glass-input {
+  background: rgba(255, 255, 255, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  border-radius: 1rem !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 2px 8px -2px rgba(99, 73, 220, 0.08);
+}
+
+html[data-ui="aurora"] .glass-input:focus {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(139, 92, 246, 0.5) !important;
+  box-shadow:
+    0 0 0 4px rgba(139, 92, 246, 0.18),
+    0 2px 12px -2px rgba(139, 92, 246, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+}
+
+html[data-ui="aurora"].dark .glass-input {
+  background: rgba(40, 28, 80, 0.55) !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+  color: #e9e6f5 !important;
+  /* On neutralise l'inset blanc
+     hérité pour ne pas avoir de trait clair au-dessus de l'input. */
+  box-shadow:
+    0 1px 0 rgba(168, 85, 247, 0.15) inset,
+    0 2px 8px -2px rgba(139, 92, 246, 0.15) !important;
+}
+
+/* ---------- Boutons ---------- */
+html[data-ui="aurora"] .glass-btn {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 60%, #ec4899 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 6px 18px -4px rgba(99, 102, 241, 0.45);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html[data-ui="aurora"] .glass-btn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 10px 28px -4px rgba(139, 92, 246, 0.6),
+    0 4px 12px -2px rgba(236, 72, 153, 0.3);
+}
+
+html[data-ui="aurora"] .glass-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ---------- Panel ---------- */
+html[data-ui="aurora"] .glass-panel {
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 10px 30px -12px rgba(99, 73, 220, 0.15);
+}
+
+html[data-ui="aurora"].dark .glass-panel {
+  background: rgba(30, 20, 60, 0.50);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- Status badge ---------- */
+html[data-ui="aurora"] .glass-status {
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0.75rem;
+  box-shadow:
+    0 1px 2px rgba(255, 255, 255, 0.4) inset,
+    0 2px 6px -2px rgba(99, 73, 220, 0.15);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* ---------- Typographie : chiffres KPI plus élégants ---------- */
+html[data-ui="aurora"] .glass-card p.text-lg,
+html[data-ui="aurora"] .glass-card p.text-2xl {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+/* ---------- Badges lucide/shadcn ---------- */
+html[data-ui="aurora"] [data-slot="badge"] {
+  border-radius: 0.625rem;
+  font-weight: 600;
+}
+
+/* ---------- Liens / cartes cliquables : micro-lift ---------- */
+html[data-ui="aurora"] a.glass-card:hover,
+html[data-ui="aurora"] button.glass-card:hover {
+  transform: translateY(-2px) scale(1.005);
+}
+
+/* ---------- Entrée en scène (opt-in, non agressif) ---------- */
+@keyframes auroraFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+html[data-ui="aurora"] main > * {
+  animation: auroraFadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Respecte la préférence "motion réduit" (accessibilité). */
+@media (prefers-reduced-motion: reduce) {
+  html[data-ui="aurora"] .lg-bg { animation: none; }
+  html[data-ui="aurora"] main > * { animation: none; }
+  html[data-ui="aurora"] .glass-card,
+  html[data-ui="aurora"] .glass-btn { transition: none; }
+}
+
+/* ============================================================ */
+/* iOS-only : titre sur plus de lignes                          */
+/* @supports (-webkit-touch-callout: none)  → iOS WebKit       */
+/* @media (hover: none)                     → exclut macOS Safari */
+/* Ensemble = appareils iOS uniquement.                          */
+/* ============================================================ */
+@supports (-webkit-touch-callout: none) {
+  @media (hover: none) {
+    .ios-line-clamp {
+      /* Laisse le titre s'étaler sur 4 lignes max sur iPhone/iPad,
+         au lieu de 2, pour ne jamais le couper. */
+      -webkit-line-clamp: 4 !important;
+    }
+  }
+}
+
+/* Dashboard — réorganisation style iOS */
+@keyframes dash-wiggle {
+  0%   { transform: rotate(-1.5deg) scale(1.02); }
+  50%  { transform: rotate(1.5deg) scale(1.02); }
+  100% { transform: rotate(-1.5deg) scale(1.02); }
+}
+.dash-edit-wiggle {
+  animation: dash-wiggle 0.22s ease-in-out infinite;
+  cursor: grab;
+}
+.dash-edit-wiggle:active {
+  cursor: grabbing;
+}
+.dash-dragging {
+  opacity: 0.45 !important;
+  transform: scale(0.93) !important;
+}
+.dash-drag-over {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 1rem;
+}
+/* Tap-pour-placer : case « prise » (en attente d'une destination) */
+.dash-selected {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 1rem;
+  transform: scale(1.04);
+  z-index: 30;
+  box-shadow: 0 8px 24px -6px rgba(37, 99, 235, 0.55);
+}
+/* Cibles possibles quand une case est « prise » */
+.dash-place-target {
+  outline: 2px dashed rgba(37, 99, 235, 0.5);
+  outline-offset: 2px;
+  border-radius: 1rem;
+  cursor: pointer;
+}
+
+/* ============================================================================
+   Bouton « Enregistrer le rapport » — TOUJOURS vert, dégradé adapté au thème.
+   Une classe dédiée `.save-btn` (et non `.glass-btn`) pour ne pas hériter du
+   dégradé bleu/violet des thèmes. Chaque thème garde son ambiance (saturation,
+   ombre, courbe d'animation) mais en vert.
+   ============================================================================ */
+.save-btn {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  box-shadow:
+    0 4px 16px rgba(5, 150, 105, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: all 0.2s ease;
+}
+.save-btn:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow:
+    0 6px 24px rgba(5, 150, 105, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.save-btn:active { transform: translateY(0) scale(0.98); }
+
+/* Aurora : vert vif multi-arrêt (émeraude → vert → lime) */
+html[data-ui="aurora"] .save-btn {
+  background: linear-gradient(135deg, #10b981 0%, #22c55e 60%, #84cc16 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 6px 18px -4px rgba(16, 185, 129, 0.5);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+html[data-ui="aurora"] .save-btn:hover {
+  filter: none;
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 10px 28px -4px rgba(34, 197, 94, 0.6),
+    0 4px 12px -2px rgba(132, 204, 22, 0.3);
+}
+html[data-ui="aurora"] .save-btn:active { transform: translateY(0) scale(0.98); }
+
+/* ============================================================================
+   Cartes CONTENEUR (panneaux) : neutralise l'effet de soulèvement/clic.
+   Sur .glass-card, le :hover/:active applique un transform (translate/scale)
+   qui DÉPLACE le contenu pendant l'appui — un petit bouton à l'intérieur (le
+   toggle de tri) devenait quasi inratable (clic perdu car mouseup hors cible).
+   La classe .no-lift fige la carte → les clics internes répondent du 1er coup.
+   ============================================================================ */

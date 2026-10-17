@@ -32,13 +32,23 @@ vi.mock("@/lib/kv-store", () => ({
   setBlob: vi.fn(async () => {}),
   getBlob: vi.fn(async () => { throw new Error("absent"); }),
 }));
+/* La tâche hebdomadaire accepte aussi une session d'administrateur. Ici
+   on veut éprouver le SECRET et le chiffrement : pas d'admin connecté,
+   sauf là où le test le dit. */
+let sessionAdmin = true;
 vi.mock("@/lib/droits-serveur", () => ({
-  exigerDroit: vi.fn(async () => ({ user: { name: "M", email: "m@tm.ch", role: "admin" } })),
+  exigerDroit: vi.fn(async () =>
+    sessionAdmin
+      ? { user: { name: "M", email: "m@tm.ch", role: "admin" } }
+      : { refus: new Response("non", { status: 403 }) }),
 }));
 
 const courriers: { pieces: { filename: string; content: Buffer }[] }[] = [];
+const alertes: string[] = [];
 vi.mock("@/lib/email", () => ({
-  sendEmail: vi.fn(async (_t: string, _s: string, _h: string, pieces?: { filename: string; content: Buffer }[]) => {
+  gmailEnabled: true,
+  sendEmail: vi.fn(async (_t: string, sujet: string, _h: string, pieces?: { filename: string; content: Buffer }[]) => {
+    if (sujet.startsWith("ÉCHEC")) { alertes.push(sujet); return { success: true }; }
     courriers.push({ pieces: pieces || [] });
     return { success: true };
   }),
@@ -65,6 +75,8 @@ function lignesFictives(n: number, prefixe = "x") {
 beforeEach(() => {
   listes.clear();
   courriers.length = 0;
+  alertes.length = 0;
+  sessionAdmin = true;
   process.env.CRON_SECRET = "chut";
   process.env.BACKUP_EMAIL = "sauvegarde@tm.ch";
   process.env.BACKUP_PASSPHRASE = PASSE;
@@ -207,6 +219,7 @@ describe("La copie hebdomadaire chiffrée", () => {
     expect(r.status).toBe(503);
     expect((await r.json()).raison).toContain("BACKUP_PASSPHRASE");
     expect(courriers, "aucune donnée personnelle ne part en clair").toHaveLength(0);
+    expect(alertes, "et l'administrateur est prévenu").toHaveLength(1);
   });
 
   it("refuse aussi une phrase trop courte", async () => {

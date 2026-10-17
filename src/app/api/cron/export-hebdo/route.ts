@@ -30,6 +30,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { gzipSync } from "node:zlib";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { construireArchive, nomDeFichier } from "@/lib/archive";
 import { rassemblerLesListes } from "@/lib/sauvegarde";
 import { sendEmail } from "@/lib/email";
@@ -42,20 +43,63 @@ export const maxDuration = 300;
 const SEUIL_COMPRESSION = 8 * 1024 * 1024;
 
 export async function GET(request: NextRequest) {
-  /* Les autres tâches planifiées laissent passer quand `CRON_SECRET` n'est
-     pas défini. Pas celle-ci : elle expédie l'intégralité des données hors
-     de l'application. Sans secret, elle se tait. */
+  /* ── Qui a le droit de déclencher ────────────────────────────────────
+     Deux portes, et deux seulement :
+       — le secret des tâches planifiées, celui de Vercel ;
+       — une session d'administrateur, pour pouvoir ESSAYER la sauvegarde
+         sans attendre dimanche. Une sauvegarde qu'on ne peut pas essayer
+         est une sauvegarde qu'on découvre en panne le jour où l'on en a
+         besoin.
+     Les autres tâches laissent passer quand `CRON_SECRET` n'est pas
+     défini. Pas celle-ci : elle expédie l'intégralité des données hors de
+     l'application, et une adresse devinée ne doit pas suffire. */
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    console.error("[ARCHIVE] CRON_SECRET absent : la copie hebdomadaire refuse de s'exécuter.");
-    return NextResponse.json(
-      { error: "CRON_SECRET requis pour cette tâche." }, { status: 503 },
-    );
-  }
   const authHeader = request.headers.get("authorization");
   const urlSecret = new URL(request.url).searchParams.get("secret");
-  if (authHeader !== `Bearer ${cronSecret}` && urlSecret !== cronSecret) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const parLaTache = !!cronSecret && (authHeader === `Bearer ${cronSecret}` || urlSecret === cronSecret);
+
+  let declencheur = "tâche planifiée";
+  if (!parLaTache) {
+    const v = await exigerDroit("administration.droits");
+    if ("refus" in v) {
+      if (!cronSecret) {
+        console.error("[ARCHIVE] CRON_SECRET absent : la copie hebdomadaire refuse de s'exécuter.");
+        return NextResponse.json({ error: "CRON_SECRET requis pour cette tâche." }, { status: 503 });
+      }
+      /* Ni le secret de la tâche, ni une session d'administrateur. */
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    declencheur = `essai manuel de ${v.user.email}`;
+  }
+
+  /**
+   * Prévenir l'administrateur quand la sauvegarde échoue.
+   *
+   * Un échec qui ne se voit que dans les journaux d'une plateforme
+   * n'existe pas : personne ne les lit un dimanche matin. La seule alerte
+   * qui arrive vraiment est celle qui atterrit dans la boîte aux lettres.
+   * Elle ne contient AUCUNE donnée — juste la panne et sa date.
+   */
+  async function alerter(raison: string, detail?: string) {
+    const a = (process.env.BACKUP_EMAIL || "").trim();
+    if (!a) return; // sans destinataire, il n'y a personne à prévenir
+    try {
+      await sendEmail(
+        a,
+        `ÉCHEC de la sauvegarde TM — ${new Date().toISOString().slice(0, 10)}`,
+        `<div style="font-family:-apple-system,Arial,sans-serif;max-width:560px">
+           <h2 style="margin:0 0 8px 0;font-size:17px;color:#b91c1c">La copie de sauvegarde n'est pas partie</h2>
+           <p style="font-size:14px;margin:0 0 12px 0"><b>${raison}</b></p>
+           ${detail ? `<pre style="font-size:12px;background:#f1f5f9;padding:10px;border-radius:8px;white-space:pre-wrap">${detail}</pre>` : ""}
+           <p style="color:#64748b;font-size:13px">Aucune donnée n'est jointe à ce message.
+           Vérifiez la configuration dans Administration → Sauvegardes ; la
+           prochaine tentative aura lieu dimanche à 2 h.</p>
+         </div>`,
+      );
+    } catch {
+      /* Si même l'alerte ne part pas, il ne reste que les journaux — et on
+         ne va pas transformer une panne en boucle d'envois. */
+    }
   }
 
   const destinataire = (process.env.BACKUP_EMAIL || "").trim();
@@ -72,6 +116,8 @@ export async function GET(request: NextRequest) {
   const passe = process.env.BACKUP_PASSPHRASE || "";
   if (passe.length < 12) {
     console.error("[ARCHIVE] BACKUP_EMAIL est défini mais BACKUP_PASSPHRASE manque (ou fait moins de 12 caractères) : rien n'a été expédié.");
+    await alerter("La phrase secrète (BACKUP_PASSPHRASE) manque ou fait moins de 12 caractères.",
+                  "L'archive contient des données personnelles : elle n'est jamais expédiée en clair.");
     return NextResponse.json(
       {
         ok: false, envoye: false,
@@ -90,6 +136,8 @@ export async function GET(request: NextRequest) {
   const lignes = Object.values(listes).reduce((n, d) => n + d.length, 0);
   if (Object.keys(listes).length === 0) {
     console.error("[ARCHIVE] export hebdomadaire : rien n'a pu être lu", manquantes);
+    await alerter("Aucune liste n'a pu être lue : l'archive aurait été vide.",
+                  Object.entries(manquantes).map(([k, v]) => `${k} : ${v}`).join("\n"));
     return NextResponse.json(
       { ok: false, envoye: false, raison: "aucune liste lisible", manquantes },
       { status: 500 },
@@ -137,12 +185,16 @@ export async function GET(request: NextRequest) {
 
   if (!envoi.success) {
     console.error("[ARCHIVE] export hebdomadaire non expédié :", envoi.error);
+    /* L'envoi a échoué : prévenir par ce même canal a peu de chances
+       d'aboutir, mais la panne peut être passagère (pièce jointe trop
+       lourde, par exemple) et l'alerte, elle, est légère. */
+    await alerter("L'archive a été produite mais le courriel n'est pas parti.", envoi.error);
     return NextResponse.json({ ok: false, envoye: false, erreur: envoi.error }, { status: 502 });
   }
 
-  console.log(`[ARCHIVE] copie hebdomadaire expédiée, chiffrée (${lignes} lignes, ${piece.content.byteLength} octets)`);
+  console.log(`[ARCHIVE] copie expédiée, chiffrée — ${declencheur} (${lignes} lignes, ${piece.content.byteLength} octets)`);
   return NextResponse.json({
-    ok: true, envoye: true, complet, lignes,
+    ok: true, envoye: true, complet, lignes, declencheur,
     fichier: piece.filename, octets: piece.content.byteLength,
     chiffre: true, comprimee,
     manquantes,

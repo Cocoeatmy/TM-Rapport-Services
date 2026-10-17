@@ -1,0 +1,129 @@
+/**
+ * Le confort au doigt — et rien d'autre.
+ *
+ * ── La garantie, avant les règles ────────────────────────────────────────
+ *
+ * Tout ce fichier vit sous `@media (hover: none) and (pointer: coarse)`.
+ * Cette condition désigne un écran qu'on touche : iPad, iPhone. Un Mac
+ * répond toujours `hover: hover` et `pointer: fine` — avec un trackpad,
+ * avec une souris, et quelle que soit la largeur de sa fenêtre. Aucune
+ * ligne écrite ici ne peut donc modifier l'affichage de macOS : ce n'est
+ * pas une précaution vérifiée après coup, c'est une impossibilité.
+ *
+ * C'est précisément pourquoi on n'a pas pris de media query en largeur :
+ * une fenêtre macOS réduite à 820 px aurait reçu les règles de l'iPad.
+ *
+ * ── Ce qu'on corrige ────────────────────────────────────────────────────
+ *
+ * Le relevé d'affichage (`e2e/50-affichage.spec.ts`) a compté, sur iPad,
+ * plus de cent cibles de moins de 36 px : des onglets hauts de 32 px, des
+ * boutons ronds de 36, des pastilles de filtre de 28. Un doigt mesure
+ * environ 44 px — c'est la recommandation d'Apple, et c'est la différence
+ * entre viser et réussir.
+ *
+ * On n'y touche QUE la zone sensible, jamais la taille apparente : les
+ * boutons gardent leur dessin, leur police et leurs couleurs. Ce qui
+ * grandit, c'est ce que le doigt peut atteindre.
+ */
+
+@media (hover: none) and (pointer: coarse) {
+  /* ── Les onglets de navigation ────────────────────────────────────────
+     Ils faisaient 32 px de haut. Ils en font 44 : c'est le rembourrage qui
+     grandit, pas le texte. On agrandit le BOUTON lui-même et non une zone
+     sensible invisible — une cible qu'on ne voit pas reste une cible qu'on
+     vise mal, et elle ne se mesure pas. */
+  .nav-stack button,
+  .nav-stack a {
+    min-height: 44px;
+  }
+
+  /* ── Les boutons ronds de l'en-tête ───────────────────────────────────
+     36 px dessinés. On les porte à 40 et pas à 44 : l'en-tête est une bande
+     de hauteur fixe, et quatre pixels de plus par bouton la faisaient
+     grandir de dix. Quarante suffisent au doigt et laissent la bande à sa
+     place. */
+  .app-hdr-search,
+  .app-hdr-new,
+  header button,
+  .signal-headerbar button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* ── Les pastilles de filtre et les petits boutons de liste ───────────── */
+  button.kb-pilule,
+  button.sg-link,
+  .sgch-etats button,
+  .sgch-seuil button,
+  .sgv-tiles button {
+    min-height: 44px;
+  }
+
+  /* ── Tout bouton d'une barre d'outils ou d'un bandeau de filtres ─────── */
+  .sg-card-head button,
+  .sgw-nav button,
+  .sg-seg-tms button {
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  /* ── Et la règle générale ─────────────────────────────────────────────
+     Les listes ci-dessus couvraient les familles repérées par le relevé.
+     Il restait une centaine de boutons isolés, dessinés un par un dans
+     trente composants : les énumérer serait sans fin, et le prochain
+     bouton écrit demain recommencerait le problème.
+     Quarante pixels de hauteur minimale pour tout bouton, donc — un peu
+     moins que les 44 d'Apple, assez pour viser sans effort, assez peu pour
+     ne pas défaire les rangées denses. Les exceptions juste en dessous
+     sont celles où grandir nuirait. */
+  button,
+  [role="button"],
+  summary {
+    min-height: 40px;
+  }
+
+  /* Ce qui doit rester petit :
+     — les pastilles décoratives et les compteurs, qui ne sont pas des
+       commandes même quand ils sont écrits en `button` ;
+     — les boutons posés DANS une ligne de tableau ou de liste dense, où
+       quarante pixels doubleraient la hauteur de chaque ligne ;
+     — les cases à cocher, qui ont leur propre dimension. */
+  .sg-row button,
+  .sg-plist button,
+  table button,
+  tr button,
+  .kb-carte button,
+  button.sg-chip,
+  button[data-compact],
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 0;
+  }
+
+  /* ── Les champs de saisie ─────────────────────────────────────────────
+     Safari sur iOS ZOOME la page dès qu'on touche un champ dont le texte
+     fait moins de 16 px, et ne dézoome jamais tout seul : la mise en page
+     reste de travers jusqu'à ce qu'on pince l'écran. Seize pixels, et le
+     problème disparaît. C'est la correction la plus discrète de ce fichier
+     et probablement la plus sensible à l'usage. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+
+  /* ── Les zones de sécurité ────────────────────────────────────────────
+     L'encoche et la barre d'accueil mangent les bords. Les éléments collés
+     en bas de l'écran s'en écartent. */
+  .tm-ai-fab {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ── Le défilement ────────────────────────────────────────────────────
+     Les listes longues défilaient par à-coups : on rend l'inertie. */
+  .scrollbar-hide,
+  [class*="overflow-y-auto"],
+  [class*="overflow-x-auto"] {
+    -webkit-overflow-scrolling: touch;
+  }
+}

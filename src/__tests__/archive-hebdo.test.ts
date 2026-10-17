@@ -33,16 +33,28 @@ vi.mock("@/lib/kv-store", () => ({
   getBlob: vi.fn(async () => { throw new Error("absent"); }),
 }));
 
+/* La plupart des tests passent par des routes d'administration : on est
+   donc connecté par défaut. Les deux tests qui éprouvent la PORTE de la
+   tâche planifiée mettent `sessionAdmin = false` pour qu'elle doive tenir
+   sur son seul secret. */
+let sessionAdmin = true;
 vi.mock("@/lib/droits-serveur", () => ({
-  exigerDroit: vi.fn(async () => ({ user: { name: "M", email: "m@tm.ch", role: "admin" } })),
+  exigerDroit: vi.fn(async () =>
+    sessionAdmin
+      ? { user: { name: "M", email: "m@tm.ch", role: "admin" } }
+      : { refus: new Response("non", { status: 403 }) }),
 }));
 
-/** Le facteur : il note ce qu'on lui confie, et ne poste rien. */
+/** Le facteur : il note ce qu'on lui confie, et ne poste rien.
+    Les alertes d'échec passent par le même chemin : on les range à part
+    pour que « aucune donnée n'est partie » reste vérifiable. */
 const courriers: { to: string; subject: string; html: string; pieces: { filename: string; content: Buffer }[] }[] = [];
+const alertes: { to: string; subject: string }[] = [];
 let envoiCasse = false;
 
 vi.mock("@/lib/email", () => ({
   sendEmail: vi.fn(async (to: string, subject: string, html: string, pieces?: { filename: string; content: Buffer }[]) => {
+    if (subject.startsWith("ÉCHEC")) { alertes.push({ to, subject }); return { success: true }; }
     if (envoiCasse) return { success: false, error: "SMTP refuse" };
     courriers.push({ to, subject, html, pieces: pieces || [] });
     return { success: true };
@@ -77,6 +89,8 @@ const requete = () => new NextRequest("http://local/api/cron/export-hebdo?secret
 beforeEach(() => {
   listes.clear();
   courriers.length = 0;
+  alertes.length = 0;
+  sessionAdmin = true;
   lectureCassee = null;
   envoiCasse = false;
   process.env.CRON_SECRET = "chut";
@@ -96,6 +110,7 @@ describe("La copie hebdomadaire par courriel", () => {
   });
 
   it("refuse un appel sans le bon secret", async () => {
+    sessionAdmin = false;
     process.env.BACKUP_EMAIL = "m@tm.ch";
     listes.set("defauts", lignesFictives(5));
 
@@ -105,10 +120,25 @@ describe("La copie hebdomadaire par courriel", () => {
     expect(courriers).toHaveLength(0);
   });
 
+  it("un ADMINISTRATEUR peut l'essayer sans attendre dimanche", async () => {
+    /* Une sauvegarde qu'on ne peut pas essayer est une sauvegarde qu'on
+       découvre en panne le jour où l'on en a besoin. */
+    sessionAdmin = true;
+    process.env.BACKUP_EMAIL = "m@tm.ch";
+    listes.set("defauts", lignesFictives(4));
+
+    const r = await cron.GET(new NextRequest("http://local/api/cron/export-hebdo"));
+
+    expect(r.status).toBe(200);
+    expect((await r.json()).declencheur).toContain("essai manuel");
+    expect(courriers).toHaveLength(1);
+  });
+
   it("se TAIT si CRON_SECRET n'est pas configuré du tout", async () => {
     /* Les autres tâches laissent passer dans ce cas. Pas celle-ci : elle
        expédie l'intégralité des données hors de l'application, et une URL
        devinée suffirait. */
+    sessionAdmin = false;
     delete process.env.CRON_SECRET;
     process.env.BACKUP_EMAIL = "m@tm.ch";
     listes.set("defauts", lignesFictives(5));
@@ -204,6 +234,9 @@ describe("La copie hebdomadaire par courriel", () => {
 
     expect(r.status).toBe(500);
     expect(courriers, "mieux vaut pas de courriel qu'un courriel vide").toHaveLength(0);
+    /* Mais l'administrateur, lui, doit l'apprendre. */
+    expect(alertes).toHaveLength(1);
+    expect(alertes[0].subject).toContain("ÉCHEC");
   });
 
   it("signale un envoi qui n'est pas parti", async () => {
@@ -215,5 +248,6 @@ describe("La copie hebdomadaire par courriel", () => {
 
     expect(r.status).toBe(502);
     expect((await r.json()).envoye).toBe(false);
+    expect(alertes, "un envoi qui ne part pas doit se signaler").toHaveLength(1);
   });
 });
