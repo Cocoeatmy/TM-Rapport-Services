@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { reseauDegrade } from "@/lib/reseau";
 import { WifiOff, CloudUpload, RefreshCw, AlertTriangle, ChevronDown, X } from "lucide-react";
-import { isOnline, getQueue, removeFromQueue, warmOfflineCache, getLastCacheWarmTs, getAbandons, clearAbandons } from "@/lib/offline";
+import { isOnline, getQueue, removeFromQueue, warmOfflineCache, getLastCacheWarmTs, getAbandons, clearAbandons, rejouerAbandon } from "@/lib/offline";
 import type { Abandon } from "@/lib/offline";
 import type { QueueItem } from "@/lib/offline";
 import {
@@ -85,6 +85,8 @@ export function OfflineBanner() {
   const [retrying, setRetrying]           = useState(false);
   const [showDetails, setShowDetails]     = useState(false);
   const [abandons, setAbandons]           = useState<Abandon[]>([]);
+  /** Vrai quand une saisie n'a PAS pu être rangée faute de place. */
+  const [stockagePlein, setStockagePlein]  = useState(false);
   /* Réseau présent mais qui ne passe pas : l'état le plus courant sur un
      chantier, et le seul qui n'était signalé nulle part. */
   const [faible, setFaible]               = useState(false);
@@ -132,6 +134,9 @@ export function OfflineBanner() {
     };
 
     const handleWarmed = () => { setLastWarm(getLastCacheWarmTs()); };
+    /* Le pire des cas : la saisie n'est même pas en file. Il ne s'efface pas
+       tout seul — le monteur doit le voir et agir. */
+    const surStockagePlein = () => setStockagePlein(true);
 
     window.addEventListener("tm-reseau", refresh);
     window.addEventListener("online",  handleOnline);
@@ -142,6 +147,7 @@ export function OfflineBanner() {
     window.addEventListener("tm-cache-warmed",               handleWarmed);
     window.addEventListener("tm-upload-permanently-failed",  refresh);
     window.addEventListener("tm-abandon",                    refresh);
+    window.addEventListener("tm-offline-queue-pleine",       surStockagePlein);
 
     // Poll de sécurité (l'essentiel passe par les events online/offline/upload
     // ci-dessus) : 20 s au lieu de 5 s, et rien quand l'app est en arrière-plan
@@ -162,6 +168,7 @@ export function OfflineBanner() {
       window.removeEventListener("tm-cache-warmed",               handleWarmed);
       window.removeEventListener("tm-upload-permanently-failed",  refresh);
       window.removeEventListener("tm-abandon",                    refresh);
+      window.removeEventListener("tm-offline-queue-pleine",       surStockagePlein);
       clearInterval(interval);
     };
   }, []);
@@ -198,13 +205,38 @@ export function OfflineBanner() {
     }
   };
 
+  /* LE PIRE DES CAS : le stockage de l'appareil est saturé et la saisie
+     n'est nulle part. Avant le 17 octobre 2026, l'application répondait
+     « enregistré » dans cette situation (audit A4). Elle le dit maintenant,
+     en premier et sans fioriture. */
+  if (stockagePlein) {
+    return (
+      <div role="alert" aria-live="assertive"
+        className="w-full px-3 py-2 text-xs flex items-center justify-center gap-2 shadow-md bg-red-800 text-white">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden />
+        <span className="text-center leading-tight font-semibold">
+          Mémoire de l&apos;appareil saturée — votre dernière saisie n&apos;a PAS été enregistrée
+          <span className="block text-[10px] font-normal opacity-90">
+            Synchronisez ce qui attend, puis recommencez. Ne quittez pas le chantier sans l&apos;avoir fait.
+          </span>
+        </span>
+        <button
+          onClick={() => setStockagePlein(false)}
+          className="ml-2 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors font-semibold whitespace-nowrap"
+        >
+          J&apos;ai compris
+        </button>
+      </div>
+    );
+  }
+
   /* Saisies abandonnées par la file d'attente. Elles l'étaient en silence :
      le collaborateur croyait avoir enregistré, et seule la console du
      navigateur en gardait trace. Tant qu'il n'a pas acquitté, on le dit. */
   if (abandons.length > 0) {
     const plusAncien = abandons[abandons.length - 1];
     const motifs: Record<Abandon["raison"], string> = {
-      "trop-ancien": "en attente depuis plus de 24 h",
+      "trop-ancien": "en attente depuis plus de deux semaines",
       "refus-serveur": "refusée par le serveur",
       "trop-d-essais": "huit tentatives sans succès",
     };
@@ -220,9 +252,22 @@ export function OfflineBanner() {
             {" · saisie le "}{new Date(plusAncien.saisiLe).toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
           </span>
         </span>
+        {/* Le contenu est désormais conservé : on peut le renvoyer, et non
+            seulement constater sa perte (audit A5). */}
+        <button
+          onClick={() => {
+            let renvoyes = 0;
+            for (const a of abandons) if (rejouerAbandon(a.id)) renvoyes += 1;
+            setAbandons(getAbandons());
+            if (renvoyes > 0) window.dispatchEvent(new CustomEvent("tm-offline-queued", { detail: { reason: "rejeu" } }));
+          }}
+          className="ml-2 px-2 py-0.5 rounded bg-white/25 hover:bg-white/35 transition-colors font-semibold whitespace-nowrap"
+        >
+          Renvoyer
+        </button>
         <button
           onClick={() => { clearAbandons(); setAbandons([]); }}
-          className="ml-2 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors font-semibold whitespace-nowrap"
+          className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors font-semibold whitespace-nowrap"
         >
           J&apos;ai compris
         </button>

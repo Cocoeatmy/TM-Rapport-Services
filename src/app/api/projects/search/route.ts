@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { notion, databaseId, mapPageToProject } from "@/lib/notion";
 import { errorResponse } from "@/lib/edge-cache";
+import { filtrerListe } from "@/lib/perimetre-serveur";
 
 /* Reconstruire cette liste depuis Notion demande une trentaine de
    secondes. Sans durée déclarée, la requête est coupée bien avant, et
@@ -112,7 +113,12 @@ export async function GET(req: NextRequest) {
       .map(mapPageToProject)
       .filter((p) => !p.projet.startsWith("[DATA]"));
 
-    return NextResponse.json(projects, {
+    /* La recherche obéit au même périmètre que les listes : sans cela, un
+       compte restreint retrouverait par le champ de recherche exactement ce
+       que les colonnes lui cachent. */
+    const { projets } = await filtrerListe(projects);
+
+    return NextResponse.json(projets, {
       headers: { "Cache-Control": "private, max-age=10" },
     });
   } catch (error) {

@@ -3,6 +3,7 @@ import { getProjects, createProject, deleteProject } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
 import { verifyToken } from "@/lib/auth";
 import { cachedJson, errorResponse } from "@/lib/edge-cache";
+import { reponseProjets } from "@/lib/perimetre-serveur";
 
 export const revalidate = 30;
 
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
     // les données fraîches de Notion (+ aucune mise en cache CDN de la réponse).
     const fresh = new URL(request.url).searchParams.has("fresh");
     const projects = await cachedOrFetch("projects", getProjects, fresh);
-    return cachedJson(projects, fresh ? { noStore: true } : undefined);
+    return reponseProjets(projects, fresh ? { noStore: true } : undefined);
   } catch (error) {
     return errorResponse(error);
   }

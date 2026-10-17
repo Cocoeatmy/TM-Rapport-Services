@@ -1,6 +1,7 @@
 import { getProjectsMesuresAnnulees } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
 import { cachedJson, errorResponse } from "@/lib/edge-cache";
+import { reponseProjets } from "@/lib/perimetre-serveur";
 
 export const revalidate = 30;
 
@@ -10,7 +11,7 @@ export async function GET() {
       "projects-mesures-annulees",
       getProjectsMesuresAnnulees,
     );
-    return cachedJson(projects);
+    return reponseProjets(projects);
   } catch (error) {
     return errorResponse(error);
   }

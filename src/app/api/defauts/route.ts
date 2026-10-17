@@ -4,7 +4,7 @@ import { exigerDroit } from "@/lib/droits-serveur";
 import { getData, getDataFresh, setData } from "@/lib/kv-store";
 import { notion } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
-import { redisEnabled, redisLockAcquire, redisLockRelease } from "@/lib/redis-cache";
+import { avecVerrou, VerrouIndisponible } from "@/lib/verrou-liste";
 import {
   empreinteSignalement, rejeuDe, pierreTombaleDe, purgerPierresTombales,
   type PierreTombale,
@@ -57,56 +57,13 @@ const KEY_TOMBES = "defauts-supprimes";
  * Si Redis n'est pas joignable, on travaille sans : mieux vaut un risque de
  * collision qu'un signalement refusé.
  */
+/* Le verrou est désormais partagé avec les pièces manquantes : il vit dans
+   lib/verrou-liste, avec l'histoire de ses deux corrections. Deux copies d'un
+   verrou finissent toujours par ne plus verrouiller la même chose. */
 const VERROU = "lock:defauts";
-export class VerrouIndisponible extends Error {}
 
-/**
- * Prendre le verrou veut dire ATTENDRE son tour, pas renoncer.
- *
- * Première version de ce garde-fou, le 15 octobre : elle demandait le
- * verrou une fois et, s'il était déjà pris, continuait quand même. Elle ne
- * protégeait donc que lorsqu'il n'y avait rien à protéger. Micael
- * supprimait ses doublons les uns après les autres sans attendre — le
- * navigateur n'attend pas non plus —, deux effacements partaient ensemble,
- * relisaient la même liste, et le second réécrivait le premier : la ligne
- * revenait. Huit tours de ménage pour ce motif.
- *
- * On réessaie donc, brièvement, jusqu'à l'obtenir. Et si vraiment on n'y
- * arrive pas, on le DIT — le navigateur remet la ligne et affiche que
- * l'effacement a échoué — plutôt que de travailler à l'aveugle et de
- * laisser croire que c'est fait.
- */
-/**
- * Le verrou doit survivre à l'écriture qu'il protège.
- *
- * Il expirait au bout de trente secondes, alors qu'une écriture en prenait
- * dix-neuf : une écriture un peu lente perdait sa protection EN COURS DE
- * ROUTE, un second serveur prenait le verrou, et les deux réécrivaient la
- * liste chacun de son côté. Démontré le 16 octobre en production, à mes
- * dépens — une ligne effacée, une autre ressuscitée.
- *
- * L'écriture est tombée à trois secondes (voir CLES_CONTENEUR dans
- * kv-store). Une minute laisse vingt fois la marge nécessaire, et borne
- * tout de même un blocage si un serveur meurt sans relâcher.
- */
-const DUREE_VERROU_MS = 60_000;
-const ATTENTE_VERROU_MS = 25_000;
-async function avecVerrou<T>(faire: () => Promise<T>): Promise<T> {
-  let jeton: string | null = null;
-  if (redisEnabled) {
-    const limite = Date.now() + ATTENTE_VERROU_MS;
-    for (;;) {
-      jeton = await redisLockAcquire(VERROU, DUREE_VERROU_MS);
-      if (jeton) break;
-      if (Date.now() >= limite) throw new VerrouIndisponible();
-      await new Promise((r) => setTimeout(r, 150 + Math.floor(Math.random() * 150)));
-    }
-  }
-  try {
-    return await faire();
-  } finally {
-    if (jeton) await redisLockRelease(VERROU, jeton).catch(() => {});
-  }
+async function avecVerrouDefauts<T>(faire: () => Promise<T>): Promise<T> {
+  return avecVerrou(VERROU, faire);
 }
 
 /** Réponse commune quand le verrou n'a pas pu être pris. */
@@ -152,7 +109,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   try {
-    return await avecVerrou(() => enregistrer(body, user.name));
+    return await avecVerrouDefauts(() => enregistrer(body, user.name));
   } catch (err) {
     if (err instanceof VerrouIndisponible) return occupe();
     throw err;
@@ -283,7 +240,7 @@ export async function DELETE(request: NextRequest) {
   if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
 
   try {
-    return await avecVerrou(() => effacer(id, user.name));
+    return await avecVerrouDefauts(() => effacer(id, user.name));
   } catch (err) {
     if (err instanceof VerrouIndisponible) return occupe();
     throw err;
@@ -370,7 +327,7 @@ export async function PATCH(request: NextRequest) {
      sans le même verrou, elle écraserait une création ou une suppression
      faite au même instant par un autre serveur. */
   try {
-    return await avecVerrou(() => modifier(body, user.name));
+    return await avecVerrouDefauts(() => modifier(body, user.name));
   } catch (err) {
     if (err instanceof VerrouIndisponible) return occupe();
     throw err;

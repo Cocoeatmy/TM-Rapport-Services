@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-17T11:19:00.997Z",
+  "genereLe": "2026-10-17T12:37:58.260Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -121,6 +121,17 @@
       "type": "api",
       "fichier": "src/app/api/absences/route.ts",
       "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/admin/sauvegardes",
+      "type": "api",
+      "fichier": "src/app/api/admin/sauvegardes/route.ts",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET",

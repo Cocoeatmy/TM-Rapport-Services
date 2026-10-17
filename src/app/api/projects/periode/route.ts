@@ -15,6 +15,7 @@ import { NextRequest } from "next/server";
 import { getProjectsPeriode } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
 import { cachedJson, errorResponse } from "@/lib/edge-cache";
+import { reponseProjets } from "@/lib/perimetre-serveur";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const projets = await cachedOrFetch(`periode-${du}-${au}`, () => getProjectsPeriode(du, au));
-    return cachedJson(projets, { sMaxAge: 20, swr: 60 });
+    return reponseProjets(projets, { sMaxAge: 20, swr: 60 });
   } catch (error) {
     return errorResponse(error);
   }

@@ -1,6 +1,6 @@
 import { gunzipSync, gzipSync } from "node:zlib";
 import { notion, databaseId } from "./notion";
-import { redisEnabled, redisHGetAll, redisHSet, redisLockAcquire, redisLockRelease } from "./redis-cache";
+import { redisEnabled, redisGetJSON, redisHGetAll, redisHSet, redisLockAcquire, redisLockRelease, redisSetJSON } from "./redis-cache";
 
 // ---------------------------------------------------------------------------
 // In-memory cache  (survives across requests in the same serverless process)
@@ -445,7 +445,7 @@ export async function getData<T>(key: string): Promise<T[]> {
   console.log(`[kv-store] Cache miss for "${key}", fetching from Notion...`);
   const lecture = readFromNotionSafe<T>(key).then((data) => {
     // 3. Populate cache
-    if (data.length > 0) setCache(key, data);
+    if (data.length > 0) { setCache(key, data); void ecrireTemoin(key, data.length); }
     return data;
   }) as Promise<unknown[]>;
   lecturesEnVol.set(key, lecture);
@@ -485,9 +485,72 @@ export async function getDataFresh<T>(key: string): Promise<T[]> {
  * 1. Update the in-memory cache immediately.
  * 2. Write to Notion (the primary store) – awaited to ensure persistence.
  */
-export async function setData<T>(key: string, data: T[]): Promise<void> {
+/**
+ * Combien de lignes cette clé contenait-elle la dernière fois qu'on l'a vue ?
+ *
+ * Gardé dans Redis, donc partagé par toutes les instances : une instance
+ * froide — celle d'une tâche nocturne, justement — n'a aucun cache mémoire et
+ * ne saurait sinon rien du contenu précédent.
+ */
+const CLE_TEMOIN = (key: string) => `kv:temoin:${key}`;
+const TEMOIN_TTL_SEC = 30 * 24 * 3600;
+
+async function lireTemoin(key: string): Promise<number | null> {
+  const enMemoire = getCached<unknown>(key);
+  if (enMemoire) return enMemoire.length;
+  try {
+    const v = await redisGetJSON<{ n: number }>(CLE_TEMOIN(key));
+    return typeof v?.n === "number" ? v.n : null;
+  } catch {
+    return null;
+  }
+}
+
+async function ecrireTemoin(key: string, n: number): Promise<void> {
+  try { await redisSetJSON(CLE_TEMOIN(key), { n }, TEMOIN_TTL_SEC); } catch { /* sans gravité */ }
+}
+
+/** Levée quand une écriture viderait une liste qui ne l'était pas. */
+export class EcritureVideRefusee extends Error {
+  constructor(public cle: string, public avant: number) {
+    super(`Écriture refusée sur « ${cle} » : elle remplacerait ${avant} lignes par une liste vide.`);
+    this.name = "EcritureVideRefusee";
+  }
+}
+
+export interface OptionsEcriture {
+  /**
+   * Autorise explicitement le remplacement d'une liste par une liste vide.
+   *
+   * À ne passer que là où l'effacement est VOULU par un humain — jamais dans
+   * une tâche automatique, jamais dans un chemin de reprise sur erreur.
+   */
+  permettreVide?: boolean;
+}
+
+export async function setData<T>(key: string, data: T[], options: OptionsEcriture = {}): Promise<void> {
+  /* ── Le garde-fou du 17 octobre 2026 ────────────────────────────────────
+     La tâche « backup » faisait `getData` puis `setData`. Quand Notion ne
+     répondait pas, `getData` rendait une liste VIDE sans lever d'erreur, et
+     `setData` l'écrivait par-dessus les vraies données. Une nuit de timeout
+     suffisait à effacer les signalements, les pièces, le stock et le journal
+     — sans aucune copie ailleurs pour les retrouver.
+
+     Le contrôle vit ICI plutôt que dans la tâche : il protège tous les
+     appelants, y compris ceux qu'on écrira l'an prochain. Il ne gêne pas la
+     suppression normale, qui descend une ligne à la fois et ne vide donc
+     jamais une liste de deux éléments ou plus d'un seul coup. */
+  if (data.length === 0 && !options.permettreVide) {
+    const avant = await lireTemoin(key);
+    if (avant !== null && avant >= 2) {
+      console.error(`[kv-store] ÉCRITURE VIDE REFUSÉE sur "${key}" (${avant} lignes conservées)`);
+      throw new EcritureVideRefusee(key, avant);
+    }
+  }
+
   // 1. Update in-memory cache immediately
   setCache(key, data);
+  void ecrireTemoin(key, data.length);
 
   // 2. Write to Notion (primary store) – sérialisé par clé pour éviter que deux
   //    écritures concurrentes ne corrompent la page (mélange ancien/nouveau).

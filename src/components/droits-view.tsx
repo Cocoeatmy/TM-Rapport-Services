@@ -312,14 +312,15 @@ export function DroitsView() {
               Voir un projet ne donne pas le droit de le modifier : ce sont deux
               autorisations séparées.
             </p>
-            {/* Dire ce qui n'est pas encore vrai vaut mieux qu'un réglage qui
-                ne fait rien : le filtrage des listes par collaborateur touche
-                seize écrans et reste à poser. Le choix est enregistré. */}
-            <p className="text-[11px] text-amber-700 dark:text-amber-300 mb-3 flex items-start gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
-              Ce choix est enregistré mais <b>pas encore appliqué</b> aux listes de
-              projets : tout le monde voit encore tous les chantiers. Les autres
-              autorisations de cette page, elles, sont bien en vigueur.
+            {/* La règle exacte, dite ici plutôt que devinée : 216 chantiers
+                sur 235 n'ont aucun collaborateur attribué, et les cacher
+                reviendrait à vider l'application. */}
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3 flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px text-gray-400" />
+              « Uniquement les siens » cache les chantiers attribués à un
+              <b> collègue</b>. Les chantiers que personne n&apos;a encore pris, et
+              ceux confiés à l&apos;équipe, restent visibles : ils représentent
+              aujourd&apos;hui la grande majorité des dossiers en préparation.
             </p>
             <div className="grid sm:grid-cols-2 gap-2">
               {([

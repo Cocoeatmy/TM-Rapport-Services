@@ -193,20 +193,58 @@ export function getCacheTimestamp(): number {
 }
 
 // File d'attente pour les opérations offline
-export function addToQueue(item: Omit<QueueItem, "id" | "timestamp">) {
+/**
+ * Range une écriture dans la file. Rend VRAI seulement si elle y est.
+ *
+ * Jusqu'au 17 octobre 2026, cette fonction avalait l'échec : stockage plein,
+ * mode privé, quota partagé — elle écrivait une ligne dans la console que
+ * personne ne lit, et `offlineFetch` renvoyait quand même un succès. Le
+ * monteur voyait « enregistré » sur une saisie qui n'existait nulle part
+ * (audit A4).
+ *
+ * Avant de renoncer, on fait de la place : le cache des listes se reconstruit
+ * tout seul au prochain chargement, la saisie d'un monteur ne se reconstruit
+ * pas. Entre les deux, le choix n'est pas difficile.
+ */
+export function addToQueue(item: Omit<QueueItem, "id" | "timestamp">): boolean {
+  const ligne: QueueItem = {
+    ...item,
+    id: Math.random().toString(36).slice(2),
+    timestamp: Date.now(),
+  };
+
+  const essayer = (): boolean => {
+    try {
+      const queue = getQueue();
+      queue.push(ligne);
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (essayer()) return true;
+
+  /* Plein. On sacrifie le cache, du plus lourd au plus léger, et on retente
+     après chaque sacrifice. */
   try {
-    const queue = getQueue();
-    queue.push({
-      ...item,
-      id: Math.random().toString(36).slice(2),
-      timestamp: Date.now(),
-    });
-    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-  } catch (e) {
-    // localStorage plein ou indisponible — on log et on abandonne silencieusement
-    // plutôt que de laisser propager l'exception jusqu'aux appelants (handleSaveCabineData, etc.)
-    console.error("[offline] addToQueue failed:", e);
-  }
+    const cache = getCache();
+    for (const cle of clesParPoids(cache)) {
+      delete cache[cle];
+      ecrireCache(cache);
+      if (essayer()) {
+        console.warn("[offline] cache allégé pour faire place à une écriture en attente");
+        return true;
+      }
+    }
+    /* Dernier recours : on vide entièrement le cache. */
+    localStorage.removeItem(CACHE_KEY);
+    if (essayer()) return true;
+  } catch { /* même le ménage a échoué */ }
+
+  console.error("[offline] IMPOSSIBLE de mettre l'écriture en file — stockage saturé", item.url);
+  return false;
 }
 
 export function getQueue(): QueueItem[] {
@@ -251,6 +289,24 @@ export interface Abandon {
   /** Date de la saisie d'origine, pas de l'abandon : c'est elle qui parle. */
   saisiLe: number;
   abandonneLe: number;
+  /**
+   * CE QUE LE MONTEUR AVAIT ÉCRIT.
+   *
+   * Il manquait jusqu'au 17 octobre 2026 : on gardait l'adresse et la
+   * méthode, c'est-à-dire de quoi savoir QU'une saisie avait été perdue,
+   * mais rien pour la retrouver (audit A5). Un rapport d'intervention
+   * abandonné après huit essais était définitivement perdu, et le monteur
+   * n'avait plus qu'à tout retaper — s'il s'en souvenait.
+   */
+  corps?: unknown;
+  /** Le chantier concerné, lu dans l'adresse : de quoi s'y retrouver. */
+  projet?: string;
+}
+
+/** Le projet dont parle une écriture, déduit de son adresse. */
+export function projetDeLUrl(url: string): string | undefined {
+  const m = /\/api\/projects\/([0-9a-fA-F-]{8,})/.exec(url);
+  return m?.[1];
 }
 
 export function getAbandons(): Abandon[] {
@@ -269,14 +325,37 @@ export function clearAbandons(): void {
 
 function noterAbandon(item: QueueItem, raison: Abandon["raison"], statut?: number): void {
   try {
-    const liste = getAbandons();
+    /* Un même item relancé puis remis de côté ne doit pas occuper deux
+       lignes : la liste est courte, et deux fois la même saisie prête à
+       croire qu'on en a perdu deux. */
+    const liste = getAbandons().filter((x) => x.id !== item.id);
     liste.unshift({
       id: item.id, url: item.url, method: item.method, raison, statut,
       saisiLe: item.timestamp, abandonneLe: Date.now(),
+      corps: item.body,
+      projet: projetDeLUrl(item.url),
     });
     localStorage.setItem(ABANDONS_KEY, JSON.stringify(liste.slice(0, ABANDONS_MAX)));
     window.dispatchEvent(new CustomEvent("tm-abandon", { detail: { url: item.url, raison } }));
   } catch {}
+}
+
+/**
+ * Remet une saisie abandonnée dans la file.
+ *
+ * C'est la contrepartie d'avoir gardé son contenu : pouvoir la renvoyer,
+ * plutôt que de seulement savoir qu'elle existait.
+ */
+export function rejouerAbandon(id: string): boolean {
+  const a = getAbandons().find((x) => x.id === id);
+  if (!a) return false;
+  const range = addToQueue({ type: "update", url: a.url, method: a.method, body: a.corps });
+  if (!range) return false;
+  try {
+    const reste = getAbandons().filter((x) => x.id !== id);
+    localStorage.setItem(ABANDONS_KEY, JSON.stringify(reste));
+  } catch { /* la saisie est en file, c'est l'essentiel */ }
+  return true;
 }
 
 /** Met à jour un item dans la queue (ex. après un retry raté). */
@@ -341,9 +420,13 @@ export async function processQueue(): Promise<{ success: number; failed: number;
     // Garde-fou d'ÂGE : un item trop vieux (poison / projet supprimé) est
     // abandonné, quel que soit son compteur de retries.
     if (item.timestamp && now - item.timestamp > MAX_QUEUE_AGE_MS) {
-      console.warn("[offline] Item abandonné (trop ancien)", item.url, item.method);
+      /* MIS DE CÔTÉ, PAS SUPPRIMÉ.
+         Il était purement et simplement retiré de la file : au bout de deux
+         semaines, la saisie disparaissait pour de bon. Elle reste désormais,
+         avec son contenu, et peut être renvoyée d'un bouton (audit A5). */
+      console.warn("[offline] Item mis de côté (trop ancien)", item.url, item.method);
       noterAbandon(item, "trop-ancien");
-      removeFromQueue(item.id);
+      updateQueueItem({ ...item, statut: "echec" });
       failed++;
       continue;
     }
@@ -470,12 +553,23 @@ export async function offlineFetch(url: string, init?: RequestInit): Promise<Res
     if (typeof body === "string") {
       try { parsed = JSON.parse(body); } catch { parsed = body; }
     }
-    addToQueue({
-      type: "update",
-      url,
-      method,
-      body: parsed,
-    });
+    const range = addToQueue({ type: "update", url, method, body: parsed });
+
+    if (!range) {
+      /* On ne dit PAS que c'est enregistré. L'appelant verra un échec, et
+         l'écran dira la vérité au monteur : sa saisie n'est nulle part. */
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("tm-offline-queue-pleine", { detail: { url } }));
+      }
+      return new Response(
+        JSON.stringify({
+          error: "Stockage de l'appareil saturé : la saisie n'a PAS été enregistrée.",
+          queued: false,
+        }),
+        { status: 507, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
     if (typeof window !== "undefined") {
       // Notifie le bouton sync qu'un nouvel item est en queue (poll
       // de 30 s sinon, mais c'est mieux de mettre à jour le badge tout de suite).

@@ -146,6 +146,41 @@ async function _attachPhotos(
   }
 }
 
+/**
+ * Associe une URL déjà sur Cloudinary à une propriété TEXTE du projet.
+ *
+ * La signature du client suit ce chemin : ce n'est pas un champ « fichiers »
+ * mais une URL, et `attachPhotos` ne sait pas l'écrire. Même forme que lui —
+ * petit JSON, réessayable sans jamais renvoyer les octets — pour que la file
+ * des photos puisse le rejouer exactement comme un rattachement.
+ */
+export async function attacherChampTexte(
+  projectId: string,
+  champ: string,
+  valeur: string,
+): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `/api/projects/${projectId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [champ]: valeur }),
+      },
+      API_TIMEOUT_MS,
+    );
+  } catch (e: any) {
+    throw new UploadError(e?.name === "AbortError" ? "timeout (champ)" : "réseau (champ)");
+  }
+  if (!res.ok) {
+    const permanent = res.status >= 400 && res.status < 500 && res.status !== 429;
+    let msg = `champ ${res.status}`;
+    try { const d = await res.json(); if (d?.error) msg = String(d.error).slice(0, 140); } catch {}
+    throw new UploadError(msg, permanent);
+  }
+}
+
 // SÉRIALISATION CLIENT par (projet + champ Notion). Le rattachement fait un
 // read-modify-write côté serveur ; deux appels PARALLÈLES au MÊME champ (ex.
 // photos ajoutées à plusieurs lots à la fois → même « Photos montage terminé »)

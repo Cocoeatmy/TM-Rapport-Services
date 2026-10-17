@@ -97,12 +97,18 @@ export async function POST(request: NextRequest) {
 
       const LIMIT = 100;
       let overflowExisting: { name: string; url: string }[] = [];
-      if (existingFiles.length >= LIMIT) {
-        try {
-          const { getOverflow } = await import("@/lib/photo-overflow");
+      /* On lisait le débordement UNIQUEMENT quand le champ était plein. Un
+         champ repassé sous les cent fichiers — parce qu'on en a supprimé
+         dans Notion — gardait pourtant son débordement, qu'on n'allait plus
+         chercher : la réécriture suivante l'effaçait, et les photos qu'il
+         contenait avec (audit A8). La sonde Redis tranche sans coûter une
+         lecture Notion. */
+      try {
+        const { getOverflow, aUnDebordement } = await import("@/lib/photo-overflow");
+        if (existingFiles.length >= LIMIT || (await aUnDebordement(projectId, notionField))) {
           overflowExisting = await getOverflow(projectId, notionField);
-        } catch {}
-      }
+        }
+      } catch {}
 
       // Dédup par URL ET par nom (les noms incluent un timestamp unique) → un
       // re-essai du rattachement ne crée jamais de doublon.
@@ -127,8 +133,9 @@ export async function POST(request: NextRequest) {
       for (const f of overflowExisting) pushUnique(f.name, f.url);
       for (const p of photos) pushUnique(p.name, p.url);
 
-      const notionSlice = allFiles.slice(0, LIMIT);
-      const overflowSlice = allFiles.slice(LIMIT).map((f) => ({ name: f.name, url: urlDuDescripteur(f) }));
+      const { repartirFichiers } = await import("@/lib/photo-overflow");
+      const { notion: notionSlice, debordement } = repartirFichiers(allFiles, LIMIT);
+      const overflowSlice = debordement.map((f) => ({ name: f.name, url: urlDuDescripteur(f) }));
 
       await notionWrite.pages.update({
         page_id: projectId,

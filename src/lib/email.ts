@@ -1,5 +1,7 @@
 import { Resend } from "resend";
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
+/* nodemailer 10 fournit ses propres types et n'expose plus l'espace de
+   noms « nodemailer » : le type se nomme désormais à l'import. */
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
@@ -15,7 +17,7 @@ const GMAIL_USER = process.env.GMAIL_USER || "";
 const GMAIL_APP_PASSWORD = (process.env.GMAIL_APP_PASSWORD || "").replace(/\s+/g, ""); // Google affiche le code par blocs
 export const gmailEnabled = !!(GMAIL_USER && GMAIL_APP_PASSWORD);
 
-let gmailTransport: nodemailer.Transporter | null = null;
+let gmailTransport: Transporter | null = null;
 function getGmailTransport() {
   if (!gmailTransport) {
     gmailTransport = nodemailer.createTransport({

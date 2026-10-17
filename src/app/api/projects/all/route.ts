@@ -1,6 +1,7 @@
 import { getAllProjectsRaw } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
 import { cachedJson, errorResponse } from "@/lib/edge-cache";
+import { reponseProjets } from "@/lib/perimetre-serveur";
 
 export const revalidate = 30;
 /* Reconstruire cette liste depuis Notion demande une trentaine de
@@ -64,7 +65,7 @@ export async function GET() {
     // Servie par Redis (compressé) ; politique longue (10 min / 2 h) gérée dans
     // setCache pour limiter la charge Notion.
     const projects = await cachedOrFetch<Record<string, unknown>[]>("projects-all-raw", getAllProjectsRaw as unknown as () => Promise<Record<string, unknown>[]>);
-    return cachedJson(allegerListe(projects), { sMaxAge: 30, swr: 120 });
+    return reponseProjets(allegerListe(projects), { sMaxAge: 30, swr: 120 });
   } catch (error) {
     return errorResponse(error);
   }

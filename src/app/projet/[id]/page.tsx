@@ -5357,6 +5357,29 @@ function ProjectPageContent({ id }: { id: string }) {
 
   const [signature, setSignature] = useState("");
 
+  /** Vrai tant que la signature attend son tour dans la file d'envoi. */
+  const [signatureEnAttente, setSignatureEnAttente] = useState(false);
+
+  /* Quand la file a fini, elle annonce l'URL : on adopte la version Cloudinary,
+     plus légère en stockage et lisible par le PDF. */
+  useEffect(() => {
+    const surEnvoi = (e: Event) => {
+      const d = (e as CustomEvent).detail as {
+        projectId?: string; champTexte?: string; files?: { url: string }[];
+      };
+      if (d?.projectId !== id || d?.champTexte !== "signatureUrl") return;
+      const url = d.files?.[0]?.url;
+      if (!url) return;
+      setSignature(url);
+      try { localStorage.setItem(`tm-sig-${id}`, url); } catch {}
+      setProject((prev) => (prev ? { ...prev, signatureUrl: url } : prev));
+      setSignatureEnAttente(false);
+      invalidateApiCache();
+    };
+    window.addEventListener("tm-upload-attached", surEnvoi);
+    return () => window.removeEventListener("tm-upload-attached", surEnvoi);
+  }, [id]);
+
   // Restaure la signature depuis le localStorage tant que le projet n'a
   // pas encore été chargé. Filet de sécurité au cas où Notion / cache
   // serveur tarderaient à propager une signature fraîchement enregistrée.
@@ -12815,36 +12838,64 @@ function ProjectPageContent({ id }: { id: string }) {
                   label=""
                   existingSignature={signature}
                   onSave={async (dataUrl) => {
-                    // Affichage immédiat : le data-URL local rend la
-                    // signature visible avant même le retour Cloudinary.
+                    /* La signature suit désormais le chemin des photos : file
+                       persistante, reprise automatique, et aucune suppression
+                       locale avant confirmation. Avant le 17 octobre 2026 elle
+                       partait par un `fetch` nu : hors réseau l'envoi échouait,
+                       le `catch` se contentait de la console, et la signature
+                       — preuve d'acceptation des travaux — ne quittait jamais
+                       le téléphone (audit A2). */
                     setSignature(dataUrl);
                     try { localStorage.setItem(`tm-sig-${id}`, dataUrl); } catch {}
                     try {
-                      const blob = await fetch(dataUrl).then(r => r.blob());
-                      const formData = new FormData();
-                      formData.append("files", new File([blob], "signature.png", { type: "image/png" }));
-                      formData.append("category", "signatures");
-                      formData.append("projectId", id);
-                      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
-                      const uploadData = await uploadRes.json();
-                      const cloudinaryUrl = uploadData.files?.[0]?.url;
-                      if (cloudinaryUrl) {
-                        // Bascule vers l'URL canonique : elle est lisible
-                        // par le PDF et plus stable que le data-URL en
-                        // localStorage (taille).
-                        setSignature(cloudinaryUrl);
-                        try { localStorage.setItem(`tm-sig-${id}`, cloudinaryUrl); } catch {}
-                        setProject((prev) => prev ? { ...prev, signatureUrl: cloudinaryUrl } : prev);
-                        await offlineFetch(`/api/projects/${id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ signatureUrl: cloudinaryUrl }),
-                        });
-                        invalidateApiCache();
-                      }
-                    } catch (err) { console.error("Signature upload error:", err); }
+                      const blob = await fetch(dataUrl).then((r) => r.blob());
+                      const { addPendingUpload, processPendingUploads } = await import("@/lib/idb-uploads");
+                      await addPendingUpload({
+                        projectId: id,
+                        category: "signatures",
+                        champTexte: "signatureUrl",
+                        files: [{ name: `signature-${Date.now()}.png`, type: "image/png", blob }],
+                      });
+                      setSignatureEnAttente(true);
+                      toast.success(
+                        navigator.onLine
+                          ? "Signature enregistrée — envoi en cours"
+                          : "Signature enregistrée sur l'appareil — elle partira au retour du réseau",
+                      );
+                      /* On tente tout de suite : en ligne, la signature est
+                         souvent partie avant que le monteur range son stylet. */
+                      setTimeout(() => { processPendingUploads().catch(() => {}); }, 50);
+                    } catch (err) {
+                      /* Le seul cas restant : IndexedDB indisponible ou plein.
+                         On le DIT, au lieu de laisser croire que c'est fait. */
+                      console.error("Signature : mise en file impossible", err);
+                      toast.error(
+                        "La signature n'a pas pu être mise en file d'envoi. Elle reste affichée ici, mais elle n'est PAS encore enregistrée — prévenez le bureau.",
+                        { duration: 15000 },
+                      );
+                    }
                   }}
                 />
+                {/* L'état de la signature, dit clairement : « affichée » et
+                    « partie » ne sont pas la même chose, et c'est précisément
+                    la confusion qui a coûté des signatures. */}
+                {signature && (
+                  <p className={`mt-2 text-xs flex items-center gap-1.5 ${
+                    signatureEnAttente ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
+                  }`}>
+                    {signatureEnAttente ? (
+                      <>
+                        <Clock className="w-3.5 h-3.5 shrink-0" />
+                        Enregistrée sur l&apos;appareil — en attente d&apos;envoi
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5 shrink-0" />
+                        Signature enregistrée
+                      </>
+                    )}
+                  </p>
+                )}
               </CardContent>
               )}
             </Card>

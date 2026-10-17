@@ -34,7 +34,7 @@
  *     afficher une alerte persistante dans l'UI.
  */
 
-import { uploadToCloudinary, attachPhotos, UploadError } from "@/lib/cloudinary-upload";
+import { uploadToCloudinary, attachPhotos, attacherChampTexte, UploadError } from "@/lib/cloudinary-upload";
 
 const DB_NAME = "tm-rapport-uploads";
 const DB_VERSION = 2; // bumped : ajout du champ `status`
@@ -62,6 +62,15 @@ export interface PendingUpload {
   projectId: string;
   category: string;
   notionField?: string;
+  /**
+   * Propriété TEXTE à remplir avec l'URL, au lieu d'un champ « fichiers ».
+   *
+   * La signature du client passe par là : elle se range dans `signatureUrl`,
+   * une URL, et non dans une galerie. Elle profite ainsi de tout ce que cette
+   * file sait déjà faire — reprise après coupure, backoff, conservation des
+   * octets, aucune suppression avant confirmation (audit A2 du 17.10.2026).
+   */
+  champTexte?: string;
   files: PendingUploadFile[];
   createdAt: number;
   retryCount: number;
@@ -323,7 +332,16 @@ async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOu
   // ── Étape 2 : rattachement Notion (si tout est sur Cloudinary) ───────────
   let done = false;
   if (!networkError && !permanent && files.every((f) => f.uploadedUrl)) {
-    if (item.notionField) {
+    if (item.champTexte) {
+      try {
+        await attacherChampTexte(item.projectId, item.champTexte, files[0].uploadedUrl as string);
+        done = true;
+      } catch (e) {
+        const ue = e as UploadError;
+        reasonMsg = ue?.message || "enregistrement du champ échoué";
+        if (ue?.permanent) permanent = true; else networkError = true;
+      }
+    } else if (item.notionField) {
       try {
         await attachPhotos(
           item.projectId,
@@ -358,6 +376,7 @@ async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOu
           projectId: item.projectId,
           category: item.category,
           notionField: item.notionField,
+          champTexte: item.champTexte,
           files: files.map((f) => ({ name: f.name, url: f.uploadedUrl as string })),
         },
       }));
@@ -423,7 +442,7 @@ export async function processPendingUploads(): Promise<{
     // Regroupement par champ (sérialisation intra-groupe, parallélisme inter-groupe).
     const groups = new Map<string, PendingUpload[]>();
     for (const item of all) {
-      const key = `${item.projectId}::${item.notionField ?? item.category ?? ""}`;
+      const key = `${item.projectId}::${item.champTexte ?? item.notionField ?? item.category ?? ""}`;
       const arr = groups.get(key);
       if (arr) arr.push(item);
       else groups.set(key, [item]);

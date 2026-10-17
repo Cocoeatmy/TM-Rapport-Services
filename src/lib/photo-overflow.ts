@@ -37,6 +37,23 @@ export const PHOTO_NOTION_TO_KEY: Record<string, string> = {
   "Photos SAV / Retouches cabines": "photosSavRetouches",
 };
 
+/** Notion refuse plus de cent fichiers par propriété. Ce n'est pas négociable. */
+export const LIMITE_NOTION = 100;
+
+/**
+ * Répartit des fichiers entre ce que Notion accepte et ce qui déborde.
+ *
+ * Isolé ici pour être vérifiable : c'est la règle qui décide si une photo
+ * arrive dans la fiche ou dans le débordement, et une erreur d'un cran y
+ * ferait disparaître la centième photo d'un gros chantier sans un mot.
+ */
+export function repartirFichiers<T>(
+  tous: T[],
+  limite: number = LIMITE_NOTION,
+): { notion: T[]; debordement: T[] } {
+  return { notion: tous.slice(0, limite), debordement: tous.slice(limite) };
+}
+
 /** Lecture de l'ANCIEN store (kv-store/Notion) — repli + source de migration. */
 async function legacyGet(projectId: string, field: string): Promise<FileItem[]> {
   try {
@@ -61,6 +78,30 @@ export async function getOverflow(projectId: string, field: string): Promise<Fil
     return legacy;
   }
   return legacyGet(projectId, field);
+}
+
+/**
+ * Y a-t-il un débordement pour ce champ ? Question posée à Redis SEUL.
+ *
+ * `getOverflow` retombe sur l'ancien magasin — donc sur Notion — quand Redis
+ * ne sait rien : l'appeler systématiquement avant chaque rattachement aurait
+ * ajouté une lecture Notion à chaque photo. Cette sonde-ci ne coûte qu'un
+ * aller-retour Redis et répond « non » quand elle ne sait pas, ce qui est le
+ * cas de la quasi-totalité des champs.
+ *
+ * Elle existe pour un cas précis (audit A8) : un champ repassé SOUS les cent
+ * fichiers — parce qu'on en a supprimé dans Notion — alors qu'un débordement
+ * existait encore. On ne lisait alors plus le débordement, et la réécriture
+ * suivante l'effaçait avec les photos qu'il contenait.
+ */
+export async function aUnDebordement(projectId: string, field: string): Promise<boolean> {
+  if (!redisEnabled) return false;
+  try {
+    const v = await redisGetJSON<FileItem[]>(rkey(projectId, field));
+    return Array.isArray(v) && v.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Remplace le débordement d'un champ (upsert ; supprime si vide). */

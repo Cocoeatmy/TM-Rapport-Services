@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exigerDroit } from "@/lib/droits-serveur";
+import { projetVisible, accesProjetAutorise } from "@/lib/perimetre-serveur";
 import { verifierHeuresEntrantes, toucheDesHeures, COUPLES_HEURES } from "@/lib/heures-coherentes";
 import { getProject, updateProject } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
@@ -250,6 +251,18 @@ export async function GET(
   try {
     const { id } = await params;
     const project = await cachedOrFetch(`project-${id}`, () => getProject(id));
+
+    /* Une liste filtrée ne sert à rien si l'adresse directe reste ouverte :
+       il suffirait de taper l'identifiant. Le contrôle est donc ici aussi,
+       et la réponse d'un compte restreint cesse d'être mise en cache
+       partagé — sinon le CDN la servirait à quelqu'un d'autre. */
+    if (!(await projetVisible(project))) {
+      return NextResponse.json(
+        { error: "Ce projet ne vous est pas accessible." },
+        { status: 403, headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
     // Cache CDN court (15 s frais + 30 s SWR) pour éviter l'amplification inter-instances.
     // Sans cache CDN, chaque instance Vercel appelle Notion indépendamment lors des pics.
     // Avec s-maxage=15 : une seule origine CDN appelle Vercel/Notion toutes les 15 s max.
@@ -303,6 +316,16 @@ export async function PATCH(
     if ("etatCMD" in body) {
       const c = await exigerDroit("kanban.cmd");
       if ("refus" in c) return c.refus;
+    }
+
+    /* Hors de son périmètre, on ne modifie pas non plus. Voir, c'est une
+       chose ; écrire dans le chantier d'un collègue en est une autre.
+       La lecture du projet ne part que pour un compte restreint. */
+    if (!(await accesProjetAutorise(id, (x) => getProject(x)))) {
+      return NextResponse.json(
+        { error: "Ce projet ne vous est pas accessible." },
+        { status: 403 },
+      );
     }
 
     // ── Merge heureArrivee / heureDepart / nomsCabines / attributionCabines ─

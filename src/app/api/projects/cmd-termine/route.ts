@@ -1,6 +1,7 @@
 import { getProjectsCmdTermine } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
 import { cachedJson, errorResponse } from "@/lib/edge-cache";
+import { reponseProjets } from "@/lib/perimetre-serveur";
 
 export const revalidate = 30;
 /* Reconstruire cette liste depuis Notion demande une trentaine de
@@ -12,7 +13,7 @@ export async function GET() {
   try {
     // Servie par Redis (compressé) ; politique longue gérée dans setCache.
     const projects = await cachedOrFetch("projects-cmd-termine", getProjectsCmdTermine);
-    return cachedJson(projects);
+    return reponseProjets(projects);
   } catch (error) {
     return errorResponse(error);
   }

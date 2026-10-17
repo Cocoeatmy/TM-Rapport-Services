@@ -36,7 +36,13 @@ const BASE = {
   dateSAVRecu: null, dateRDVSAV: null,
 } as unknown as Project;
 
-const p = (o: Record<string, unknown>) => ({ ...BASE, ...o } as unknown as Project);
+/* `Project` est une interface : TypeScript refuse de la passer là où un
+   `Record<string, unknown>` est attendu — et plusieurs fonctions d'analyses
+   déclarent ce second type. L'intersection satisfait les deux, et évite
+   quinze conversions au fil des appels. Révélé par Next 16.4, qui
+   type-vérifie désormais les fichiers de test au build. */
+const p = (o: Record<string, unknown>) =>
+  ({ ...BASE, ...o }) as unknown as Project & Record<string, unknown>;
 const lot = (n: number, o: Record<string, unknown>) =>
   Array.from({ length: n }, (_, i) => p({ id: `${JSON.stringify(o).length}-${i}`, ...o }));
 
