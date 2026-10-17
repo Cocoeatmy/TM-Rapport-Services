@@ -33,13 +33,7 @@ scripts/.menage-journal.txt
 # « espace + chiffre » avant l'extension (« routes.d 2.ts », « index 7 »).
 # Elles ont déjà fait échouer `tsc` et `git fetch` ; qu'elles ne soient
 # jamais commitées. Le motif exige l'espace : il n'attrape rien d'autre.
-* [0-9].ts
-* [0-9].tsx
-* [0-9].mjs
-* [0-9].json
-* [0-9][0-9].ts
-* [0-9][0-9].tsx
-* [0-9][0-9].mjs
-* [0-9][0-9].json
+* [0-9].*
+* [0-9][0-9].*
 
-e2e-rapport/
+e2e-rapport*/
