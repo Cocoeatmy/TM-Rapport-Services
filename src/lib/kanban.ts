@@ -18,7 +18,7 @@ import {
   ORDRE_INDICATEURS, estDansMesPriorites, situationDe,
   type Contexte, type Indicateur,
 } from "./kanban-indicateurs";
-import { jourDe } from "./signaux";
+import { estClos as estClosSignaux, jourDe } from "./signaux";
 
 /** Les deux propriétés Notion qu'on peut mettre en colonnes. */
 export type Vue = "mesures" | "cmd";
@@ -106,14 +106,21 @@ export function filtresActifs(f: Filtres): number {
   );
 }
 
-/** Les états qui signent un dossier clos — écartés par défaut, jamais effacés. */
-const ETATS_CLOS = new Set(["terminé", "termine", "annulé", "annule"]);
-
+/**
+ * Un dossier clos, écarté par défaut — jamais effacé.
+ *
+ * SEUL « État - CMD » en décide. C'est la définition déjà en place dans
+ * `signaux.ts`, et la seule juste : dans « État - Mesures », « Terminé » veut
+ * dire que LES MESURES sont faites, pas que le chantier l'est. Le dossier
+ * continue ensuite vers la commande et la pose.
+ *
+ * Avoir cru le contraire a coûté 122 projets sur 234 : tous disparaissaient
+ * du tableau — dont les deux « Soucis montage », ce qui mettait le compteur
+ * « Bloqué » à zéro alors que deux chantiers l'étaient. D'où ce commentaire,
+ * et le test qui va avec.
+ */
 export function estClos(p: Project): boolean {
-  return (
-    ETATS_CLOS.has(foldSearch(p.etatCMD || "")) ||
-    ETATS_CLOS.has(foldSearch(p.etatMesures || ""))
-  );
+  return estClosSignaux(p as unknown as Parameters<typeof estClosSignaux>[0]);
 }
 
 /**

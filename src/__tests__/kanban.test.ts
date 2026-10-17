@@ -195,10 +195,10 @@ describe("les filtres", () => {
 describe("les dossiers clos", () => {
   const vivant = projet({ id: "a", etatCMD: "Cabines en CMD" });
   const fini = projet({ id: "b", etatCMD: "Terminé" });
-  const annule = projet({ id: "c", etatMesures: "Annulé" });
+  const annule = projet({ id: "c", etatCMD: "Annulé" });
   const idx = indexer([vivant, fini, annule]);
 
-  it("sont reconnus", () => {
+  it("sont reconnus à leur État - CMD", () => {
     expect(estClos(fini)).toBe(true);
     expect(estClos(annule)).toBe(true);
     expect(estClos(vivant)).toBe(false);
@@ -210,6 +210,32 @@ describe("les dossiers clos", () => {
 
   it("reviennent quand on les demande — ils ne sont jamais supprimés", () => {
     expect(filtrer(idx, { ...FILTRES_VIDES, avecTermines: true })).toHaveLength(3);
+  });
+
+  /* ── La régression du 17 octobre 2026 ──────────────────────────────────
+     « Terminé » dans État - Mesures veut dire que LES MESURES sont faites,
+     pas que le chantier l'est. L'avoir confondu avec une clôture écartait
+     122 projets sur 234 — dont les deux seuls « Soucis montage », ce qui
+     affichait « Bloqué 0 » alors que deux chantiers l'étaient. */
+  it("ne confond pas des mesures terminées avec un chantier terminé", () => {
+    const mesure = projet({ id: "m", etatMesures: "Terminé", etatCMD: "Cabines mesurées" });
+    expect(estClos(mesure)).toBe(false);
+    expect(filtrer(indexer([mesure]), FILTRES_VIDES)).toHaveLength(1);
+  });
+
+  it("garde un « Soucis montage » dont les mesures sont terminées", () => {
+    const bloque = projet({ id: "s", etatMesures: "Terminé", etatCMD: "Soucis montage" });
+    expect(filtrer(indexer([bloque]), FILTRES_VIDES).map((p) => p.id)).toEqual(["s"]);
+    const cols = construireColonnes(
+      filtrer(indexer([bloque]), FILTRES_VIDES), "cmd", [{ nom: "Soucis montage" }],
+    );
+    expect(cols.find((c) => c.id === "Soucis montage")?.projets).toHaveLength(1);
+  });
+
+  it("range bien les mesures terminées dans la colonne « Terminé » de la vue mesures", () => {
+    const mesure = projet({ id: "m", etatMesures: "Terminé", etatCMD: "Cabines mesurées" });
+    const cols = construireColonnes([mesure], "mesures", [{ nom: "Terminé" }]);
+    expect(cols.find((c) => c.id === "Terminé")?.projets).toHaveLength(1);
   });
 });
 

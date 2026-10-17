@@ -161,9 +161,38 @@ export function KanbanView({ projets, chargement = false }: Props) {
   }), [piecesOuvertes, priorites, regles]);
 
   /* ── Les cartes ──────────────────────────────────────────────────────── */
+
+  /* Les dossiers clos ne sont pas dans la liste que reçoit le Kanban : la
+     page l'alimente avec les projets EN COURS. Cocher « afficher les
+     terminés » doit donc aller les chercher, sinon la case ne ferait rien —
+     et une case qui ne fait rien est pire que pas de case. */
+  const [clos, setClos] = useState<Project[] | null>(null);
+  const [closEnCours, setClosEnCours] = useState(false);
+  useEffect(() => {
+    if (!filtres.avecTermines || clos !== null || closEnCours) return;
+    setClosEnCours(true);
+    fetch("/api/projects/all", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((liste: Project[]) => setClos(Array.isArray(liste) ? liste : []))
+      .catch(() => {
+        setClos([]);
+        toast.error("Les dossiers terminés n'ont pas pu être chargés.");
+      })
+      .finally(() => setClosEnCours(false));
+  }, [filtres.avecTermines, clos, closEnCours]);
+
+  /** La source : les projets en cours, ou tous quand on les a demandés. */
+  const source = useMemo(() => {
+    if (!filtres.avecTermines || !clos || clos.length === 0) return projets;
+    /* « all » contient déjà les projets en cours : on prend la liste la plus
+       complète, sans fusionner deux copies du même dossier. */
+    const vus = new Set(clos.map((p) => p.id));
+    return [...clos, ...projets.filter((p) => !vus.has(p.id))];
+  }, [projets, clos, filtres.avecTermines]);
+
   /** Copie locale : une carte déplacée bouge avant que Notion ait répondu. */
   const [local, setLocal] = useState<Record<string, { mesures?: string; cmd?: string }>>({});
-  const projetsVus = useMemo(() => projets.map((p) => {
+  const projetsVus = useMemo(() => source.map((p) => {
     const l = local[p.id];
     if (!l) return p;
     return {
@@ -171,7 +200,7 @@ export function KanbanView({ projets, chargement = false }: Props) {
       ...(l.mesures !== undefined ? { etatMesures: l.mesures } : {}),
       ...(l.cmd !== undefined ? { etatCMD: l.cmd } : {}),
     };
-  }), [projets, local]);
+  }), [source, local]);
 
   const indexes = useMemo(() => indexer(projetsVus), [projetsVus]);
   const retenus = useMemo(() => filtrer(indexes, filtres, contexte), [indexes, filtres, contexte]);
@@ -668,6 +697,7 @@ export function KanbanView({ projets, chargement = false }: Props) {
               <input type="checkbox" checked={filtres.avecTermines}
                 onChange={(e) => setFiltres({ ...filtres, avecTermines: e.target.checked })} />
               Afficher aussi les projets terminés et annulés
+              {closEnCours && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
             </label>
             <button onClick={() => setFiltres(FILTRES_VIDES)}
               className="ml-auto text-xs font-medium text-gray-500 hover:text-blue-600 inline-flex items-center gap-1.5">
@@ -724,7 +754,7 @@ export function KanbanView({ projets, chargement = false }: Props) {
       )}
 
       {/* ── Le tableau ────────────────────────────────────────────────── */}
-      {chargement && projets.length === 0 ? (
+      {chargement && source.length === 0 ? (
         <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
           <Loader2 className="w-5 h-5 animate-spin" /> Chargement des projets…
         </div>
