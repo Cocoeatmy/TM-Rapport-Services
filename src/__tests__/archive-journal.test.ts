@@ -38,7 +38,7 @@ vi.mock("@/lib/redis-cache", () => ({
   }),
 }));
 
-const { rassemblerLesListes } = await import("@/lib/sauvegarde");
+const { rassemblerLesListes, lireListeSauvegardable } = await import("@/lib/sauvegarde");
 
 const ligne = (id: string, t: number, quoi = "action") =>
   JSON.stringify({ id, timestamp: t, user: "Micael", action: quoi, details: "" });
@@ -112,6 +112,20 @@ describe("Le journal sauvegardé", () => {
     const { listes: out, manquantes } = await rassemblerLesListes(["logs"]);
     expect(out.logs).toBeUndefined();
     expect(manquantes.logs).toBeTruthy();
+  });
+
+  it("l'aperçu d'un import compte le journal de la MÊME façon que l'export", async () => {
+    /* Sans cela, la simulation annonçait « +2 702 lignes » là où rien ne
+       change : elle comptait la clé Notion seule, l'export comptait les
+       deux sources. Un aperçu faux est pire qu'une absence d'aperçu. */
+    journalRedis = Array.from({ length: 300 }, (_, i) => ligne(`r${i}`, i));
+    listes.set("logs", Array.from({ length: 50 }, (_, i) => ({ id: `n${i}`, timestamp: -i })));
+
+    const { listes: out } = await rassemblerLesListes(["logs"]);
+    const pourApercu = await lireListeSauvegardable("logs");
+
+    expect(pourApercu.length).toBe((out.logs as unknown[]).length);
+    expect(pourApercu).toHaveLength(350);
   });
 
   it("les autres listes continuent de passer par le magasin", async () => {

@@ -34,8 +34,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { exigerDroit } from "@/lib/droits-serveur";
-import { getDataFresh, setData } from "@/lib/kv-store";
-import { CLES_SAUVEGARDEES } from "@/lib/sauvegarde";
+import { setData } from "@/lib/kv-store";
+import { CLES_SAUVEGARDEES, lireListeSauvegardable } from "@/lib/sauvegarde";
 import { validerArchive, comparerArchive, type Archive, type LigneComparaison } from "@/lib/archive";
 import { dechiffrer, estChiffree, PhraseIncorrecte } from "@/lib/archive-chiffree";
 import { gunzipSync } from "node:zlib";
@@ -149,7 +149,9 @@ export async function POST(request: NextRequest) {
   const illisibles: Record<string, string> = {};
   for (const cle of retenues) {
     try {
-      actuels[cle] = (await getDataFresh<unknown>(cle)).length;
+      /* Par le MÊME chemin que l'export : le journal a deux sources, et les
+         compter différemment ferait annoncer un écart imaginaire. */
+      actuels[cle] = (await lireListeSauvegardable(cle)).length;
     } catch (e) {
       actuels[cle] = null;
       illisibles[cle] = e instanceof Error ? e.message : String(e);

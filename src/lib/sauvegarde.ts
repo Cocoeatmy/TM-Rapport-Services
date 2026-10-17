@@ -200,7 +200,7 @@ export async function apercuRestauration(cle: string, emplacement: string): Prom
  * `/api/logs` pour l'affichage : Redis d'abord, le reliquat Notion ensuite,
  * dédoublonné par identifiant et trié du plus récent au plus ancien.
  */
-async function lireLeJournal(): Promise<unknown[]> {
+export async function lireLeJournal(): Promise<unknown[]> {
   const vus = new Set<string>();
   const out: { id?: string; timestamp?: number }[] = [];
   const ajouter = (l: { id?: string; timestamp?: number } | null) => {
@@ -240,6 +240,18 @@ async function lireLeJournal(): Promise<unknown[]> {
  * seule définition de « ce qu'on sauvegarde », pour que les deux ne puissent
  * pas diverger.
  */
+/**
+ * Lit UNE liste sauvegardable, par le bon chemin.
+ *
+ * Le journal a deux sources ; tout le reste n'en a qu'une. Passer par ici
+ * garantit que l'export, la copie hebdomadaire et la comparaison d'import
+ * voient exactement la même chose — sinon l'aperçu d'une restauration
+ * annoncerait un écart de 2 700 lignes là où rien ne change.
+ */
+export async function lireListeSauvegardable(cle: string): Promise<unknown[]> {
+  return cle === "logs" ? lireLeJournal() : getDataFresh<unknown>(cle);
+}
+
 export async function rassemblerLesListes(
   cles: readonly string[] = CLES_SAUVEGARDEES,
 ): Promise<{ listes: Record<string, unknown[]>; manquantes: Record<string, string> }> {
@@ -247,7 +259,7 @@ export async function rassemblerLesListes(
   const manquantes: Record<string, string> = {};
   for (const cle of cles) {
     try {
-      listes[cle] = cle === "logs" ? await lireLeJournal() : await getDataFresh<unknown>(cle);
+      listes[cle] = await lireListeSauvegardable(cle);
     } catch (e) {
       /* Une liste illisible est SIGNALÉE, jamais remplacée par un tableau
          vide : une archive qui ment est pire qu'une archive incomplète. */
