@@ -21,8 +21,8 @@ export type Niveau = "oui" | "lecture" | "non";
 /** Le profil d'un compte : trois réponses couvrent la quasi-totalité des cas. */
 export type Profil = "administrateur" | "responsable" | "collaborateur";
 
-/** Jusqu'où porte le regard sur les projets. */
-export type Perimetre = "siens" | "tous";
+/** Jusqu'où porte le regard sur les projets. Détail dans perimetre-projets. */
+export type Perimetre = "siens" | "siens-stricts" | "tous";
 
 /** D'où vient le droit qu'on lit : du profil, ou d'un réglage personnel. */
 export type Source = "profil" | "personnalise" | "administrateur";

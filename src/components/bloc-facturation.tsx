@@ -33,6 +33,23 @@ const MOT: Record<Etat["etat"], string> = {
   regle: "Réglé",
 };
 
+/**
+ * La réponse a-t-elle la forme attendue ?
+ *
+ * Sans ce contrôle, une réponse inattendue — un tableau vide, un corps
+ * tronqué, une erreur formatée autrement — passait le test `!j.error`, et la
+ * lecture de `d.factures.length` faisait tomber TOUTE la fiche projet dans
+ * son écran d'erreur. Sur un chantier, cela veut dire un monteur devant un
+ * « Quelque chose s'est mal passé » à la place de son rapport, pour un bloc
+ * d'information secondaire. Découvert par les tests de bout en bout du
+ * 17 octobre 2026.
+ */
+function formeAttendue(j: unknown): j is Etat {
+  if (!j || typeof j !== "object" || Array.isArray(j)) return false;
+  const o = j as Record<string, unknown>;
+  return typeof o.etat === "string" && o.etat in MOT && Array.isArray(o.factures);
+}
+
 export function BlocFacturation({ projectId, ofrTM }: { projectId: string; ofrTM?: string | null }) {
   const [d, setD] = useState<Etat | null>(null);
 
@@ -42,7 +59,7 @@ export function BlocFacturation({ projectId, ofrTM }: { projectId: string; ofrTM
     fetch(`/api/bexio/projet?ofr=${encodeURIComponent(ofrTM)}&id=${encodeURIComponent(projectId)}`,
       { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (vivant && j && !j.error) setD(j as Etat); })
+      .then((j) => { if (vivant && formeAttendue(j)) setD(j); })
       .catch(() => {});
     return () => { vivant = false; };
   }, [projectId, ofrTM]);

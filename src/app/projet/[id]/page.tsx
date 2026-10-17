@@ -136,6 +136,13 @@ import { equipeDuJour, nomsAProposer, equipeDesPassages, listeDeNoms } from "@/l
 import { fusionnerPassage } from "@/lib/passage-lot";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
+/* Importé STATIQUEMENT, et non au moment de signer. Le chargement à la
+   demande se déclenchait exactement quand le réseau manque : sans service
+   worker pour servir le fragment depuis sa réserve, la signature ne pouvait
+   pas être mise en file. On ne fait pas dépendre une preuve d'acceptation
+   des travaux de la disponibilité d'un fichier à télécharger (constaté par
+   les tests de bout en bout du 17 octobre 2026). */
+import { addPendingUpload, processPendingUploads } from "@/lib/idb-uploads";
 import { fetchWithRetry, invalidateApiCache } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import {
@@ -5357,8 +5364,16 @@ function ProjectPageContent({ id }: { id: string }) {
 
   const [signature, setSignature] = useState("");
 
-  /** Vrai tant que la signature attend son tour dans la file d'envoi. */
-  const [signatureEnAttente, setSignatureEnAttente] = useState(false);
+  /**
+   * Où en est la signature.
+   *
+   * Trois états et non deux : « échec » manquait, et la carte affichait
+   * « Signature enregistrée » alors que la mise en file venait d'échouer —
+   * le faux succès exact que cette application doit s'interdire. Constaté
+   * par les tests de bout en bout du 17 octobre 2026.
+   */
+  const [signatureEtat, setSignatureEtat] =
+    useState<"inconnue" | "en-attente" | "enregistree" | "echec">("inconnue");
 
   /* Quand la file a fini, elle annonce l'URL : on adopte la version Cloudinary,
      plus légère en stockage et lisible par le PDF. */
@@ -5373,7 +5388,7 @@ function ProjectPageContent({ id }: { id: string }) {
       setSignature(url);
       try { localStorage.setItem(`tm-sig-${id}`, url); } catch {}
       setProject((prev) => (prev ? { ...prev, signatureUrl: url } : prev));
-      setSignatureEnAttente(false);
+      setSignatureEtat("enregistree");
       invalidateApiCache();
     };
     window.addEventListener("tm-upload-attached", surEnvoi);
@@ -12849,14 +12864,13 @@ function ProjectPageContent({ id }: { id: string }) {
                     try { localStorage.setItem(`tm-sig-${id}`, dataUrl); } catch {}
                     try {
                       const blob = await fetch(dataUrl).then((r) => r.blob());
-                      const { addPendingUpload, processPendingUploads } = await import("@/lib/idb-uploads");
                       await addPendingUpload({
                         projectId: id,
                         category: "signatures",
                         champTexte: "signatureUrl",
                         files: [{ name: `signature-${Date.now()}.png`, type: "image/png", blob }],
                       });
-                      setSignatureEnAttente(true);
+                      setSignatureEtat("en-attente");
                       toast.success(
                         navigator.onLine
                           ? "Signature enregistrée — envoi en cours"
@@ -12869,6 +12883,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       /* Le seul cas restant : IndexedDB indisponible ou plein.
                          On le DIT, au lieu de laisser croire que c'est fait. */
                       console.error("Signature : mise en file impossible", err);
+                      setSignatureEtat("echec");
                       toast.error(
                         "La signature n'a pas pu être mise en file d'envoi. Elle reste affichée ici, mais elle n'est PAS encore enregistrée — prévenez le bureau.",
                         { duration: 15000 },
@@ -12879,18 +12894,27 @@ function ProjectPageContent({ id }: { id: string }) {
                 {/* L'état de la signature, dit clairement : « affichée » et
                     « partie » ne sont pas la même chose, et c'est précisément
                     la confusion qui a coûté des signatures. */}
-                {signature && (
-                  <p className={`mt-2 text-xs flex items-center gap-1.5 ${
-                    signatureEnAttente ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
+                {signature && signatureEtat !== "inconnue" && (
+                  <p className={`mt-2 text-xs flex items-start gap-1.5 ${
+                    signatureEtat === "echec"
+                      ? "text-red-600 dark:text-red-400 font-semibold"
+                      : signatureEtat === "en-attente"
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-emerald-600 dark:text-emerald-400"
                   }`}>
-                    {signatureEnAttente ? (
+                    {signatureEtat === "echec" ? (
                       <>
-                        <Clock className="w-3.5 h-3.5 shrink-0" />
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                        NON enregistrée — elle n&apos;existe que sur cet écran. Prévenez le bureau.
+                      </>
+                    ) : signatureEtat === "en-attente" ? (
+                      <>
+                        <Clock className="w-3.5 h-3.5 shrink-0 mt-px" />
                         Enregistrée sur l&apos;appareil — en attente d&apos;envoi
                       </>
                     ) : (
                       <>
-                        <Check className="w-3.5 h-3.5 shrink-0" />
+                        <Check className="w-3.5 h-3.5 shrink-0 mt-px" />
                         Signature enregistrée
                       </>
                     )}

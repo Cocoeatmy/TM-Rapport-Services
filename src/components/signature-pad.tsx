@@ -286,9 +286,15 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
           </button>
         )}
         {saved && (
+          /* « Apposée », et non « enregistrée ».
+             Ce pavé ne sait qu'une chose : le tracé a été capturé. Dire
+             « enregistrée » laissait croire que la signature était en
+             sécurité, alors que c'est la carte au-dessus qui le sait — et
+             qui peut dire le contraire. Deux messages opposés sur le même
+             écran, c'est le monteur qui croit le plus rassurant. */
           <span className="flex items-center gap-1.5 text-xs text-green-600 px-3 py-1.5">
             <Check className="w-3.5 h-3.5" />
-            Signature enregistrée
+            Signature apposée
           </span>
         )}
       </div>

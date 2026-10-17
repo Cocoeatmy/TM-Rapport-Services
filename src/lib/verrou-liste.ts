@@ -36,6 +36,30 @@ export const DUREE_VERROU_MS = 60_000;
 export const ATTENTE_VERROU_MS = 25_000;
 
 /**
+ * La file d'attente DANS ce processus, par nom de verrou.
+ *
+ * Redis sérialise entre les serveurs ; il ne sérialise rien entre deux
+ * requêtes arrivées au MÊME serveur quand il n'est pas configuré — et, sans
+ * lui, `avecVerrou` exécutait purement et simplement en parallèle. Trois
+ * créations simultanées lisaient alors la même liste et la dernière écrasait
+ * les deux autres : deux signalements perdus, sans un mot. Démontré le
+ * 17 octobre 2026 par le test « trois créations lancées ensemble ».
+ *
+ * Cette chaîne est la seconde barrière — celle que la route des photos
+ * possédait déjà. Elle vaut en toutes circonstances, Redis présent ou non.
+ */
+const chaines = new Map<string, Promise<unknown>>();
+
+function enFileLocale<T>(nom: string, faire: () => Promise<T>): Promise<T> {
+  const precedent = chaines.get(nom) ?? Promise.resolve();
+  const suivant = precedent.catch(() => undefined).then(faire);
+  /* Le maillon suivant attend une version qui n'échoue jamais ; on rend
+     `suivant` tel quel pour que l'appelant garde ses erreurs. */
+  chaines.set(nom, suivant.catch(() => undefined));
+  return suivant;
+}
+
+/**
  * Exécute `faire` en tenant le verrou nommé.
  *
  * Prendre le verrou veut dire ATTENDRE son tour, pas renoncer : une première
@@ -67,7 +91,9 @@ export async function avecVerrou<T>(
   }
 
   try {
-    return await faire();
+    /* Toujours la file locale, même verrou Redis en main : deux requêtes
+       arrivées au même serveur doivent s'ordonner, pas se croiser. */
+    return await enFileLocale(nom, faire);
   } finally {
     if (jeton) await redisLockRelease(nom, jeton).catch(() => {});
   }

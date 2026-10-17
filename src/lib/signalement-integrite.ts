@@ -91,7 +91,17 @@ export function empreinteSignalement(s: SoumissionSignalement): string {
   const photos = [...(s.photoUrls || [])].map((u) => String(u || "").trim()).filter(Boolean).sort();
   return [
     net(s.projectId),
-    net(s.user),
+    /* L'AUTEUR N'EN FAIT PAS PARTIE, et c'est une correction du 17 octobre
+       2026. Il y figurait, et cela cassait silencieusement les pierres
+       tombales : à la suppression, l'empreinte était calculée sur
+       l'enregistrement rangé — qui porte un auteur, posé par le serveur — et
+       au rejeu sur le corps envoyé par le téléphone, qui n'en porte pas. Les
+       deux ne se ressemblaient donc jamais, et un signalement effacé pouvait
+       revenir dès que le client rejouait sans identifiant.
+
+       Le retirer ne rend pas l'empreinte trop large : deux personnes qui
+       décrivent le même défaut, sur le même lot, avec les mêmes photos, dans
+       la même fenêtre de deux heures, signalent la même chose. */
     net(s.description),
     types.join(","),
     net(s.typesLabel),

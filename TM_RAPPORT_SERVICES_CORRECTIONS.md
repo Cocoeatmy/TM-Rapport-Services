@@ -212,3 +212,75 @@ de cette mission.
 2. **Décider pour les 8 doublons** de TM-2600825.
 3. **Vérifier au doigt**, après déploiement : une signature hors réseau, puis
    le retour du réseau.
+
+
+---
+
+# Deuxième campagne — 17 octobre 2026 (après-midi)
+
+Objet : **tester réellement** ce qui n'était jusque-là vérifié que par
+raisonnement, et corriger ce que ces tests révéleraient.
+
+## Outillage installé
+
+| Outil | Rôle |
+|---|---|
+| `fake-indexeddb` | Un vrai IndexedDB en mémoire : la file des photos et de la signature s'exécute pour de bon dans les tests Node |
+| `jsdom` + Testing Library | Premiers tests de composants de ce dépôt |
+| Playwright + WebKit + Chromium | L'application **compilée**, dans un navigateur, au gabarit d'un iPhone |
+
+La configuration Vitest a deux environnements (`node` et `navigateur`) pour
+que les tests existants continuent de tourner inchangés.
+
+## Ce que les tests réels ont trouvé — et qui a été corrigé
+
+| # | Trouvé par | Défaut | Correction |
+|---|---|---|---|
+| 1 | Tests de routes | L'empreinte d'un signalement incluait **l'auteur**. À la suppression elle était calculée sur l'enregistrement (qui en a un), au rejeu sur le corps envoyé (qui n'en a pas) : les pierres tombales ne correspondaient jamais, et un signalement effacé pouvait revenir | L'auteur sort de l'empreinte |
+| 2 | Tests de routes | Sans Redis, `avecVerrou` n'exécutait **rien en série** : trois créations simultanées s'écrasaient, deux signalements perdus | File d'attente en mémoire, seconde barrière, toujours active |
+| 3 | Bout en bout | Une réponse inattendue de l'API de facturation faisait **planter toute la fiche projet** dans son écran d'erreur | Validation de la forme de la réponse |
+| 4 | Bout en bout | La signature chargeait son module de file **à la demande**, donc au moment précis où le réseau manque | Import statique |
+| 5 | Bout en bout | Quand la mise en file échouait, la carte affichait quand même **« Signature enregistrée »** — le faux succès exact que cette mission traque | Troisième état : « NON enregistrée — prévenez le bureau » |
+| 6 | Bout en bout | Le pavé disait « Signature enregistrée » à côté de « NON enregistrée » : deux messages contraires sur le même écran | Le pavé dit « Signature **apposée** » : il ne connaît que son tracé |
+
+## Tests ajoutés
+
+| Fichier | Tests | Ce qu'il démontre |
+|---|---:|---|
+| `file-envois.navigateur.test.ts` | 12 | Scénarios A→D sur un vrai IndexedDB : rien n'est supprimé avant confirmation, les octets ne repartent jamais deux fois, 120 photos passent sans perte |
+| `signalements-routes.test.ts` | 23 | Tests A→F sur les **vraies routes** : rejeu, suppression, concurrence, pour les défauts ET les pièces |
+| `sauvegarde-restauration.test.ts` | 18 | Sauvegarde, pannes Notion et Redis, **restauration comparée enregistrement par enregistrement**, export indépendant |
+| `acces-projets-routes.test.ts` | 19 | Quatre comptes, trois politiques, accès direct, et le cache partagé qui ne fuit pas |
+| `composants-signature.test.tsx` | 11 | Premier composant testé du dépôt |
+| `etat-rapport.navigateur.test.ts` | 8 | La chaîne complète des statuts, signature comprise |
+| `e2e/10-signature-hors-ligne.spec.ts` | 3 | Le parcours A→C dans un navigateur réel |
+| `e2e/20-iphone-echec-stockage.spec.ts` | 3 | Rendu iPhone, gestes tactiles, et le refus de stockage avoué |
+
+## Sauvegardes : ce que l'analyse a montré
+
+Les sauvegardes nocturnes écrivent dans des pages Notion `[DATA] …` — **la
+même base, le même espace de travail et le même jeton** que les données
+d'origine. Elles protègent du cas probable (une écriture fautive de
+l'application) et de rien d'autre : si Notion est en cause, les deux copies
+partent ensemble.
+
+D'où `/api/admin/sauvegardes/export` : un fichier à télécharger et à ranger
+où vous voulez. Aucun service tiers, aucun abonnement. Il dit ce qu'il n'a
+pas pu lire au lieu de le rendre vide, et répond 206 quand il est partiel.
+
+## Limites, nommées
+
+1. **WebKit sous Playwright ne stocke pas de `Blob` dans IndexedDB.** Vérifié :
+   le même enregistrement passe avec un `Uint8Array`. Les parcours hors ligne
+   tournent donc sur Chromium au gabarit iPhone ; WebKit couvre le rendu, les
+   gestes et le chemin d'échec. Safari sur un vrai iPhone sait le faire —
+   l'application s'en sert tous les jours pour ses photos.
+2. **Le service worker est désactivé pendant les tests de bout en bout** : il
+   s'interpose entre la page et Playwright. Il n'est donc pas couvert.
+3. **Les octets d'une photo après redémarrage** ne sont pas vérifiés : les
+   deux bancs d'essai perdent les `Blob` à la relecture. Ce que les tests
+   prouvent, c'est que l'enregistrement survit (projet, champ visé, statut).
+4. **Trois fichiers de 6 000 à 13 600 lignes** restent non découpés.
+5. **`xlsx`** : vulnérabilité sans correctif, hors d'atteinte ici (l'app
+   n'analyse aucun classeur, elle n'en écrit que). À revoir si un import
+   arrive un jour.

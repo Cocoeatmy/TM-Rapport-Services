@@ -22,7 +22,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const NIVEAUX: Niveau[] = ["oui", "lecture", "non"];
-const PERIMETRES: Perimetre[] = ["siens", "tous"];
+const PERIMETRES: Perimetre[] = ["siens", "siens-stricts", "tous"];
 /* « administrateur » n'est pas un profil qu'on attribue ici : il découle du
    rôle du compte, qui se change dans la gestion des comptes. Le proposer dans
    cet écran ouvrirait un second chemin vers les pleins pouvoirs. */

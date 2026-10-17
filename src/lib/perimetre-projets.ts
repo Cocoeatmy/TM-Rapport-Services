@@ -17,10 +17,14 @@
  * du travail en préparation. Personne n'aurait pris cette restriction pour
  * une décision ; tout le monde l'aurait prise pour une panne.
  *
- * La règle retenue est donc : **un projet est « sien » s'il lui est attribué,
- * OU s'il n'est attribué à personne.** Ce qui se cache, ce sont les chantiers
- * d'un COLLÈGUE — jamais ceux que personne n'a encore pris. C'est le sens
- * qu'on donne à la restriction quand on la demande.
+ * La règle retenue par défaut est donc : **un projet est « sien » s'il lui est
+ * attribué, OU s'il n'est attribué à personne.** Ce qui se cache, ce sont les
+ * chantiers d'un COLLÈGUE — jamais ceux que personne n'a encore pris.
+ *
+ * Mais l'absence d'attribution ne DOIT PAS valoir autorisation par principe :
+ * c'est une décision, pas une évidence. Elle est donc explicite, et le
+ * troisième périmètre — « siens-stricts » — permet de trancher dans l'autre
+ * sens quand on le veut : seuls les chantiers nommément confiés.
  */
 
 /** Minuscules, sans accents : « Loïc » et « loic » sont la même personne. */
@@ -57,19 +61,42 @@ export function prenomDe(nomComplet: string): string {
  * « Team », « Team TM » et consorts désignent l'équipe entière : un chantier
  * confié à l'équipe est celui de chacun de ses membres.
  */
-export function estSien(p: PorteurDeCollaborateurs, nomComplet: string): boolean {
+export function estSien(
+  p: PorteurDeCollaborateurs,
+  nomComplet: string,
+  strict = false,
+): boolean {
   const prenoms = prenomsDuProjet(p);
-  /* Personne dessus : le dossier n'est à personne, donc pas « à un autre ». */
-  if (prenoms.length === 0) return true;
+  /* Personne dessus. En politique souple, le dossier n'est à personne donc
+     pas « à un autre » ; en politique stricte, il n'est pas à lui non plus. */
+  if (prenoms.length === 0) return !strict;
   const moi = net(prenomDe(nomComplet));
   if (!moi) return false;
   return prenoms.some((x) => {
     const n = net(x);
+    /* Une équipe entière inclut chacun de ses membres — y compris en
+       politique stricte : c'est une attribution, pas une absence. */
     return n === moi || n.startsWith("team");
   });
 }
 
-export type Perimetre = "siens" | "tous";
+/**
+ * Les trois politiques possibles, nommées pour qu'on choisisse en connaissance.
+ *
+ * — « tous »          : aucun filtre.
+ * — « siens »         : les siens, plus ceux que personne n'a pris.
+ * — « siens-stricts » : uniquement ceux qui lui sont nommément confiés.
+ *                       Aujourd'hui, cela représenterait six chantiers sur
+ *                       235 pour un monteur : à n'employer qu'en connaissance
+ *                       de cause.
+ */
+export type Perimetre = "siens" | "siens-stricts" | "tous";
+
+export const PERIMETRES: { id: Perimetre; libelle: string; explication: string }[] = [
+  { id: "tous", libelle: "Tous les projets", explication: "Tous les chantiers de l'entreprise." },
+  { id: "siens", libelle: "Les siens et les non attribués", explication: "Cache les chantiers confiés à un collègue. Les dossiers que personne n'a pris restent visibles." },
+  { id: "siens-stricts", libelle: "Uniquement ceux qui lui sont confiés", explication: "Ne montre que les chantiers portant son nom. Très restrictif : la plupart des dossiers en préparation n'ont pas encore de collaborateur." },
+];
 
 /** Ne garde que ce que cette personne a le droit de voir. */
 export function filtrerPerimetre<T extends PorteurDeCollaborateurs>(
@@ -78,7 +105,8 @@ export function filtrerPerimetre<T extends PorteurDeCollaborateurs>(
   perimetre: Perimetre,
 ): T[] {
   if (perimetre === "tous") return projets;
-  return projets.filter((p) => estSien(p, nomComplet));
+  const strict = perimetre === "siens-stricts";
+  return projets.filter((p) => estSien(p, nomComplet, strict));
 }
 
 /** Combien de projets une restriction retirerait — pour le dire, pas pour le taire. */

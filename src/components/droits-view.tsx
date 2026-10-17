@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Check, X, Loader2, RotateCcw, Users, History, ChevronDown, Save, AlertTriangle, Eye,
 } from "lucide-react";
+import { PERIMETRES } from "@/lib/perimetre-projets";
 import {
   CATALOGUE, PROFILS, TOUS_LES_DROITS, profilEffectif,
   type Niveau, type Perimetre, type Profil, type Reglages, REGLAGES_VIDES,
@@ -317,16 +318,12 @@ export function DroitsView() {
                 reviendrait à vider l'application. */}
             <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3 flex items-start gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px text-gray-400" />
-              « Uniquement les siens » cache les chantiers attribués à un
-              <b> collègue</b>. Les chantiers que personne n&apos;a encore pris, et
-              ceux confiés à l&apos;équipe, restent visibles : ils représentent
-              aujourd&apos;hui la grande majorité des dossiers en préparation.
+              Repère utile : aujourd&apos;hui, <b>216 chantiers en cours sur 235
+              n&apos;ont aucun collaborateur inscrit</b> — le nom ne se remplit
+              qu&apos;au moment de fixer le montage.
             </p>
-            <div className="grid sm:grid-cols-2 gap-2">
-              {([
-                { id: "siens" as const, titre: "Uniquement les siens", texte: "Les chantiers sur lesquels cette personne est inscrite." },
-                { id: "tous" as const, titre: "Tous les projets", texte: "Tous les chantiers de l'entreprise." },
-              ]).map((o) => (
+            <div className="grid sm:grid-cols-3 gap-2">
+              {(PERIMETRES.map((x) => ({ id: x.id, titre: x.libelle, texte: x.explication }))).map((o) => (
                 <button key={o.id} onClick={() => toucher({ perimetre: o.id })}
                   className={`dr-profil text-left rounded-xl border p-3 transition-colors ${
                     courant.perimetre === o.id
