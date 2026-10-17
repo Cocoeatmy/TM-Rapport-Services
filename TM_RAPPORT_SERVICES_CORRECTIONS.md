@@ -565,3 +565,116 @@ générés ont été retirées.
 Revérifié en lecture seule, après tous ces travaux : **1 649** fiches Notion,
 **80** signalements, **25** pièces, et le projet aux **8** signalements
 historiques intact.
+
+---
+
+# Cinquième campagne — 17 octobre 2026 (affichage iPadOS / iOS)
+
+Objet : l'affichage sur iPad, décrit comme « textes qui se superposent,
+éléments mal positionnés, interfaces insuffisamment adaptées » — **sans
+toucher à l'apparence de macOS**.
+
+## 1 — Comment les défauts ont été trouvés
+
+Pas à l'œil, et pas page par page. Une **sonde** (`e2e/sonde-affichage.ts`)
+mesure les rectangles réellement calculés par le navigateur et relève
+quatre choses : débordement horizontal, chevauchement de textes, contenu
+coupé sans moyen de l'atteindre, cible tactile sous 36 px.
+
+Elle parcourt **13 gabarits × 29 écrans × 2 thèmes**, avec des **données
+denses** — noms de chantiers à rallonge, trente projets, quatorze
+signalements. Le premier relevé, fait avec un seul chantier au nom court,
+n'avait presque rien trouvé : *un tableau vide ne déborde jamais*.
+
+### Deux erreurs de méthode, corrigées en route
+
+1. **Le harnais se connectait en administrateur mais `/api/auth` répondait
+   « monteur »** : les onze écrans d'administration renvoyaient à l'accueil
+   et le relevé croyait les avoir inspectés.
+2. **Le projet Playwright émulait le tactile pour TOUS les gabarits**, y
+   compris ceux dits « macOS ». La première comparaison avant/après montrait
+   donc jusqu'à 70 % de pixels différents sur Mac — un Mac qui recevait les
+   styles de l'iPad. Il y a maintenant deux projets : `affichage-mac`
+   (souris, pointeur fin) et `affichage-tactile` (doigt).
+
+## 2 — La stratégie : le type de pointeur, jamais la largeur
+
+Une règle en largeur ne distingue pas un iPad d'une fenêtre macOS étroite.
+Tout ce qui est propre au tactile vit donc dans `src/app/tactile.css`, sous
+`@media (hover: none) and (pointer: coarse)`.
+
+macOS répond toujours `pointer: fine` et `hover: hover` — avec un trackpad,
+avec une souris, à n'importe quelle largeur. **Aucune ligne de ce fichier ne
+peut l'atteindre.** Ce n'est pas une précaution vérifiée après coup, c'est
+une impossibilité.
+
+## 3 — Les défauts corrigés
+
+| # | Où | Ce qui n'allait pas | Correction |
+|---|---|---|---|
+| 1 | Thème Signal, tout iPad | Le rail n'apparaissait qu'à 1024 px. Un iPad en portrait fait 744 à 1032 : il recevait **la barre d'onglets du téléphone**, dix entrées pour 732 px utiles. « Déstockage » coupé en plein mot, « Chantiers » et « Stats » hors de vue | Le rail dès 700 px **sur écran tactile**. Même condition en CSS et en JS (`REQUETE_RAIL`), pour qu'elles ne divergent pas |
+| 2 | Signal, iPad | Rail ET onglets affichés ensemble : deux navigations concurrentes, dont une tronquée | Les onglets s'effacent exactement quand le rail paraît |
+| 3 | Signal, en-tête | « Rechercher un projet ou lancer une action » passait **sur trois lignes** et débordait du bandeau | Une seule ligne, coupée par des points de suspension |
+| 4 | Signal, en-tête | « Nouveau projet » chevauchait les boutons ronds | Sous 1100 px, l'icône seule |
+| 5 | Signal, cartes du jour | « 1 projet » sortait du cadre | Les lignes s'enroulent (règle devenue générale : là où tout tient, rien ne s'enroule) |
+| 6 | Signal, en-tête de carte | « Cette semaine » s'imprimait **par-dessus** « Signaux » à 1032 px | Titre et commandes s'enroulent |
+| 7 | Signal, charge de la semaine | Le bloc refusait de rétrécir et poussait la page à **429 px sur un écran de 390** | Il rétrécit, la bande de filtres défile à l'intérieur |
+| 8 | Tous thèmes, iPhone | Les quatre raccourcis dépassaient de l'écran | La rangée s'enroule |
+| 9 | Tous thèmes, iPhone SE | Les huit icônes de la fiche projet dépassaient de 9 px | Elles s'enroulent |
+| 10 | Devis en attente, iPad mini | La colonne « Relance » large de 240 px, figée, débordait | Elle accepte de rétrécir |
+| 11 | Thème classique, iPhone | « Semaine -1 » s'imprimait sur « Semaine +1 » | Grille deux par deux sous 560 px, **sur écran tactile seulement** |
+| 12 | Thème classique, iPhone | Les filtres des chantiers PPE se chevauchaient (ils n'ont de mise en page que dans Signal) | Rangée qui s'enroule, sur écran tactile |
+| 13 | Partout, tactile | Plus de **400 cibles sous 36 px** : onglets de 32 px, boutons ronds de 36, pastilles de 28 | 40 px minimum, avec les exceptions nommées (lignes de liste, tableaux, cases à cocher) |
+| 14 | iOS | Safari **zoome** dès qu'on touche un champ dont le texte fait moins de 16 px, et ne dézoome jamais | 16 px minimum sur les champs, sur écran tactile |
+
+## 4 — Le résultat, mesuré
+
+Défauts relevés, avant → après :
+
+| Gabarit | Thème Signal | Thème classique |
+|---|---|---|
+| **macOS 1440 et 1680** | **0 → 0** | **0 → 0** |
+| iPad mini portrait | 145 → **6** | 290 → **7** |
+| iPad 11″ portrait | 181 → **8** | 290 → **7** |
+| iPad 13″ portrait | 183 → **8** | 290 → **7** |
+| iPad demi-écran | 435 → **35** | 478 → **36** |
+| iPhone 13 | 431 → **35** | 469 → **36** |
+
+**Plus aucun chevauchement, plus aucun débordement, plus aucun contenu coupé
+— sur aucun gabarit, dans aucun des deux thèmes.** Ce qui reste est
+uniquement une poignée de petites cibles tactiles.
+
+## 5 — La preuve que macOS n'a pas bougé
+
+Captures avant/après, **comparées octet par octet** par un décodeur PNG
+écrit pour l'occasion (aucune dépendance).
+
+Première mesure du **bruit de fond** — deux captures du même code : jusqu'à
+2 % de différence, à cause des dégradés de fond animés en boucle. Les
+animations sont donc gelées pendant la photographie, ce qui ramène le bruit
+à **0,013 % au pire**.
+
+| Série | Résultat |
+|---|---|
+| macOS, thème classique | **46 / 46 captures RIGOUREUSEMENT identiques** |
+| macOS, thème Signal | 31 / 46 identiques, les 15 autres entre 0,001 % et 0,009 % — **sous le bruit de fond** |
+
+## 6 — Les garde-fous ajoutés
+
+| Fichier | Rôle |
+|---|---|
+| `e2e/51-garde-affichage.spec.ts` | 6 tests : iPad portrait, iPad demi-écran, iPhone, dans les deux thèmes. **Échoue** sur tout chevauchement, débordement ou contenu coupé |
+| `e2e/52-garde-macos.spec.ts` | 4 tests : le Mac doit rester sans défaut. Vérifie d'abord que le contexte est bien `pointer: fine` — sans quoi il mesurerait un iPad |
+| `e2e/50-affichage.spec.ts` | Le relevé complet, sur demande (`TM_RELEVE=1`) |
+| `e2e/59-captures.spec.ts` | Les captures, sur demande (`TM_CAPTURES=<gabarits>`) |
+
+Le garde-fou a été **éprouvé par mutation** : en retirant une des
+corrections, il tombe et nomme le défaut exact.
+
+## 7 — Ce qui n'est pas prouvé
+
+**Aucun test n'a tourné sur un iPad ni un iPhone physique.** Tout ce qui
+précède vient de Chromium pilotant des gabarits et un type de pointeur
+émulés. C'est fidèle pour la mise en page, et ça ne remplace pas un essai
+réel — notamment pour le pavé de signature au doigt et à l'Apple Pencil,
+et pour la prise de photo.

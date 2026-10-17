@@ -284,7 +284,7 @@ export default function DevisAttentePage() {
             <span className="w-24 shrink-0">N° devis</span>
             <span className="flex-1">Objet</span>
             <span className="w-24 shrink-0 text-right">Montant</span>
-            <span className="w-60 shrink-0">Relance</span>
+            <span className="w-60 min-w-0 shrink">Relance</span>
           </div>
 
           <div className="space-y-0.5 mt-1">
@@ -374,7 +374,7 @@ export default function DevisAttentePage() {
                   <span className="w-24 shrink-0 text-right text-[11px] font-semibold tabular-nums text-gray-700 dark:text-gray-200">
                     {francs(l.total || 0)}
                   </span>
-                  <span className="w-60 shrink-0 flex flex-wrap items-center gap-1.5">
+                  <span className="w-60 min-w-0 shrink flex flex-wrap items-center gap-1.5">
                     {l.projetId && (
                       <Link href={`/projet/${l.projetId}?mode=dashboard`}
                         className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200 shrink-0"

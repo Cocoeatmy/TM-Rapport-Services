@@ -33,6 +33,13 @@ import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
 import { ZoneTexte } from "@/components/zone-texte";
 
+/* La condition d'affichage du rail Signal, en un seul endroit.
+   Elle est reprise telle quelle dans `theme-signal.css` : si l'une des deux
+   changeait sans l'autre, le rail et la barre d'onglets se marcheraient
+   dessus. `pointer: coarse` = un doigt ; macOS répond toujours `fine`. */
+const REQUETE_RAIL = "(min-width: 1024px), (min-width: 700px) and (pointer: coarse)";
+
+
 // Écriture localStorage du cache projets THROTTLÉE. Sérialiser tout le cache
 // (~2,5 Mo avec Archives) à CHAQUE mise à jour (poll 30 s, burst de fetchs au
 // chargement, etc.) coûte cher en CPU/batterie. On coalesce : au plus une
@@ -499,12 +506,15 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
         ))}
       </nav>
     )}
-    {/* `lg:mb-0` en Signal : les onglets y sont masqués, leur marge basse
-        dessinerait une bande vide sous l'en-tête. */}
-    <div className={`nav-stack mb-4 space-y-1.5${isSignal ? " lg:mb-0" : ""}`}>
-      {/* Ligne principale — masquée sur desktop en thème Signal (remplacée par
-          le rail) ; elle reste la navigation sur mobile/tablette. */}
-      <div className={`p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain${isSignal ? " lg:hidden" : ""}`}>
+    {/* En Signal, les onglets s'effacent devant le rail : leur marge basse
+        dessinerait sinon une bande vide sous l'en-tête. Le masquage se fait
+        en CSS (`.sg-onglets`), avec EXACTEMENT la condition qui fait
+        apparaître le rail — `lg:hidden` ne la connaissait pas et laissait
+        les deux navigations côte à côte sur iPad. */}
+    <div className={`nav-stack mb-4 space-y-1.5${isSignal ? " sg-nav-stack" : ""}`}>
+      {/* Ligne principale — remplacée par le rail dès que celui-ci paraît ;
+          elle reste la navigation sur téléphone. */}
+      <div className={`p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain${isSignal ? " sg-onglets" : ""}`}>
         <div className="flex gap-1">
           <button onClick={() => { handleSelect("dashboard"); setOpen(null); }} className={tabCls(mode === "dashboard")}>
             Dashboard
@@ -1087,15 +1097,25 @@ function HomePage() {
   // L'aperçu latéral « Signal » se ferme dès qu'on change de vue : il appartient
   // à la liste depuis laquelle il a été ouvert.
   useEffect(() => { closeSignalPreview(); }, [mode]);
-  /* Signal : la barre de recherche ouverte + « Nouveau projet » ne tiennent
-     dans l'en-tête qu'à partir de 1024 px. En dessous (téléphone, iOS), on
-     rend la main aux boutons ronds historiques du header. */
+  /* Signal : rail vertical plutôt que barre d'onglets.
+     ── Pourquoi la condition n'est plus une simple largeur ───────────────
+     Le seuil était « ≥ 1024 px ». Un iPad en portrait fait 744 à 1032 px :
+     il tombait donc du mauvais côté et recevait la barre d'onglets du
+     téléphone, dix entrées pour 732 px utiles. « Déstockage » était coupé
+     en plein mot et « Chantiers » comme « Stats » n'apparaissaient plus
+     qu'au prix d'un balayage que rien ne signalait.
+     On ajoute donc une seconde porte : dès 700 px SUR UN ÉCRAN TACTILE.
+     `pointer: coarse` désigne le doigt, jamais le trackpad ni la souris —
+     macOS n'entre donc jamais par là, quelle que soit la largeur de la
+     fenêtre. La même chaîne sert au CSS du thème (`theme-signal.css`),
+     pour que les deux ne puissent pas diverger. */
   const [sgWide, setSgWide] = useState(false);
   useEffect(() => {
-    const check = () => setSgWide(window.innerWidth >= 1024);
+    const mq = window.matchMedia(REQUETE_RAIL);
+    const check = () => setSgWide(mq.matches);
     check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
+    mq.addEventListener("change", check);
+    return () => mq.removeEventListener("change", check);
   }, []);
   // useDeferredValue : l'input répond immédiatement, le filtrage (coûteux)
   // est décalé en tâche de priorité basse → recherche instantanée.
@@ -4758,9 +4778,13 @@ function HomePage() {
         );
       })()}
 
-      {/* Boutons Calendrier / Collaborateurs */}
+      {/* Boutons Calendrier / Collaborateurs.
+          `flex-wrap` : à quatre raccourcis, la rangée dépassait de l'écran
+          d'un téléphone — 401 px de contenu pour 375. Elle s'enroule
+          désormais. Sur grand écran tout tient sur une ligne : rien n'y
+          change. */}
       {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "kanban" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
-        <div className="flex gap-3 mb-4 sgv-tiles">
+        <div className="flex flex-wrap gap-3 mb-4 sgv-tiles">
           <button
             onClick={() => setViewMode("calendar")}
             className="glass-card flex items-center gap-2 px-4 py-3 rounded-xl hover:bg-white/80 transition-all active:scale-95"

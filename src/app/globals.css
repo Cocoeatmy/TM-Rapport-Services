@@ -4,6 +4,9 @@
 /* Thème « Signal » — fichier isolé, toutes ses règles sont préfixées
    html[data-ui="signal"] : il ne peut pas affecter les autres thèmes. */
 @import "./theme-signal.css";
+/* Le confort au doigt, isolé derrière `pointer: coarse` : macOS ne peut pas
+   l'atteindre. Chargé en dernier pour passer devant les utilitaires. */
+@import "./tactile.css";
 
 /* ===== Économie de batterie (iOS / macOS) =====
    Les fonds animés en boucle infinie (gradientShift, auroraFlow) repeignent un

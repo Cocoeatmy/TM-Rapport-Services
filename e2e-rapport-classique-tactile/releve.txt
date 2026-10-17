@@ -1,0 +1,327 @@
+
+### ipad-11-portrait — 7 défaut(s)
+  destockage : 1 cible-tactile
+      [cible-tactile] 32×40px
+         A: button.w-8.h-7.flex
+  chantiers : 4 cible-tactile
+      [cible-tactile] 17×44px
+         A: button.is-on « 10 »
+      [cible-tactile] 16×44px
+         A: button « 15 »
+      [cible-tactile] 21×44px
+         A: button « 20 »
+      [cible-tactile] 20×44px
+         A: button « 30 »
+  stats : 1 cible-tactile
+      [cible-tactile] 22×40px
+         A: button.p-1.rounded-md.transition-colors
+  admin-rapports : 1 cible-tactile
+      [cible-tactile] 16×16px
+         A: input.mt-0.5.w-4.h-4
+
+### iphone-se — 35 défaut(s)
+  dashboard : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  services : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  crm : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  kanban : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  destockage : 2 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+      [cible-tactile] 32×40px
+         A: button.w-8.h-7.flex
+  fournisseurs : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  grossistes : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  sanitaires : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  rapport : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  chantiers : 5 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+      [cible-tactile] 17×44px
+         A: button.is-on « 10 »
+      [cible-tactile] 16×44px
+         A: button « 15 »
+      [cible-tactile] 21×44px
+         A: button « 20 »
+      [cible-tactile] 20×44px
+         A: button « 30 »
+  stats : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  projet : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  projet-mesures : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  projet-sav : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  carnet : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  garanties : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  relances : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  devis-attente : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  rapport-quotidien : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-anomalies : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-droits : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-stocks : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-pieces-defauts : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-utilisateurs : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-rapports : 2 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+      [cible-tactile] 16×16px
+         A: input.mt-0.5.w-4.h-4
+  admin-heures : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-finances : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-sauvegardes : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  login : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+
+### iphone-13 — 36 défaut(s)
+  dashboard : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  services : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  crm : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  kanban : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  destockage : 2 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+      [cible-tactile] 32×40px
+         A: button.w-8.h-7.flex
+  fournisseurs : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  grossistes : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  sanitaires : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  rapport : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  chantiers : 5 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+      [cible-tactile] 17×44px
+         A: button.is-on « 10 »
+      [cible-tactile] 16×44px
+         A: button « 15 »
+      [cible-tactile] 21×44px
+         A: button « 20 »
+      [cible-tactile] 20×44px
+         A: button « 30 »
+  stats : 2 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+      [cible-tactile] 22×40px
+         A: button.p-1.rounded-md.transition-colors
+  projet : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  projet-mesures : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  projet-sav : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  carnet : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  garanties : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  relances : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  devis-attente : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  rapport-quotidien : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-anomalies : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-droits : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-stocks : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-pieces-defauts : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-utilisateurs : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-rapports : 2 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+      [cible-tactile] 16×16px
+         A: input.mt-0.5.w-4.h-4
+  admin-heures : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-finances : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-sauvegardes : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  login : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+
+### iphone-max — 36 défaut(s)
+  dashboard : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  services : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  crm : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  kanban : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  destockage : 2 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+      [cible-tactile] 32×40px
+         A: button.w-8.h-7.flex
+  fournisseurs : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  grossistes : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  sanitaires : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  rapport : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  chantiers : 5 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+      [cible-tactile] 17×44px
+         A: button.is-on « 10 »
+      [cible-tactile] 16×44px
+         A: button « 15 »
+      [cible-tactile] 21×44px
+         A: button « 20 »
+      [cible-tactile] 20×44px
+         A: button « 30 »
+  stats : 2 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+      [cible-tactile] 22×40px
+         A: button.p-1.rounded-md.transition-colors
+  projet : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  projet-mesures : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  projet-sav : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  carnet : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  garanties : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  relances : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  devis-attente : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  rapport-quotidien : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-anomalies : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-droits : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-stocks : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-pieces-defauts : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-utilisateurs : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-rapports : 2 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+      [cible-tactile] 16×16px
+         A: input.mt-0.5.w-4.h-4
+  admin-heures : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-finances : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  admin-sauvegardes : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center
+  login : 1 cible-tactile
+      [cible-tactile] 30×40px
+         A: a.home-badge.inline-flex.items-center

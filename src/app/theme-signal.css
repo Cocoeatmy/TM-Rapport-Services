@@ -431,7 +431,14 @@ html[data-ui="signal"] .signal-search:hover {
   border-color: rgba(255, 255, 255, 0.24);
   background: rgba(255, 255, 255, 0.10);
 }
-html[data-ui="signal"] .signal-search-ph { flex-grow: 1; }
+/* Une seule ligne, toujours. Sous 1024 px l'en-tête se resserre et le
+   libellé passait sur trois lignes en débordant du bandeau — visible dès
+   qu'un iPad affiche le rail. À 1440 px le texte tient de toute façon :
+   cette règle n'y change rien. */
+html[data-ui="signal"] .signal-search-ph {
+  flex-grow: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 html[data-ui="signal"] .signal-kbd {
   font-family: var(--font-mono); font-size: 11px;
   padding: 2px 6px; border-radius: 5px;
@@ -444,6 +451,18 @@ html[data-ui="signal"] .signal-new {
   font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 html[data-ui="signal"] .signal-new:hover { filter: brightness(1.08); }
+/* En dessous de 1100 px l'en-tête est plein : la recherche, « Nouveau
+   projet » et huit boutons ronds se chevauchaient sur un iPad en portrait.
+   Le bouton garde son icône — reconnaissable, et toujours à sa place — et
+   abandonne son libellé. Au-delà, rien ne change : le Mac le garde entier. */
+@media (max-width: 1099px) {
+  html[data-ui="signal"] .signal-new {
+    padding: 0 11px;
+    font-size: 0;
+    gap: 0;
+  }
+  html[data-ui="signal"] .signal-new svg { width: 18px; height: 18px; }
+}
 
 /* ── Rail vertical (desktop ≥ 1024 px) ────────────────────────────────────
    Le rail n'est RENDU que par le thème Signal (garde `isSignal` dans page.tsx),
@@ -504,7 +523,22 @@ html[data-ui="signal"] .signal-rail-item.is-active::before {
   background: var(--sg-signal);
 }
 
-@media (min-width: 1024px) {
+/* Le rail : à partir de 1024 px partout, ET dès 700 px sur un écran tactile.
+   ── Pourquoi la seconde condition ────────────────────────────────────────
+   Un iPad en portrait fait 744 à 1032 px. Il tombait sous le seuil et
+   recevait la barre d'onglets du téléphone : dix entrées pour 732 px,
+   « Déstockage » coupé en plein mot, « Chantiers » et « Stats » hors de
+   vue sans que rien ne l'indique. Le rail les loge toutes.
+   `pointer: coarse` désigne le doigt. macOS répond toujours `fine`, même
+   avec un trackpad, même en fenêtre étroite : son affichage ne peut donc
+   pas être atteint par cette ligne. La même chaîne vit dans `page.tsx`
+   (`REQUETE_RAIL`), qui décide de RENDRE le rail. */
+@media (min-width: 1024px), (min-width: 700px) and (pointer: coarse) {
+  /* Les onglets et le rail sont EXCLUSIFS : laisser les deux, c'est offrir
+     deux navigations concurrentes dont l'une est tronquée. La classe est
+     posée par `NavBar` ; c'est la même condition que pour le rail. */
+  html[data-ui="signal"] .sg-onglets { display: none; }
+  html[data-ui="signal"] .sg-nav-stack { margin-bottom: 0; }
   html[data-ui="signal"] .signal-rail {
     position: fixed;
     left: 0;
@@ -580,8 +614,15 @@ html[data-ui="signal"] .sg-card-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  /* Titre et commandes sur deux lignes plutôt que l'un sur l'autre : à
+     1032 px, « Cette semaine » venait s'imprimer par-dessus « Signaux ».
+     Sur le grand écran du Mac, les deux tiennent côte à côte et rien ne
+     s'enroule. */
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 8px;
 }
+html[data-ui="signal"] .sg-card-head > * { min-width: 0; }
 html[data-ui="signal"] .sg-card-title {
   font-size: 14px;
   font-weight: 600;
@@ -621,6 +662,13 @@ html[data-ui="signal"] .sg-agenda {
 html[data-ui="signal"] .sg-row {
   display: flex;
   align-items: center;
+  /* S'enrouler plutôt que déborder. La règle existait, mais seulement sous
+     767 px : les cartes du jour sont serrées dès que trois d'entre elles se
+     partagent un iPad, et « 1 projet » sortait alors du cadre. Autoriser le
+     retour à la ligne partout ne change rien là où tout tient déjà — sur le
+     grand écran du Mac, aucune de ces lignes ne s'enroule. */
+  flex-wrap: wrap;
+  row-gap: 4px;
   gap: 10px;
   width: 100%;
   padding: 7px 0;
@@ -645,6 +693,7 @@ html[data-ui="signal"] .sg-row-bar {
   border-radius: 2px;
   flex-shrink: 0;
 }
+html[data-ui="signal"] .sg-row > * { min-width: 0; }
 html[data-ui="signal"] .sg-row-label {
   flex-grow: 1;
   display: flex;
@@ -5157,11 +5206,26 @@ html[data-ui="signal"] .sg-fact-retour:hover { color: var(--sg-signal); }
   }
   /* Les cinq types sur une bande qui défile plutôt que sur trois lignes :
      la carte garde une hauteur prévisible. */
+  /* Le bloc qui porte la bande : il refusait de rétrécir (`flex: 0 0 auto`)
+     et imposait donc ses 400 px à une carte qui n'en fait que 332. C'est lui
+     qui élargissait la page, pas la bande. */
+  html[data-ui="signal"] .sg-charge-tete {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
   html[data-ui="signal"] .sg-charge-filtres {
     flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    /* `max-width: 100%` ne suffisait pas : les cinq pastilles ont
+       `flex-shrink: 0`, la bande prenait donc la largeur de son contenu et
+       poussait la page à 429 px sur un écran de 390. En lui donnant une
+       ligne entière et le droit de rétrécir, elle défile à l'intérieur au
+       lieu d'élargir la page. */
+    flex: 1 1 100%;
+    min-width: 0;
     max-width: 100%;
   }
   html[data-ui="signal"] .sg-charge-filtres::-webkit-scrollbar { display: none; }
@@ -5192,11 +5256,8 @@ html[data-ui="signal"] .sg-fact-retour:hover { color: var(--sg-signal); }
   html[data-ui="signal"] .sg-bars-legend { gap: 4px; }
   html[data-ui="signal"] .sg-bars-leg { font-size: 10.5px; padding: 3px 8px; }
 
-  /* Les lignes des cartes du jour : sur une seule ligne, le dernier élément
-     — « 4 projets » — sortait de l'écran. Elles s'enroulent désormais, et
-     chacun de leurs blocs accepte de rétrécir. */
-  html[data-ui="signal"] .sg-row { flex-wrap: wrap; row-gap: 4px; }
-  html[data-ui="signal"] .sg-row > * { min-width: 0; }
+  /* (L'enroulement des lignes de carte est désormais la règle générale :
+     voir `.sg-row` plus haut.) */
 }
 
 

@@ -5027,7 +5027,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           };
           return (
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-              <div className="flex items-stretch gap-2">
+              {/* `tm-stats-hebdo` : sur un téléphone, ces trois colonnes par
+                  cellule n'ont pas la place et « Semaine -1 » s'imprimait sur
+                  « Semaine +1 ». La feuille tactile les met alors en grille
+                  — voir `tactile.css`, qui ne peut pas atteindre macOS. */}
+              <div className="flex items-stretch gap-2 tm-stats-hebdo">
                 <StatCell label="Projets" color="text-orange-500 dark:text-orange-400"
                   prevVal={prev.montages} prevCab={0} curVal={cur.montages} curCab={0} nextVal={next.montages} nextCab={0} />
                 <div className="w-px bg-gray-100 dark:bg-gray-700 self-stretch" />

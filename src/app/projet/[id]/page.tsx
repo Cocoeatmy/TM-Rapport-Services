@@ -9085,7 +9085,10 @@ function ProjectPageContent({ id }: { id: string }) {
           piloté par le bouton dédié. Cachée en mode rapport. */}
       {isIOS && !showRapport && (
         <div className="px-4 mt-3">
-          <div className="flex justify-between items-center pb-1">
+          {/* `flex-wrap` : avec la pastille « documents Notion » réservée aux
+              administrateurs, les huit icônes de 44 px dépassaient de l'écran
+              d'un iPhone SE. Elles passent à la ligne plutôt que de sortir. */}
+          <div className="flex flex-wrap justify-between items-center gap-y-2 pb-1">
             {(() => {
               const tabs = tabDefs.filter((t) => t.id !== "rapport" && (t.id !== "fiche" || isAdmin));
               const out: React.ReactNode[] = [];

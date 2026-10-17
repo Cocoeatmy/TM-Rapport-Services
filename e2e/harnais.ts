@@ -69,9 +69,14 @@ export async function sansServiceWorker(context: BrowserContext): Promise<void> 
   });
 }
 
+export interface CompteDeTest { email: string; name: string; role: "admin" | "monteur" }
+
+export const MONTEUR: CompteDeTest = { email: "e2e@test.local", name: "Jacobo Fontan Cassas", role: "monteur" };
+export const ADMIN: CompteDeTest = { email: "e2e@test.local", name: "Micael Ferreira", role: "admin" };
+
 export async function seConnecter(
   context: BrowserContext,
-  compte = { email: "e2e@test.local", name: "Jacobo Fontan Cassas", role: "monteur" as const },
+  compte: CompteDeTest = MONTEUR,
 ): Promise<void> {
   await context.addCookies([{
     name: "auth-token",
@@ -122,11 +127,19 @@ export interface Trace {
  */
 export async function brancherFixtures(
   page: Page,
-  options: { projet?: Record<string, unknown>; refuserEcritures?: () => boolean } = {},
+  options: {
+    projet?: Record<string, unknown>;
+    refuserEcritures?: () => boolean;
+    /* Le compte que `/api/auth` renverra. Il doit correspondre au cookie
+       posé par `seConnecter`, sinon les écrans d'administration renvoient
+       le visiteur à l'accueil et on croit les avoir testés. */
+    compte?: CompteDeTest;
+  } = {},
 ): Promise<Trace> {
   const trace: Trace = { appels: [] };
   const projet = options.projet ?? projetFictif();
   const refuser = options.refuserEcritures ?? (() => false);
+  const compte = options.compte ?? MONTEUR;
 
   const json = (route: Route, corps: unknown, status = 200) =>
     route.fulfill({ status, contentType: "application/json", body: JSON.stringify(corps) });
@@ -139,9 +152,7 @@ export async function brancherFixtures(
     try { corps = req.postData() ? JSON.parse(req.postData() as string) : undefined; } catch { corps = req.postData(); }
     trace.appels.push({ methode: req.method(), url: chemin, corps });
 
-    if (chemin === "/api/auth") {
-      return json(route, { user: { email: "e2e@test.local", name: "Jacobo Fontan Cassas", role: "monteur" } });
-    }
+    if (chemin === "/api/auth") return json(route, { user: compte });
     if (chemin.startsWith("/api/projects/") && chemin.split("/").length === 4) {
       /* Le serveur peut refuser les écritures à la demande : c'est ainsi
          qu'on garde une file pleine le temps d'un rechargement. */
@@ -164,7 +175,7 @@ export async function brancherFixtures(
          "carnet.voir","carnet.modifier","carnet.supprimer","stats.voir","argent.voir","argent.relances",
          "administration.comptes","administration.droits"].map((d) => [d, "oui"]),
       );
-      return json(route, { email: "e2e@test.local", nom: "Jacobo", profil: "collaborateur", perimetre: "tous", droits: tout });
+      return json(route, { email: compte.email, nom: compte.name, profil: compte.role === "admin" ? "administrateur" : "collaborateur", perimetre: "tous", droits: tout });
     }
     if (chemin === "/api/photos/sign") {
       return json(route, { signature: "x", timestamp: 1, apiKey: "k", cloudName: "c", folder: "f" });

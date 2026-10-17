@@ -58,6 +58,28 @@ export default defineConfig({
         serviceWorkers: "allow",
       },
     },
+    /* ── L'affichage : DEUX projets, et c'est capital ────────────────────
+       `hasTouch` est une option de contexte : elle ne se change pas en cours
+       de test. Or elle décide de ce que le navigateur répond à
+       `pointer: coarse` — c'est-à-dire de l'application ou non des règles
+       tactiles. Un seul projet avec `hasTouch: true` aurait donc mesuré un
+       « macOS » qui reçoit les styles de l'iPad : la comparaison de
+       non-régression n'aurait rien voulu dire. (Elle a commencé par cela,
+       et c'est ainsi qu'on l'a vu.) */
+    {
+      name: "affichage-tactile",
+      /* Le garde-fou tactile (51), le relevé (50) et les captures (59).
+         Pas le garde-fou macOS (52) : il exige un pointeur fin. */
+      testMatch: /(50|51|59)-.*\.spec\.ts$/,
+      use: { viewport: { width: 820, height: 1060 }, hasTouch: true, isMobile: false },
+    },
+    {
+      /* Le Mac : souris, survol, pointeur fin. Aucune règle tactile. */
+      name: "affichage-mac",
+      /* Le garde-fou macOS (52), et les mêmes outils d'enquête. */
+      testMatch: /(50|52|59)-.*\.spec\.ts$/,
+      use: { viewport: { width: 1440, height: 900 }, hasTouch: false },
+    },
   ],
   webServer: {
     /* La version COMPILÉE, pas le serveur de développement : celui-ci

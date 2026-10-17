@@ -1,0 +1,1236 @@
+{
+ "mac-1440": {
+  "dashboard": [],
+  "services": [],
+  "crm": [],
+  "kanban": [],
+  "destockage": [],
+  "fournisseurs": [],
+  "grossistes": [],
+  "sanitaires": [],
+  "rapport": [],
+  "chantiers": [],
+  "stats": [],
+  "projet": [],
+  "projet-mesures": [],
+  "projet-sav": [],
+  "carnet": [],
+  "garanties": [],
+  "relances": [],
+  "devis-attente": [],
+  "rapport-quotidien": [],
+  "admin-anomalies": [],
+  "admin-droits": [],
+  "admin-stocks": [],
+  "admin-pieces-defauts": [],
+  "admin-utilisateurs": [],
+  "admin-rapports": [],
+  "admin-heures": [],
+  "admin-finances": [],
+  "admin-sauvegardes": [],
+  "login": []
+ },
+ "mac-1680": {
+  "dashboard": [],
+  "services": [],
+  "crm": [],
+  "kanban": [],
+  "destockage": [],
+  "fournisseurs": [],
+  "grossistes": [],
+  "sanitaires": [],
+  "rapport": [],
+  "chantiers": [],
+  "stats": [],
+  "projet": [],
+  "projet-mesures": [],
+  "projet-sav": [],
+  "carnet": [],
+  "garanties": [],
+  "relances": [],
+  "devis-attente": [],
+  "rapport-quotidien": [],
+  "admin-anomalies": [],
+  "admin-droits": [],
+  "admin-stocks": [],
+  "admin-pieces-defauts": [],
+  "admin-utilisateurs": [],
+  "admin-rapports": [],
+  "admin-heures": [],
+  "admin-finances": [],
+  "admin-sauvegardes": [],
+  "login": []
+ },
+ "ipad-mini-portrait": {
+  "dashboard": [],
+  "services": [],
+  "crm": [],
+  "kanban": [],
+  "destockage": [
+   {
+    "genre": "cible-tactile",
+    "detail": "32×40px",
+    "a": "button.w-8.h-7.flex"
+   }
+  ],
+  "fournisseurs": [],
+  "grossistes": [],
+  "sanitaires": [],
+  "rapport": [
+   {
+    "genre": "cible-tactile",
+    "detail": "63×29px",
+    "a": "a.flex.items-center.gap-1.5 « PDF »"
+   }
+  ],
+  "chantiers": [
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button.is-on « 10 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 15 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 20 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 30 »"
+   }
+  ],
+  "stats": [],
+  "projet": [],
+  "projet-mesures": [],
+  "projet-sav": [],
+  "carnet": [],
+  "garanties": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "relances": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "devis-attente": [
+   {
+    "genre": "cible-tactile",
+    "detail": "62×16px",
+    "a": "a.inline-flex.items-center.gap-1.5 « Accueil »"
+   }
+  ],
+  "rapport-quotidien": [],
+  "admin-anomalies": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-droits": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-stocks": [],
+  "admin-pieces-defauts": [],
+  "admin-utilisateurs": [],
+  "admin-rapports": [
+   {
+    "genre": "cible-tactile",
+    "detail": "16×16px",
+    "a": "input.mt-0.5.w-4.h-4"
+   }
+  ],
+  "admin-heures": [],
+  "admin-finances": [],
+  "admin-sauvegardes": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "login": []
+ },
+ "ipad-11-portrait": {
+  "dashboard": [
+   {
+    "genre": "cible-tactile",
+    "detail": "26×40px",
+    "a": "button"
+   }
+  ],
+  "services": [],
+  "crm": [
+   {
+    "genre": "cible-tactile",
+    "detail": "26×40px",
+    "a": "button"
+   }
+  ],
+  "kanban": [],
+  "destockage": [
+   {
+    "genre": "cible-tactile",
+    "detail": "32×40px",
+    "a": "button.w-8.h-7.flex"
+   }
+  ],
+  "fournisseurs": [],
+  "grossistes": [],
+  "sanitaires": [],
+  "rapport": [
+   {
+    "genre": "cible-tactile",
+    "detail": "63×29px",
+    "a": "a.flex.items-center.gap-1.5 « PDF »"
+   }
+  ],
+  "chantiers": [
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button.is-on « 10 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 15 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 20 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 30 »"
+   }
+  ],
+  "stats": [],
+  "projet": [],
+  "projet-mesures": [],
+  "projet-sav": [],
+  "carnet": [],
+  "garanties": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "relances": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "devis-attente": [
+   {
+    "genre": "cible-tactile",
+    "detail": "62×16px",
+    "a": "a.inline-flex.items-center.gap-1.5 « Accueil »"
+   }
+  ],
+  "rapport-quotidien": [],
+  "admin-anomalies": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-droits": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-stocks": [],
+  "admin-pieces-defauts": [],
+  "admin-utilisateurs": [],
+  "admin-rapports": [
+   {
+    "genre": "cible-tactile",
+    "detail": "16×16px",
+    "a": "input.mt-0.5.w-4.h-4"
+   }
+  ],
+  "admin-heures": [],
+  "admin-finances": [],
+  "admin-sauvegardes": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "login": []
+ },
+ "ipad-13-paysage": {
+  "dashboard": [
+   {
+    "genre": "cible-tactile",
+    "detail": "26×40px",
+    "a": "button"
+   }
+  ],
+  "services": [],
+  "crm": [
+   {
+    "genre": "cible-tactile",
+    "detail": "26×40px",
+    "a": "button"
+   }
+  ],
+  "kanban": [],
+  "destockage": [
+   {
+    "genre": "cible-tactile",
+    "detail": "32×40px",
+    "a": "button.w-8.h-7.flex"
+   }
+  ],
+  "fournisseurs": [],
+  "grossistes": [],
+  "sanitaires": [],
+  "rapport": [
+   {
+    "genre": "cible-tactile",
+    "detail": "63×29px",
+    "a": "a.flex.items-center.gap-1.5 « PDF »"
+   }
+  ],
+  "chantiers": [
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button.is-on « 10 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 15 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 20 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 30 »"
+   }
+  ],
+  "stats": [],
+  "projet": [],
+  "projet-mesures": [],
+  "projet-sav": [],
+  "carnet": [],
+  "garanties": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "relances": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "devis-attente": [
+   {
+    "genre": "cible-tactile",
+    "detail": "62×16px",
+    "a": "a.inline-flex.items-center.gap-1.5 « Accueil »"
+   }
+  ],
+  "rapport-quotidien": [],
+  "admin-anomalies": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-droits": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-stocks": [],
+  "admin-pieces-defauts": [],
+  "admin-utilisateurs": [],
+  "admin-rapports": [
+   {
+    "genre": "cible-tactile",
+    "detail": "16×16px",
+    "a": "input.mt-0.5.w-4.h-4"
+   }
+  ],
+  "admin-heures": [],
+  "admin-finances": [],
+  "admin-sauvegardes": [
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "login": []
+ },
+ "ipad-split": {
+  "dashboard": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "services": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "crm": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "kanban": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "destockage": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "32×40px",
+    "a": "button.w-8.h-7.flex"
+   }
+  ],
+  "fournisseurs": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "grossistes": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "sanitaires": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "rapport": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "63×29px",
+    "a": "a.flex.items-center.gap-1.5 « PDF »"
+   }
+  ],
+  "chantiers": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button.is-on « 10 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 15 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 20 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 30 »"
+   }
+  ],
+  "stats": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "projet": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "projet-mesures": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "projet-sav": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "carnet": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "garanties": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "relances": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "devis-attente": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "62×16px",
+    "a": "a.inline-flex.items-center.gap-1.5 « Accueil »"
+   }
+  ],
+  "rapport-quotidien": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-anomalies": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-droits": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-stocks": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-pieces-defauts": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-utilisateurs": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-rapports": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "16×16px",
+    "a": "input.mt-0.5.w-4.h-4"
+   }
+  ],
+  "admin-heures": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-finances": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-sauvegardes": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "login": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ]
+ },
+ "iphone-se": {
+  "dashboard": [
+   {
+    "genre": "debordement",
+    "detail": "la page fait 429px de large pour 375px d'écran — le plus à droite : div.sg-charge-filtres « MontagesMesuresServicesSAVGaranties » (bord à 429px)",
+    "a": "div.sg-charge-filtres « MontagesMesuresServicesSAVGaranties »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "services": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "crm": [
+   {
+    "genre": "debordement",
+    "detail": "la page fait 429px de large pour 375px d'écran — le plus à droite : div.sg-charge-filtres « MontagesMesuresServicesSAVGaranties » (bord à 429px)",
+    "a": "div.sg-charge-filtres « MontagesMesuresServicesSAVGaranties »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "kanban": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "destockage": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "32×40px",
+    "a": "button.w-8.h-7.flex"
+   }
+  ],
+  "fournisseurs": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "grossistes": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "sanitaires": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "rapport": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "63×29px",
+    "a": "a.flex.items-center.gap-1.5 « PDF »"
+   }
+  ],
+  "chantiers": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button.is-on « 10 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 15 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 20 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 30 »"
+   }
+  ],
+  "stats": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "projet": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "projet-mesures": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "projet-sav": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "carnet": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "garanties": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "relances": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "devis-attente": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "62×16px",
+    "a": "a.inline-flex.items-center.gap-1.5 « Accueil »"
+   }
+  ],
+  "rapport-quotidien": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-anomalies": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-droits": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-stocks": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-pieces-defauts": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-utilisateurs": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-rapports": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "16×16px",
+    "a": "input.mt-0.5.w-4.h-4"
+   }
+  ],
+  "admin-heures": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-finances": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-sauvegardes": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "login": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ]
+ },
+ "iphone-13": {
+  "dashboard": [
+   {
+    "genre": "debordement",
+    "detail": "la page fait 429px de large pour 390px d'écran — le plus à droite : div.sg-charge-filtres « MontagesMesuresServicesSAVGaranties » (bord à 429px)",
+    "a": "div.sg-charge-filtres « MontagesMesuresServicesSAVGaranties »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "services": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "crm": [
+   {
+    "genre": "debordement",
+    "detail": "la page fait 429px de large pour 390px d'écran — le plus à droite : div.sg-charge-filtres « MontagesMesuresServicesSAVGaranties » (bord à 429px)",
+    "a": "div.sg-charge-filtres « MontagesMesuresServicesSAVGaranties »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "kanban": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "destockage": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "32×40px",
+    "a": "button.w-8.h-7.flex"
+   }
+  ],
+  "fournisseurs": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "grossistes": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "sanitaires": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "rapport": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "63×29px",
+    "a": "a.flex.items-center.gap-1.5 « PDF »"
+   }
+  ],
+  "chantiers": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button.is-on « 10 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 15 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 20 »"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "28×44px",
+    "a": "button « 30 »"
+   }
+  ],
+  "stats": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "projet": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "projet-mesures": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "projet-sav": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "carnet": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "garanties": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "relances": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "devis-attente": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "62×16px",
+    "a": "a.inline-flex.items-center.gap-1.5 « Accueil »"
+   }
+  ],
+  "rapport-quotidien": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-anomalies": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-droits": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "admin-stocks": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-pieces-defauts": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-utilisateurs": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-rapports": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "16×16px",
+    "a": "input.mt-0.5.w-4.h-4"
+   }
+  ],
+  "admin-heures": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-finances": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ],
+  "admin-sauvegardes": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   },
+   {
+    "genre": "cible-tactile",
+    "detail": "91×30px",
+    "a": "a.sgch-retour.inline-flex.mb-4 « Accueil »"
+   }
+  ],
+  "login": [
+   {
+    "genre": "cible-tactile",
+    "detail": "30×30px",
+    "a": "a.home-badge.inline-flex.items-center"
+   }
+  ]
+ }
+}
