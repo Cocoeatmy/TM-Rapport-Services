@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, Package, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins, RefreshCcw } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, Package, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins, RefreshCcw, Database
+} from "lucide-react";
 import { viderCachesDeLecture, viderCacheServiceWorker } from "@/lib/vider-caches";
 import { getQueue } from "@/lib/offline";
 import { countPendingUploads } from "@/lib/idb-uploads";
@@ -318,6 +319,15 @@ export function UserMenu() {
               >
                 <ShieldCheck className="w-4 h-4" />
                 Droits d&apos;accès
+              </button>
+            )}
+            {user.role === "admin" && (
+              <button
+                onClick={() => { setOpen(false); router.push("/admin/sauvegardes"); }}
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              >
+                <Database className="w-4 h-4" />
+                Sauvegardes
               </button>
             )}
             {user.role === "admin" && (

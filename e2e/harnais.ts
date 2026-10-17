@@ -173,6 +173,12 @@ export async function brancherFixtures(
     if (chemin === "/api/upload") return json(route, { files: [{ name: "f", url: "https://c.test/f" }] });
     if (chemin === "/api/build") return json(route, { build: "test" });
     if (chemin === "/api/bexio/projet") return json(route, { etat: "inconnue", factures: [], restant: 0 });
+    /* Les listes de projets contiennent le projet fictif : c'est ainsi que
+       l'application le met dans son cache local, exactement comme lorsqu'un
+       monteur l'ouvre depuis une liste. Sans cela, la fiche ne le retrouve
+       pas hors ligne — un artefact du banc d'essai, pas de l'application. */
+    if (chemin.startsWith("/api/projects")) return json(route, [projet]);
+
     /* Tout le reste : une liste vide, c'est inoffensif. */
     return json(route, []);
   });

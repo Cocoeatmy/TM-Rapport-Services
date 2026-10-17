@@ -29,10 +29,30 @@ function getGmailTransport() {
 }
 
 /**
+ * Une pièce jointe. Le contenu est fourni en clair : c'est à l'appelant de
+ * juger ce qu'il expédie.
+ */
+export interface PieceJointe {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+}
+
+/**
  * Envoi e-mail HTML simple. Retourne {success, error}.
  * Priorité à Gmail SMTP si configuré (envoi à tous), sinon Resend.
+ *
+ * Les pièces jointes passent par le même chemin : nodemailer les attend sous
+ * `attachments`, Resend sous une forme très proche mais avec le contenu en
+ * base64. Les deux plafonnent vers 25 Mo côté Gmail et 40 Mo côté Resend ;
+ * au-delà, l'envoi échoue et le dit.
  */
-export async function sendEmail(to: string, subject: string, html: string): Promise<{ success: boolean; error?: string }> {
+export async function sendEmail(
+  to: string,
+  subject: string,
+  html: string,
+  attachments?: PieceJointe[],
+): Promise<{ success: boolean; error?: string }> {
   if (gmailEnabled) {
     try {
       await getGmailTransport().sendMail({
@@ -40,6 +60,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
         to,
         subject,
         html,
+        ...(attachments?.length ? { attachments } : {}),
       });
       return { success: true };
     } catch (error: any) {
@@ -48,7 +69,20 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     }
   }
   try {
-    const res = await resend.emails.send({ from: EMAIL_FROM, to, subject, html });
+    const res = await resend.emails.send({
+      from: EMAIL_FROM,
+      to,
+      subject,
+      html,
+      ...(attachments?.length
+        ? {
+            attachments: attachments.map((a) => ({
+              filename: a.filename,
+              content: a.content.toString("base64"),
+            })),
+          }
+        : {}),
+    });
     if ((res as any)?.error) return { success: false, error: (res as any).error?.message || "Resend error" };
     return { success: true };
   } catch (error: any) {

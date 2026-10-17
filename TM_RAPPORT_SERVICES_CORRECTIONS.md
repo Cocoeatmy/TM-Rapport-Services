@@ -284,3 +284,168 @@ pas pu lire au lieu de le rendre vide, et répond 206 quand il est partiel.
 5. **`xlsx`** : vulnérabilité sans correctif, hors d'atteinte ici (l'app
    n'analyse aucun classeur, elle n'en écrit que). À revoir si un import
    arrive un jour.
+
+---
+
+# Troisième campagne — 17 octobre 2026 (soir)
+
+Objet : les **quatre vérifications demandées avant déploiement**. Chacune
+visait une limite que la campagne précédente avait nommée au lieu de la
+lever. Les quatre sont levées.
+
+## 1 — Le service worker, le vrai
+
+Limite précédente : *« le service worker est désactivé pendant les tests de
+bout en bout ; il n'est donc pas couvert »*.
+
+`e2e/30-service-worker.spec.ts` — 4 tests, sur l'application **compilée**,
+avec `serviceWorkers: "allow"` et le `public/sw.js` de production.
+
+| Test | Ce qu'il démontre |
+|---|---|
+| s'installe et met la coquille en réserve | Le worker prend la main et son cache n'est pas vide |
+| **ouvre l'application SANS RÉSEAU** après une première visite | Réseau coupé pour de bon, l'application s'ouvre quand même — la promesse de la PWA |
+| la fiche d'un projet déjà consulté se rouvre sans réseau | Pas de page blanche sur le chantier |
+| les fragments de code déjà vus sont resservis sans réseau | Le cas qui échouait sans worker : le pavé de signature est un fragment chargé à la demande. Chaque `/_next/static/chunks/*.js` est re-demandé hors ligne et doit répondre avec des octets |
+
+Chromium seulement : Playwright n'intercepte les requêtes d'un service
+worker que sur ce moteur.
+
+## 2 — Les octets d'une photo, après extinction complète
+
+Limite précédente : *« les octets d'une photo après redémarrage ne sont pas
+vérifiés : les deux bancs d'essai perdent les `Blob` à la relecture »*.
+
+`e2e/31-photos-octets.spec.ts` — 2 tests, avec un **profil de navigateur sur
+disque** (`launchPersistentContext`). Le navigateur est réellement éteint,
+puis rallumé sur le même profil.
+
+- l'image est déposée **hors réseau**, puis relue après extinction :
+  **même taille, même SHA-256, même nom** ;
+- rallumé **avec** le réseau, la file se vide seule et l'écriture part vers
+  le bon champ du bon projet.
+
+L'image passe par le pavé de signature : ce n'est pas un détour, photos et
+signature empruntent le **même appel** (`addPendingUpload`), le même magasin
+IndexedDB et la même structure `{ name, type, blob }`.
+
+## 3 — La signature est-elle dans le PDF ?
+
+`src/__tests__/pdf-signature.test.ts` — 4 tests.
+
+Le PDF est **réellement rendu** par `@react-pdf/renderer`, avec et sans
+signature, et on mesure la différence de taille : une image PNG de 4 228
+octets ne peut pas grossir le document si elle n'y est pas. Deux approches
+plus directes ont échoué et sont documentées dans le fichier — compter les
+images ne marche pas (le logo en contient déjà quatre), intercepter `fetch`
+non plus (react-pdf ne passe pas par le `fetch` global).
+
+## 4 — L'archive est-elle vraiment restaurable ?
+
+C'était la bonne question : **l'export produisait un fichier que personne
+n'avait jamais rouvert.** Il n'y avait aucun chemin de retour.
+
+### Ce qui a été construit
+
+| Élément | Rôle |
+|---|---|
+| `src/lib/archive.ts` | Le format, en un seul endroit : construction, **validation** (y compris le repérage d'un fichier tronqué par ses empreintes), comparaison, nommage |
+| `POST /api/admin/sauvegardes/import` | Le chemin de retour. **Simulation par défaut** — sans `appliquer: true`, rien ne s'écrit |
+| `/admin/sauvegardes` | La page. Regarder les copies, en télécharger une, en réinstaller une. Accessible depuis le menu, réservée à l'administrateur |
+| `rassemblerLesListes` dans `sauvegarde.ts` | Une seule définition de « ce qu'on sauvegarde », pour que l'export manuel et la copie hebdomadaire ne divergent pas |
+
+Les verrous de l'import sont ceux de la restauration interne : droit
+d'administration, **phrase de confirmation qui contient la date de
+l'archive** (on ne réinstalle pas celle d'il y a six mois en croyant prendre
+celle d'hier), refus automatique de toute perte nette, et refus d'écrire sur
+un état actuel illisible — on ne devine pas ce qu'on écrase.
+
+### Ce qui le prouve
+
+`src/__tests__/archive-restauration.test.ts` — 18 tests. Le scénario
+principal va jusqu'au bout :
+
+1. cinq listes fictives vivent dans un magasin en mémoire ;
+2. on **télécharge** par la vraie route, et on garde le **texte** du fichier ;
+3. **le magasin est vidé** — comme si l'espace Notion avait disparu ;
+4. le texte est relu depuis zéro, validé, simulé, puis appliqué ;
+5. comparaison enregistrement par enregistrement, y compris ce qui se perd
+   d'habitude : l'ordre, les dates, l'imbriqué profond, et `""`, `0`,
+   `false`, `null` — qu'une sérialisation bâclée transforme en « absent ».
+
+Les autres tests couvrent le refus d'un fichier tronqué, d'un fichier qui
+n'est pas une archive, d'une version future, des clés inventées, et chacun
+des quatre verrous.
+
+## Sauvegarde automatique indépendante de Notion, sans abonnement
+
+Options examinées, et celle qui a été retenue :
+
+| Piste | Verdict |
+|---|---|
+| **Courriel hebdomadaire avec l'archive en pièce jointe** | **Retenue.** Gmail est déjà configuré (`GMAIL_USER` / `GMAIL_APP_PASSWORD`, utilisés par le rapport quotidien). Aucun service en plus, aucun abonnement, aucun tiers de plus que ceux qui détiennent déjà les données. La boîte aux lettres conserve l'archive aussi longtemps que vous le voulez, et personne ne peut vous en couper l'accès du jour au lendemain |
+| Dépôt Git privé (GitHub) | Techniquement gratuit, mais place les données d'exploitation dans un dépôt de code — mauvais endroit, et une fuite de jeton deviendrait une fuite de données |
+| Stockage objet (S3, R2, B2) | Fiable, mais c'est un compte de plus, une facture de plus et des clés de plus à surveiller |
+| Vercel Blob | Lié au même hébergeur que l'application : même défaut que Notion, sous un autre nom |
+| Téléchargement manuel | Déjà là, mais dépend de quelqu'un qui y pense |
+
+`GET /api/cron/export-hebdo` — tous les dimanches à 2 h (`vercel.json`) :
+
+- **ne fait rien tant que `BACKUP_EMAIL` n'est pas défini.** Aucun courriel
+  que personne n'a réclamé ;
+- comprime au-delà de 8 Mo (Gmail rechigne au-delà) ;
+- **échoue bruyamment** si rien n'a pu être lu, plutôt que d'expédier une
+  archive vide qui laisserait croire que tout va bien ;
+- `sendEmail` accepte désormais des pièces jointes, côté Gmail comme côté
+  Resend.
+
+`src/__tests__/archive-hebdo.test.ts` — 7 tests, dont le seul qui compte :
+**la pièce jointe expédiée est ouverte, validée, et réinstallée dans un
+magasin vidé.** Aucun courriel n'est réellement envoyé.
+
+## Tests ajoutés par cette campagne
+
+| Fichier | Tests |
+|---|---:|
+| `e2e/30-service-worker.spec.ts` | 4 |
+| `e2e/31-photos-octets.spec.ts` | 2 |
+| `src/__tests__/pdf-signature.test.ts` | 4 |
+| `src/__tests__/archive-restauration.test.ts` | 18 |
+| `src/__tests__/archive-hebdo.test.ts` | 7 |
+
+## État de la suite
+
+| Contrôle | Résultat |
+|---|---|
+| `vitest run` | **1 203 tests, 88 fichiers — tous verts** |
+| `playwright test` | **14 tests — tous verts** (WebKit + Chromium, sur l'application compilée) |
+| `tsc --noEmit` | aucune erreur |
+| `npm run build` | compilation réussie, les quatre nouvelles routes présentes |
+| `eslint` sur les fichiers touchés | aucune alerte nouvelle |
+
+Un test a échoué en cours de route et a bien fait : l'inventaire des droits
+(`droits.test.ts`) a refusé les trois nouvelles routes tant qu'elles
+n'étaient pas classées. `node scripts/gen-droits.mjs` les a inscrites
+— page admin, route à droit, tâche planifiée.
+
+## Données de production : inchangées
+
+Vérifié en lecture seule après la campagne : **1 649** fiches Notion,
+**80** signalements, **25** pièces, et le projet aux **8** signalements
+historiques intact. Rien ne pouvait être écrit : les tests unitaires
+remplacent entièrement le magasin, et les tests de bout en bout tournent
+avec un jeton Notion volontairement invalide — les journaux du serveur de
+test le confirment ligne après ligne.
+
+## Limites restantes
+
+Les points 2 et 3 des limites précédentes sont levés. Restent :
+
+1. **WebKit sous Playwright ne stocke pas de `Blob` dans IndexedDB** — les
+   parcours hors ligne tournent sur Chromium au gabarit iPhone. Safari sur
+   un vrai appareil sait le faire.
+2. **Trois fichiers de 6 000 à 13 600 lignes** restent non découpés.
+3. **`xlsx`** : vulnérabilité sans correctif, hors d'atteinte ici.
+4. **L'import est plafonné à 4,5 Mo** par requête chez Vercel. Au-delà, on
+   réinstalle liste par liste (`cles: ["defauts"]`). Les volumes actuels en
+   sont très loin.

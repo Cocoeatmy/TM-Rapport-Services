@@ -352,9 +352,7 @@ describe("Export — une copie hors de l'application", () => {
     listes.set("pieces", defautsFictifs(4));
     const exportRoute = await import("@/app/api/admin/sauvegardes/export/route");
 
-    const r = await exportRoute.GET(
-      new NextRequest("http://local/api/admin/sauvegardes/export"),
-    );
+    const r = await exportRoute.GET();
 
     expect(r.status).toBe(200);
     expect(r.headers.get("Content-Disposition")).toContain("attachment");
@@ -375,9 +373,7 @@ describe("Export — une copie hors de l'application", () => {
     lectureCassee = new Set(["pieces"]);
     const exportRoute = await import("@/app/api/admin/sauvegardes/export/route");
 
-    const r = await exportRoute.GET(
-      new NextRequest("http://local/api/admin/sauvegardes/export"),
-    );
+    const r = await exportRoute.GET();
 
     /* 206 : l'archive est partielle, et le dit avant même d'être ouverte. */
     expect(r.status).toBe(206);

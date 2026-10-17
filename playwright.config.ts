@@ -48,13 +48,15 @@ export default defineConfig({
        pour ses photos — c'est donc une limite de l'outil, pas du logiciel. */
     {
       name: "mobile-idb",
+      /* Les parcours hors ligne, qui ont besoin de stocker des octets, et
+         ceux qui exigent le vrai service worker : Playwright n'intercepte
+         les requêtes d'un service worker que sur Chromium. */
+      testMatch: /(00|10|3[0-9]|40)-.*\.spec\.ts$/,
       use: {
         ...devices["Pixel 7"],
-        /* Même largeur qu'un iPhone 13 : on teste le même écran. */
         viewport: { width: 390, height: 844 },
+        serviceWorkers: "allow",
       },
-      /* Les parcours hors ligne, qui ont besoin de stocker des octets. */
-      testMatch: /(00|10)-.*\.spec\.ts$/,
     },
   ],
   webServer: {

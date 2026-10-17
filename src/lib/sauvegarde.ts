@@ -180,3 +180,27 @@ export async function apercuRestauration(cle: string, emplacement: string): Prom
     message,
   };
 }
+
+/**
+ * Lit toutes les listes sauvegardables, en disant ce qui a manqué.
+ *
+ * Sert à l'export manuel comme à la copie hebdomadaire par courriel : une
+ * seule définition de « ce qu'on sauvegarde », pour que les deux ne puissent
+ * pas diverger.
+ */
+export async function rassemblerLesListes(
+  cles: readonly string[] = CLES_SAUVEGARDEES,
+): Promise<{ listes: Record<string, unknown[]>; manquantes: Record<string, string> }> {
+  const listes: Record<string, unknown[]> = {};
+  const manquantes: Record<string, string> = {};
+  for (const cle of cles) {
+    try {
+      listes[cle] = await getDataFresh<unknown>(cle);
+    } catch (e) {
+      /* Une liste illisible est SIGNALÉE, jamais remplacée par un tableau
+         vide : une archive qui ment est pire qu'une archive incomplète. */
+      manquantes[cle] = e instanceof Error ? e.message : String(e);
+    }
+  }
+  return { listes, manquantes };
+}
