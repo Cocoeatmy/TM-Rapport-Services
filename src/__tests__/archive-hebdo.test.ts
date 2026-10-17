@@ -9,6 +9,10 @@
  *
  * Aucun courriel n'est réellement expédié : l'envoi est une doublure qui
  * garde ce qu'on lui a donné.
+ *
+ * La pièce jointe part sous enveloppe chiffrée — `archive-chiffrement.test.ts`
+ * s'occupe de l'enveloppe elle-même ; ici on l'ouvre juste pour vérifier ce
+ * qu'elle transporte.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
@@ -48,6 +52,16 @@ vi.mock("@/lib/email", () => ({
 const cron = await import("@/app/api/cron/export-hebdo/route");
 const importRoute = await import("@/app/api/admin/sauvegardes/import/route");
 const { validerArchive } = await import("@/lib/archive");
+const { dechiffrer } = await import("@/lib/archive-chiffree");
+
+const PASSE = "phrase-secrete-de-test-assez-longue";
+
+/** Ouvre la pièce jointe : enveloppe, puis compression éventuelle. */
+function ouvrir(piece: { content: Buffer }) {
+  let clair = dechiffrer(piece.content, PASSE);
+  if (clair[0] === 0x1f && clair[1] === 0x8b) clair = gunzipSync(clair);
+  return JSON.parse(clair.toString("utf-8"));
+}
 
 function lignesFictives(n: number, prefixe = "x") {
   return Array.from({ length: n }, (_, i) => ({
@@ -58,15 +72,16 @@ function lignesFictives(n: number, prefixe = "x") {
   }));
 }
 
-const requete = () => new NextRequest("http://local/api/cron/export-hebdo");
+const requete = () => new NextRequest("http://local/api/cron/export-hebdo?secret=chut");
 
 beforeEach(() => {
   listes.clear();
   courriers.length = 0;
   lectureCassee = null;
   envoiCasse = false;
-  delete process.env.CRON_SECRET;
+  process.env.CRON_SECRET = "chut";
   delete process.env.BACKUP_EMAIL;
+  process.env.BACKUP_PASSPHRASE = PASSE;
 });
 
 describe("La copie hebdomadaire par courriel", () => {
@@ -80,14 +95,27 @@ describe("La copie hebdomadaire par courriel", () => {
     expect(courriers, "aucun courriel non réclamé").toHaveLength(0);
   });
 
-  it("refuse un appel sans le secret quand il est exigé", async () => {
-    process.env.CRON_SECRET = "chut";
+  it("refuse un appel sans le bon secret", async () => {
     process.env.BACKUP_EMAIL = "m@tm.ch";
     listes.set("defauts", lignesFictives(5));
 
-    const r = await cron.GET(requete());
+    const r = await cron.GET(new NextRequest("http://local/api/cron/export-hebdo?secret=faux"));
 
     expect(r.status).toBe(401);
+    expect(courriers).toHaveLength(0);
+  });
+
+  it("se TAIT si CRON_SECRET n'est pas configuré du tout", async () => {
+    /* Les autres tâches laissent passer dans ce cas. Pas celle-ci : elle
+       expédie l'intégralité des données hors de l'application, et une URL
+       devinée suffirait. */
+    delete process.env.CRON_SECRET;
+    process.env.BACKUP_EMAIL = "m@tm.ch";
+    listes.set("defauts", lignesFictives(5));
+
+    const r = await cron.GET(new NextRequest("http://local/api/cron/export-hebdo"));
+
+    expect(r.status).toBe(503);
     expect(courriers).toHaveLength(0);
   });
 
@@ -107,10 +135,10 @@ describe("La copie hebdomadaire par courriel", () => {
     expect(courriers[0].to).toBe("sauvegarde@tm.ch");
     expect(courriers[0].pieces).toHaveLength(1);
     const piece = courriers[0].pieces[0];
-    expect(piece.filename).toMatch(/^tm-rapport-export-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(piece.filename).toMatch(/^tm-rapport-export-\d{4}-\d{2}-\d{2}\.json\.tmenc$/);
 
     /* ── Et maintenant la seule question qui compte : ça se relit ? ────── */
-    const relu = JSON.parse(piece.content.toString("utf-8"));
+    const relu = ouvrir(piece);
     expect(validerArchive(relu).valide).toBe(true);
 
     listes.clear(); // tout est perdu
@@ -144,9 +172,9 @@ describe("La copie hebdomadaire par courriel", () => {
     expect(r.status).toBe(200);
 
     const piece = courriers[0].pieces[0];
-    expect(piece.filename).toMatch(/\.json\.gz$/);
-    /* La compression se défait, et rend exactement l'archive. */
-    const relu = JSON.parse(gunzipSync(piece.content).toString("utf-8"));
+    expect(piece.filename).toMatch(/\.json\.gz\.tmenc$/);
+    /* Les deux couches se défont, et rendent exactement l'archive. */
+    const relu = ouvrir(piece);
     expect(validerArchive(relu).valide).toBe(true);
     expect(relu.listes.logs).toHaveLength(12_000);
     expect(relu.listes.logs[11_999]).toEqual(gros[11_999]);
@@ -163,7 +191,7 @@ describe("La copie hebdomadaire par courriel", () => {
     const piece = courriers[0].pieces[0];
     expect(piece.filename).toContain("PARTIEL");
     expect(courriers[0].subject).toContain("PARTIELLE");
-    const relu = JSON.parse(piece.content.toString("utf-8"));
+    const relu = ouvrir(piece);
     expect(relu.manquantes.logs).toContain("indisponible");
     expect(relu.listes.logs, "pas de liste vide inventée").toBeUndefined();
   });

@@ -61,7 +61,7 @@ vi.mock("@/lib/droits-serveur", () => ({
   exigerDroit: vi.fn(async () => ({ user: { name: "Micael", email: "m@tm.ch", role: "admin" } })),
 }));
 
-const { sauvegarderUne, sauvegarderTout, cleDeSauvegarde, inventaireDe, apercuRestauration } =
+const { sauvegarderUne, sauvegarderTout, inventaireDe, apercuRestauration } =
   await import("@/lib/sauvegarde");
 const restauration = await import("@/app/api/admin/sauvegardes/route");
 

@@ -191,7 +191,10 @@ for (const cas of CAS) {
       await route().POST(requetePost(corps));
       await route().DELETE(requeteDelete("s1"));
 
-      const { id: _ignore, ...sansId } = corps;
+      /* Le même envoi, mais sans identifiant : c'est ainsi qu'un téléphone
+         rejoue après avoir perdu la réponse. */
+      const sansId = { ...corps };
+      delete (sansId as { id?: string }).id;
       await route().POST(requetePost(sansId));
       expect(magasin.get(cas.cle)).toHaveLength(0);
     });

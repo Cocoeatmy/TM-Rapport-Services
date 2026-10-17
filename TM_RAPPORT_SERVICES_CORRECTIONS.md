@@ -449,3 +449,119 @@ Les points 2 et 3 des limites précédentes sont levés. Restent :
 4. **L'import est plafonné à 4,5 Mo** par requête chez Vercel. Au-delà, on
    réinstalle liste par liste (`cles: ["defauts"]`). Les volumes actuels en
    sont très loin.
+
+---
+
+# Quatrième campagne — 17 octobre 2026 (préparation du déploiement)
+
+## 1 — La signature DANS le PDF, vue de ses pixels
+
+Reproche fondé : un écart de taille entre deux documents ne prouve rien.
+
+Le test a été refait. Un paraphe est **dessiné dans le test** — une boucle
+cursive, dans une encre d'une teinte unique (10, 20, 90) qui n'existe nulle
+part ailleurs. Le PDF est produit, puis **rouvert et décodé** avec `pdf-lib` :
+on y retrouve l'objet image, on détend son flux, et on compare les pixels un
+par un à ceux qu'on a dessinés.
+
+| Vérification | Résultat |
+|---|---|
+| Image 600×200 présente dans le document signé | oui, en `/DeviceRGB` + son masque `/DeviceGray` |
+| Pixels identiques au tracé | **11 167 pixels opaques, 0 divergence** |
+| Document non signé | aucune image 600×200 — le cadre entier disparaît |
+| Contrôle de validité du test | en retirant la signature, le test **échoue** |
+
+Le rendu a aussi été regardé à l'œil : le paraphe apparaît dans le cadre
+« Signature du client », à la bonne place et aux bonnes proportions.
+
+## 2 — Les archives : ce qu'elles contiennent, et sous quelle protection
+
+### Ce qu'on y trouve, mesuré sur les données réelles
+
+| Mesure | Nombre |
+|---|---:|
+| Adresses électroniques | 100 |
+| Chaînes de forme « numéro de téléphone » | 567 |
+| Adresses de photographies Cloudinary | 233 |
+| Noms de chantiers distincts | 252 |
+| Collaborateurs nommés | 10 |
+| Lignes de journal d'activité nominatif | 3 202 |
+
+Et un point décisif, vérifié : **les adresses Cloudinary s'ouvrent sans
+aucune authentification** (HTTP 206 sur une requête anonyme). Une archive en
+clair n'est donc pas seulement une liste de noms : c'est un trousseau qui
+ouvre toutes les photographies de chantier.
+
+Verdict : l'archive est sensible. Elle ne sort jamais en clair.
+
+### La protection
+
+`src/lib/archive-chiffree.ts` — **AES-256-GCM**, clé dérivée d'une phrase
+secrète par **scrypt** (N = 32 768). GCM authentifie autant qu'il chiffre :
+un fichier abîmé d'un seul octet est refusé, au lieu de rendre une bouillie
+plausible.
+
+L'enveloppe porte son mode d'emploi en clair sur ses deux premières lignes —
+algorithme, sel, vecteur, étiquette, empreinte du contenu. Ce n'est pas une
+faiblesse : c'est ce qui garantit qu'on saura la rouvrir dans dix ans.
+
+**`scripts/dechiffrer-archive.mjs`** la rouvre avec **Node seul, sans aucune
+dépendance**. C'est le filet du filet : si cette application, Vercel et
+Notion ont tous disparu, ce script et la phrase secrète suffisent.
+
+### Règles d'expédition
+
+| Condition | Comportement |
+|---|---|
+| `BACKUP_EMAIL` absent | ne fait rien, le dit (`actif: false`) |
+| `BACKUP_PASSPHRASE` absente ou < 12 caractères | **refuse d'expédier**, répond 503 |
+| `CRON_SECRET` absent | **refuse de s'exécuter**, répond 503 — cette tâche-ci sort toutes les données de l'application, une adresse devinée ne doit pas suffire |
+| Rien n'a pu être lu | n'expédie pas d'archive vide, répond 500 |
+
+`src/__tests__/archive-chiffrement.test.ts` — 16 tests, dont : rien du
+contenu ne transparaît dans l'enveloppe, deux enveloppes du même contenu
+diffèrent, le script de secours rouvre et rend l'archive, et **la pièce
+jointe du courriel restaure tout dans un magasin vidé**.
+
+## 3 — Contrôles avant déploiement
+
+| Contrôle | Constat |
+|---|---|
+| **Variables d'environnement** | 26 définies en production. Aucune manquante : tout ce que le code lit en plus a une valeur de repli (`BEXIO_TOKEN_KEY`→`JWT_SECRET`, `UPSTASH_*`→`KV_REST_API_*`, etc.). **Deux à ajouter** pour activer la copie hebdomadaire : `BACKUP_EMAIL`, `BACKUP_PASSPHRASE` |
+| **Paramètres Vercel** | Projet `tm-rapport-services`, région `fra1`, Node 24.x, `buildCommand` inchangé |
+| **Tâches planifiées** | 11 avant, 12 après. Une seule ajoutée : `/api/cron/export-hebdo`, dimanche 2 h. Aucun doublon, aucun chevauchement |
+| **Nouvelles routes** | 3 routes + 1 page. Classées par `gen-droits.mjs` : page `admin-ecran`, les deux API `droit`, la tâche `cron` |
+| **Permissions** | `/api/admin/sauvegardes{,/export,/import}` exigent `administration.droits`. `/api/cron/export-hebdo` tombe dans le préfixe public `/api/cron/` comme toutes les tâches, et se protège lui-même par `CRON_SECRET` — désormais **obligatoire** pour cette route |
+| **Retour arrière** | Vercel conserve les déploiements : `vercel rollback <url>` remet l'actuel en ligne en une minute. Côté dépôt, `main` est à `40d022f` et n'est pas touché tant que rien n'est poussé |
+| **Compatibilité du retour arrière** | Les écritures de cette version restent lisibles par l'ancienne : les clés `sauvegarde-*` et `kv:temoin:*` sont additives, et aucun format existant ne change. Une réserve nommée plus bas |
+
+### Deux problèmes d'environnement trouvés et réparés
+
+iCloud synchronise ce dossier et y avait laissé des **copies en double** :
+
+1. **Dans `.git`** — neuf copies de l'index et un faux `refs/remotes/origin/main 2`
+   pointant sur un objet absent. `git fetch` échouait : *« did not send all
+   necessary objects »*. **Le `git push` aurait échoué.** Les copies ont été
+   mises de côté puis retirées ; `git fsck` et `git fetch` sont propres.
+2. **Dans `.next`** — des `routes.d 2.ts`, `cache-life.d 3.ts` que `tsc`
+   lisait et qui le faisaient échouer sur des identifiants en double.
+   `tsconfig.json` les exclut maintenant (`**/* ?.ts`).
+
+Aucun fichier du projet n'a été perdu : seules des copies de fichiers
+générés ont été retirées.
+
+## 4 — État de la suite
+
+| Contrôle | Résultat |
+|---|---|
+| `vitest run` | **1 221 tests, 89 fichiers — tous verts** |
+| `playwright test` | **14 tests — tous verts** |
+| `tsc --noEmit` | aucune erreur |
+| `npm run build` | compilation réussie, les 4 routes présentes |
+| `eslint` | **90 erreurs / 30 avertissements, contre 90 / 32 sur `main`** — la branche est plus propre : 17 imports morts, restes des refactorisations précédentes, ont été retirés |
+
+## 5 — Données de production
+
+Revérifié en lecture seule, après tous ces travaux : **1 649** fiches Notion,
+**80** signalements, **25** pièces, et le projet aux **8** signalements
+historiques intact.

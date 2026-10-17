@@ -2,25 +2,113 @@
  * La signature dans le PDF final.
  *
  * On avait démontré que l'écriture `signatureUrl` part vers le bon projet.
- * Il restait à vérifier l'étape suivante, celle qui compte pour le client :
- * que la signature **apparaisse réellement dans le document**.
+ * Il restait à vérifier l'étape qui compte pour le client : que la signature
+ * **apparaisse réellement dans le document**.
  *
- * Le PDF est donc produit pour de bon par @react-pdf/renderer, avec un
- * projet fictif. On vérifie que l'image de la signature est allée être
- * cherchée, et qu'elle se retrouve bien dans le document — pas seulement
- * qu'une balise existe dans le code.
+ * ── Pourquoi ce test ne compare pas des tailles ──────────────────────────
+ *
+ * Une première version mesurait l'écart de poids entre un PDF signé et un
+ * PDF sans signature. Ce n'était pas une preuve : un document plus lourd
+ * peut l'être pour mille raisons, et rien ne disait que les pixels affichés
+ * étaient ceux du client.
+ *
+ * Ici le PDF est produit pour de bon par @react-pdf/renderer, puis **ouvert
+ * et décodé** : on y retrouve l'objet image de la signature, on détend son
+ * flux, et on compare les pixels **un par un** à ceux qu'on a dessinés. Le
+ * document contient la signature, ou le test échoue.
+ *
+ * Le tracé est dessiné ici même, à la main : une boucle cursive dans une
+ * encre d'une couleur unique et improbable. Aucune autre image du document
+ * — le logo en contient quatre — ne peut produire ces pixels-là.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { deflateSync, inflateSync } from "node:zlib";
+import { PDFDocument, PDFName, PDFRawStream } from "pdf-lib";
 
-/* Une signature fictive de 64×64 pixels, bruitée : ses octets sont
-   volumineux et reconnaissables, impossibles à confondre avec le logo du
-   document. C'est ce qui permet d'affirmer qu'ELLE est bien dans le PDF. */
-const PNG = Buffer.from(
-  "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",
-  "base64",
-);
+/* ── Le tracé ───────────────────────────────────────────────────────────── */
+
+const LARGEUR = 600, HAUTEUR = 200;
+/** L'encre : une couleur unique, qui n'apparaît nulle part ailleurs. */
+const ENCRE = [10, 20, 90] as const;
+
+/** Les pixels attendus, en RVBA. C'est la référence de tout ce fichier. */
+const PIXELS = (() => {
+  const p = Buffer.alloc(LARGEUR * HAUTEUR * 4); // transparent
+  const poser = (cx: number, cy: number, r: number) => {
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy > r * r) continue;
+      const x = Math.round(cx + dx), y = Math.round(cy + dy);
+      if (x < 0 || y < 0 || x >= LARGEUR || y >= HAUTEUR) continue;
+      const i = (y * LARGEUR + x) * 4;
+      p[i] = ENCRE[0]; p[i + 1] = ENCRE[1]; p[i + 2] = ENCRE[2]; p[i + 3] = 255;
+    }
+  };
+  for (let t = 0; t <= 1; t += 0.0005) {
+    poser(40 + t * 520,
+          110 + 55 * Math.sin(t * Math.PI * 5) * Math.exp(-t * 0.6)
+              - 30 * Math.sin(t * Math.PI * 1.2), 4);
+  }
+  for (let t = 0; t <= 1; t += 0.0005) poser(60 + t * 500, 165 - t * 20, 3);
+  for (let a = 0; a < Math.PI * 2; a += 0.002) poser(90 + 38 * Math.cos(a), 95 + 48 * Math.sin(a), 4);
+  return p;
+})();
+
+/** Les mêmes pixels, encodés en PNG — ce que l'application reçoit. */
+const PNG = (() => {
+  const brut = Buffer.alloc((LARGEUR * 4 + 1) * HAUTEUR);
+  for (let y = 0; y < HAUTEUR; y++) {
+    brut[y * (LARGEUR * 4 + 1)] = 0; // aucun filtre de ligne
+    PIXELS.copy(brut, y * (LARGEUR * 4 + 1) + 1, y * LARGEUR * 4, (y + 1) * LARGEUR * 4);
+  }
+  const table = [...Array(256)].map((_, n) => {
+    let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (b: Buffer) => {
+    let c = 0xffffffff;
+    for (const o of b) c = table[(c ^ o) & 255] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const bloc = (type: string, data: Buffer) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const c = Buffer.alloc(4); c.writeUInt32BE(crc(td));
+    return Buffer.concat([len, td, c]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(LARGEUR, 0); ihdr.writeUInt32BE(HAUTEUR, 4);
+  ihdr[8] = 8; ihdr[9] = 6; // 8 bits par canal, RVBA
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    bloc("IHDR", ihdr), bloc("IDAT", deflateSync(brut)), bloc("IEND", Buffer.alloc(0)),
+  ]);
+})();
+
 const URL_SIGNATURE = `data:image/png;base64,${PNG.toString("base64")}`;
+
+/* ── Rouvrir le PDF et en ressortir les images ──────────────────────────── */
+
+interface ImagePdf { largeur: number; hauteur: number; espace: string; octets: Buffer }
+
+/** Toutes les images embarquées, décompressées. */
+async function imagesDu(pdfBrut: Buffer): Promise<ImagePdf[]> {
+  const doc = await PDFDocument.load(pdfBrut);
+  const out: ImagePdf[] = [];
+  for (const [, obj] of doc.context.enumerateIndirectObjects()) {
+    if (!(obj instanceof PDFRawStream)) continue;
+    const d = obj.dict;
+    if (d.get(PDFName.of("Subtype"))?.toString() !== "/Image") continue;
+    if (d.get(PDFName.of("Filter"))?.toString() !== "/FlateDecode") continue;
+    out.push({
+      largeur: Number(d.get(PDFName.of("Width"))?.toString()),
+      hauteur: Number(d.get(PDFName.of("Height"))?.toString()),
+      espace: d.get(PDFName.of("ColorSpace"))?.toString() || "",
+      octets: inflateSync(Buffer.from(obj.contents)),
+    });
+  }
+  return out;
+}
 
 const projetFictif = (o: Record<string, unknown> = {}) => ({
   id: "11111111-2222-3333-4444-555555555555",
@@ -79,9 +167,18 @@ function requete(params = ""): NextRequest {
 }
 const contexte = { params: Promise.resolve({ id: "11111111-2222-3333-4444-555555555555" }) };
 
+
 beforeEach(() => {
   projet = projetFictif();
 });
+
+/** Produit le PDF et rend ses octets. */
+async function produire(p: ReturnType<typeof projetFictif> | null) {
+  projet = p;
+  const r = await pdf.GET(requete(), contexte);
+  expect(r.status).toBe(200);
+  return Buffer.from(await r.arrayBuffer());
+}
 
 describe("le PDF du rapport", () => {
   it("se génère et renvoie bien un document PDF", async () => {
@@ -90,51 +187,65 @@ describe("le PDF du rapport", () => {
     expect(r.headers.get("Content-Type")).toContain("pdf");
     const octets = new Uint8Array(await r.arrayBuffer());
     expect(octets.byteLength).toBeGreaterThan(1000);
-    /* Un vrai PDF commence par %PDF- */
     expect(String.fromCharCode(...octets.slice(0, 5))).toBe("%PDF-");
   }, 60_000);
 
-  it("EMBARQUE la signature dans le document", async () => {
-    /* On compte les images du document, avec puis sans signature. Le
-       document en contient déjà une — le logo — d'où la comparaison plutôt
-       qu'une présence absolue. */
-    const compterImages = (b: Buffer) =>
-      (b.toString("latin1").match(/\/Subtype\s*\/Image/g) || []).length;
+  it("la signature est DANS le document, pixel pour pixel", async () => {
+    const avec = await produire(projetFictif());
+    const images = await imagesDu(avec);
 
-    projet = projetFictif();
-    const avecSig = Buffer.from(await (await pdf.GET(requete(), contexte)).arrayBuffer());
+    /* L'image aux dimensions du tracé, en couleurs. */
+    const sig = images.find(
+      (i) => i.largeur === LARGEUR && i.hauteur === HAUTEUR && i.espace === "/DeviceRGB",
+    );
+    expect(sig, `aucune image ${LARGEUR}×${HAUTEUR} dans le PDF`).toBeDefined();
+    if (!sig) return;
+    expect(sig.octets.length).toBe(LARGEUR * HAUTEUR * 3);
 
-    projet = projetFictif({ signatureUrl: "" });
-    const sansSig = Buffer.from(await (await pdf.GET(requete(), contexte)).arrayBuffer());
+    /* Et son masque de transparence, qui dit où il y a de l'encre. */
+    const masque = images.find(
+      (i) => i.largeur === LARGEUR && i.hauteur === HAUTEUR && i.espace === "/DeviceGray",
+    );
+    expect(masque, "le masque de transparence doit accompagner l'image").toBeDefined();
+    if (!masque) return;
 
-    const nAvec = compterImages(avecSig);
-    const nSans = compterImages(sansSig);
+    /* ── La comparaison, pixel par pixel ──────────────────────────────── */
+    let opaques = 0, divergences = 0;
+    for (let i = 0; i < LARGEUR * HAUTEUR; i++) {
+      const alphaAttendu = PIXELS[i * 4 + 3];
+      if (masque.octets[i] !== alphaAttendu) { divergences++; continue; }
+      if (alphaAttendu === 0) continue; // hors du tracé : la couleur n'a pas de sens
+      opaques++;
+      if (sig.octets[i * 3] !== ENCRE[0] ||
+          sig.octets[i * 3 + 1] !== ENCRE[1] ||
+          sig.octets[i * 3 + 2] !== ENCRE[2]) divergences++;
+    }
 
-    expect(nSans, "le document contient au moins le logo").toBeGreaterThan(0);
-    expect(nAvec, "la signature ne doit pas faire DISPARAÎTRE d'image")
-      .toBeGreaterThanOrEqual(nSans);
-
-    /* La preuve : le document grossit d'au moins la moitié du poids de la
-       signature. Un simple libellé n'y suffirait pas — ce sont bien les
-       octets de l'image qui sont dans le PDF. */
-    const ecart = avecSig.byteLength - sansSig.byteLength;
-    expect(ecart, `le PDF doit grossir des octets de la signature (${PNG.byteLength} o)`)
-      .toBeGreaterThan(PNG.byteLength / 2);
+    expect(divergences, "chaque pixel du tracé doit se retrouver à l'identique").toBe(0);
+    /* Un tracé, pas trois pixels égarés : la boucle en couvre plusieurs
+       milliers. */
+    expect(opaques, "le tracé doit être substantiel").toBeGreaterThan(5000);
   }, 90_000);
 
-  it("affiche le libellé « Signature du client » seulement s'il y en a une", async () => {
-    /* Le libellé est tracé en sous-ensemble de police : on le cherche dans
-       le flux décompressé plutôt que dans les octets bruts. */
-    const contient = async (p: typeof projet, mot: string) => {
-      projet = p;
-      const b = Buffer.from(await (await pdf.GET(requete(), contexte)).arrayBuffer());
-      /* La taille du document est le signal le plus fiable ici : un bloc en
-         plus, avec son cadre, son texte et son image. */
-      return b.byteLength;
-    };
-    const avec = await contient(projetFictif(), "Signature");
-    const sans = await contient(projetFictif({ signatureUrl: "" }), "Signature");
-    expect(avec).toBeGreaterThan(sans);
+  it("sans signature, cette image n'existe pas", async () => {
+    /* Le pendant du test précédent : s'il trouvait la signature dans un
+       document non signé, c'est qu'il mesurerait autre chose. */
+    const sans = await produire(projetFictif({ signatureUrl: "" }));
+    const images = await imagesDu(sans);
+
+    expect(images.length, "le logo reste là").toBeGreaterThan(0);
+    expect(
+      images.find((i) => i.largeur === LARGEUR && i.hauteur === HAUTEUR),
+      "aucune image aux dimensions de la signature",
+    ).toBeUndefined();
+  }, 90_000);
+
+  it("le cadre « Signature du client » suit la signature", async () => {
+    const avec = await produire(projetFictif());
+    const sans = await produire(projetFictif({ signatureUrl: "" }));
+    /* Le bloc entier — cadre, libellé et image — apparaît et disparaît
+       avec elle. */
+    expect(avec.byteLength).toBeGreaterThan(sans.byteLength);
   }, 90_000);
 
   it("ne tombe pas en panne si la signature est illisible", async () => {

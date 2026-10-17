@@ -66,7 +66,7 @@ const {
 
 const PROJET = "3cf1895b-9179-8002-8fae-d0746feb4995";
 
-function image(nom = "photo.jpg"): Blob {
+function image(): Blob {
   return new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 1, 2, 3])], { type: "image/jpeg" });
 }
 

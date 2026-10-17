@@ -19,14 +19,6 @@ import { brancherFixtures, seConnecter, PROJET_ID } from "./harnais";
 /** Un contexte lancé à la main n'hérite pas du `baseURL` de la configuration. */
 const BASE = "http://127.0.0.1:3137";
 
-/** Une image JPEG minuscule mais valide, aux octets connus. */
-const JPEG = Buffer.from(
-  "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a" +
-  "HBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAA" +
-  "AAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
-  "base64",
-);
-
 /** L'empreinte des octets réellement stockés dans IndexedDB. */
 async function empreintesEnFile(page: Page) {
   return page.evaluate(async () => {

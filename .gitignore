@@ -28,3 +28,12 @@ scripts/.menage-journal.txt
 /test-results/
 /playwright-report/
 /blob-report/
+
+# Copies en double créées par la synchronisation iCloud : elle ajoute
+# « espace + chiffre » avant l'extension (« routes.d 2.ts », « index 7 »).
+# Elles ont déjà fait échouer `tsc` et `git fetch` ; qu'elles ne soient
+# jamais commitées. Le motif exige l'espace : il n'attrape rien d'autre.
+* [0-9].ts
+* [0-9].tsx
+* [0-9].mjs
+* [0-9].json

@@ -22,6 +22,13 @@
  * contente de dire ce qu'elle ferait. C'est le mode normal — on regarde
  * avant de toucher.
  *
+ * ── Les archives chiffrées ──────────────────────────────────────────────
+ *
+ * Les copies hebdomadaires arrivent sous enveloppe (`.tmenc`). On les
+ * accepte telles quelles : le fichier est transmis en base64 avec sa phrase
+ * secrète, déchiffré ici, et la suite est identique. La phrase ne sort
+ * jamais de la requête — elle n'est ni journalisée, ni conservée.
+ *
  * Note d'exploitation : le corps d'une requête est plafonné à 4,5 Mo chez
  * Vercel. Au-delà, on réinstalle liste par liste avec `cles: ["defauts"]`.
  */
@@ -30,6 +37,8 @@ import { exigerDroit } from "@/lib/droits-serveur";
 import { getDataFresh, setData } from "@/lib/kv-store";
 import { CLES_SAUVEGARDEES } from "@/lib/sauvegarde";
 import { validerArchive, comparerArchive, type Archive, type LigneComparaison } from "@/lib/archive";
+import { dechiffrer, estChiffree, PhraseIncorrecte } from "@/lib/archive-chiffree";
+import { gunzipSync } from "node:zlib";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -41,6 +50,9 @@ export function phraseDImport(archive: Archive): string {
 
 interface Corps {
   archive?: unknown;
+  /** Une enveloppe chiffrée, en base64, au lieu de l'archive en clair. */
+  fichierChiffre?: string;
+  phraseSecrete?: string;
   /** Se limiter à certaines listes. Par défaut : toutes celles de l'archive. */
   cles?: string[];
   confirmation?: string;
@@ -60,8 +72,56 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Requête illisible" }, { status: 400 });
   }
 
-  /* L'archive peut arriver seule (le fichier tel quel) ou enveloppée. */
-  const brut = corps.archive ?? corps;
+  /* ── Une enveloppe chiffrée ? On l'ouvre d'abord ───────────────────── */
+  let brut: unknown;
+  if (corps.fichierChiffre) {
+    if (!corps.phraseSecrete) {
+      return NextResponse.json(
+        { error: "Cette archive est chiffrée : la phrase secrète est nécessaire.", chiffree: true },
+        { status: 428 },
+      );
+    }
+    let fichier: Buffer;
+    try {
+      fichier = Buffer.from(corps.fichierChiffre, "base64");
+    } catch {
+      return NextResponse.json({ error: "Fichier illisible." }, { status: 400 });
+    }
+    if (!estChiffree(fichier)) {
+      return NextResponse.json(
+        { error: "Ce fichier n'est pas une archive chiffrée." }, { status: 400 },
+      );
+    }
+    let clair: Buffer;
+    try {
+      clair = dechiffrer(fichier, corps.phraseSecrete);
+    } catch (e) {
+      /* 428 et non 400 : la requête est correcte, il manque la bonne clé.
+         Le message ne distingue pas phrase fausse et fichier abîmé, parce
+         que le chiffrement authentifié ne le distingue pas non plus. */
+      const incorrecte = e instanceof PhraseIncorrecte;
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : String(e), chiffree: true },
+        { status: incorrecte ? 428 : 400 },
+      );
+    }
+    /* Les grosses archives partent comprimées sous l'enveloppe. */
+    if (clair[0] === 0x1f && clair[1] === 0x8b) {
+      try { clair = gunzipSync(clair); }
+      catch { return NextResponse.json({ error: "Décompression impossible." }, { status: 400 }); }
+    }
+    try {
+      brut = JSON.parse(clair.toString("utf-8"));
+    } catch {
+      return NextResponse.json(
+        { error: "L'enveloppe s'est ouverte, mais son contenu n'est pas une archive lisible." },
+        { status: 400 },
+      );
+    }
+  } else {
+    /* L'archive peut arriver seule (le fichier tel quel) ou enveloppée. */
+    brut = corps.archive ?? corps;
+  }
   const verdict = validerArchive(brut);
   if (!verdict.valide) {
     return NextResponse.json({ error: `Archive refusée : ${verdict.motif}` }, { status: 400 });

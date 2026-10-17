@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProjects, createProject, deleteProject } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
 import { verifyToken } from "@/lib/auth";
-import { cachedJson, errorResponse } from "@/lib/edge-cache";
+import { errorResponse } from "@/lib/edge-cache";
 import { reponseProjets } from "@/lib/perimetre-serveur";
 
 export const revalidate = 30;

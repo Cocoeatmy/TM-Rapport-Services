@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Download, Upload, Database, AlertTriangle, CheckCircle2, Loader2,
+  ArrowLeft, Download, Upload, Database, AlertTriangle, CheckCircle2, Loader2, KeyRound,
 } from "lucide-react";
 
 interface EtatSauvegarde { emplacement: string; jour: string; lignes: number | null; lisible: boolean }
@@ -90,6 +90,11 @@ export default function SauvegardesPage() {
   /* ── Réinstallation ─────────────────────────────────────────────────── */
   const fichierRef = useRef<HTMLInputElement>(null);
   const [archive, setArchive] = useState<unknown | null>(null);
+  /* Pour une enveloppe chiffrée : les octets en base64, et la phrase.
+     Ni l'une ni l'autre ne sont conservées ailleurs que dans cet écran. */
+  const [fichierChiffre, setFichierChiffre] = useState<string | null>(null);
+  const [phraseSecrete, setPhraseSecrete] = useState("");
+  const [enAttenteDePhrase, setEnAttenteDePhrase] = useState(false);
   const [simulation, setSimulation] = useState<Simulation | null>(null);
   const [phrase, setPhrase] = useState("");
   const [accepterPerte, setAccepterPerte] = useState(false);
@@ -99,26 +104,40 @@ export default function SauvegardesPage() {
   function reinitialiser() {
     setArchive(null); setSimulation(null); setPhrase("");
     setAccepterPerte(false); setResultat(null);
+    setFichierChiffre(null); setPhraseSecrete(""); setEnAttenteDePhrase(false);
     if (fichierRef.current) fichierRef.current.value = "";
+  }
+
+  /** Le corps commun à la simulation et à l'application. */
+  function corpsDeRequete(extra: Record<string, unknown> = {}) {
+    return fichierChiffre
+      ? { fichierChiffre, phraseSecrete, ...extra }
+      : { archive, ...extra };
   }
 
   async function choisirFichier(f: File) {
     setErreur(null); setResultat(null); setSimulation(null); setPhrase("");
-    setAccepterPerte(false);
+    setAccepterPerte(false); setFichierChiffre(null); setPhraseSecrete("");
+    setEnAttenteDePhrase(false); setArchive(null);
     setTravail(true);
     try {
-      const contenu = JSON.parse(await f.text());
+      const octets = new Uint8Array(await f.arrayBuffer());
+      /* Une enveloppe chiffrée commence par « TMENC1 ». On ne peut pas
+         l'ouvrir ici : la phrase secrète est nécessaire, et c'est le
+         serveur qui déchiffre. */
+      const repere = new TextDecoder().decode(octets.slice(0, 6));
+      if (repere === "TMENC1") {
+        let b = "";
+        for (let i = 0; i < octets.length; i += 0x8000) {
+          b += String.fromCharCode(...octets.subarray(i, i + 0x8000));
+        }
+        setFichierChiffre(btoa(b));
+        setEnAttenteDePhrase(true);
+        return; // on attend la phrase avant toute simulation
+      }
+      const contenu = JSON.parse(new TextDecoder().decode(octets));
       setArchive(contenu);
-      /* Simulation immédiate : on ne propose jamais d'appliquer avant
-         d'avoir montré ce que ça changerait. */
-      const r = await fetch("/api/admin/sauvegardes/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ archive: contenu }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
-      setSimulation(d as Simulation);
+      await simuler({ archive: contenu });
     } catch (e) {
       setArchive(null);
       setErreur(`Archive refusée : ${e instanceof Error ? e.message : String(e)}`);
@@ -127,16 +146,41 @@ export default function SauvegardesPage() {
     }
   }
 
+  /** Demande au serveur ce que cette archive changerait. N'écrit rien. */
+  async function simuler(corps: Record<string, unknown>) {
+    const r = await fetch("/api/admin/sauvegardes/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corps),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    setSimulation(d as Simulation);
+    setEnAttenteDePhrase(false);
+  }
+
+  /** Ouvre l'enveloppe avec la phrase saisie, puis simule. */
+  async function ouvrirEnveloppe() {
+    setTravail(true); setErreur(null);
+    try {
+      await simuler({ fichierChiffre, phraseSecrete });
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTravail(false);
+    }
+  }
+
   async function appliquer() {
-    if (!archive || !simulation) return;
+    if ((!archive && !fichierChiffre) || !simulation) return;
     setTravail(true); setErreur(null); setResultat(null);
     try {
       const r = await fetch("/api/admin/sauvegardes/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          archive, appliquer: true, confirmation: phrase, accepterPerte,
-        }),
+        body: JSON.stringify(corpsDeRequete({
+          appliquer: true, confirmation: phrase, accepterPerte,
+        })),
       });
       const d = await r.json();
       if (!r.ok && r.status !== 207) throw new Error(d.error || `HTTP ${r.status}`);
@@ -206,19 +250,51 @@ export default function SauvegardesPage() {
       <section className="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <h3 className="font-semibold mb-1">Réinstaller une archive</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-          Choisissez un fichier téléchargé plus tôt. Rien n&apos;est écrit
-          avant que vous n&apos;ayez vu ce qui changerait, puis recopié la
-          phrase de confirmation.
+          Choisissez un fichier téléchargé plus tôt, ou la pièce jointe
+          <code className="mx-1 text-xs">.tmenc</code> d&apos;une copie
+          hebdomadaire. Rien n&apos;est écrit avant que vous n&apos;ayez vu
+          ce qui changerait, puis recopié la phrase de confirmation.
         </p>
         <input
           ref={fichierRef}
           type="file"
-          accept=".json,application/json"
+          accept=".json,.tmenc,.gz,application/json,application/octet-stream"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) choisirFichier(f); }}
           className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 dark:file:bg-gray-700 file:px-3 file:py-2 file:text-sm"
         />
 
-        {travail && !simulation && (
+        {enAttenteDePhrase && (
+          <div className="mt-4 rounded-lg border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-3">
+            <p className="text-sm text-amber-900 dark:text-amber-200 flex gap-2 mb-2">
+              <KeyRound className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Cette archive est <b>chiffrée</b>. Entrez la phrase secrète
+                (celle de <code>BACKUP_PASSPHRASE</code>). Elle sert à ouvrir
+                le fichier et n&apos;est pas conservée.
+              </span>
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={phraseSecrete}
+                onChange={(e) => setPhraseSecrete(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && phraseSecrete) ouvrirEnveloppe(); }}
+                autoComplete="off"
+                className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 px-3 py-2 text-sm"
+                placeholder="Phrase secrète"
+              />
+              <button
+                onClick={ouvrirEnveloppe}
+                disabled={!phraseSecrete || travail}
+                className="rounded-lg bg-[#1e3a5f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {travail ? <Loader2 className="w-4 h-4 animate-spin" /> : "Ouvrir"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {travail && !simulation && !enAttenteDePhrase && (
           <p className="mt-3 text-sm text-gray-500 flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" /> Lecture de l&apos;archive…
           </p>
