@@ -678,3 +678,104 @@ précède vient de Chromium pilotant des gabarits et un type de pointeur
 émulés. C'est fidèle pour la mise en page, et ça ne remplace pas un essai
 réel — notamment pour le pavé de signature au doigt et à l'Apple Pencil,
 et pour la prise de photo.
+
+---
+
+# Après le déploiement — ce que la production a révélé (17 octobre 2026)
+
+Deux anomalies trouvées **en vérifiant la version en ligne**, et corrigées
+puis redéployées dans la foulée. Elles méritent d'être nommées : aucune
+n'aurait été visible sans aller interroger la production.
+
+## A — L'archive emportait 500 lignes de journal sur 3 202
+
+Le journal a migré vers une **liste Redis** (ajout en O(1), 20 000 entrées)
+parce que réécrire un gros bloc Notion à chaque action coûtait trop cher.
+La clé Notion `logs` existe toujours, mais ne contient plus que le reliquat
+d'avant la migration — et plus rien ne s'y écrit.
+
+L'export lisait cette clé seule. Il annonçait donc 500 lignes là où
+l'application en affichait 3 202, **sans rien signaler**. Ce n'est pas une
+sauvegarde partielle : c'est une sauvegarde trompeuse.
+
+Corrigé : les deux sources sont lues et fusionnées comme le fait déjà
+`/api/logs`. Si les deux tombent, l'archive le dit au lieu d'annoncer un
+journal vide. Vérifié en ligne : **3 202 lignes**, archive de 1 406 Ko.
+
+## B — L'aperçu d'une restauration annonçait un écart imaginaire
+
+Conséquence du précédent : la simulation comparait la clé Notion seule à
+l'archive complète, et affichait « logs : actuel 500, archive 3 202,
+écart +2 702 » alors que rien ne changerait. Or c'est sur cet aperçu qu'on
+décide d'écraser des données.
+
+Corrigé : un seul chemin de lecture (`lireListeSauvegardable`) pour
+l'export et pour l'aperçu. Vérifié en ligne : **tous les écarts à zéro**.
+
+---
+
+# Photographies Cloudinary — ce qui est possible, et ce qui ne l'est pas
+
+## Le constat, vérifié
+
+| Mesure | Valeur |
+|---|---|
+| Compte | `dzqpr6cbh`, plan **gratuit** |
+| Ressources | **8 376** images, 4,1 Go |
+| Type de diffusion | `upload` pour toutes |
+| Mode d'accès | `public` pour toutes |
+| Test anonyme | **HTTP 206** — l'image s'ouvre sans authentification |
+
+Les adresses sont longues et aléatoires : ce sont des **URL secrètes**.
+Quiconque en obtient une voit la photographie ; personne ne les devine.
+
+## Ce qui a été fait, sans rien casser
+
+La vraie fuite n'était pas Cloudinary : c'était **la diffusion des
+adresses**. Une archive en clair dans une boîte aux lettres, c'est 233
+liens ouverts posés chez un tiers. Depuis cette campagne, l'archive est
+chiffrée (AES-256-GCM) et ne part jamais autrement.
+
+## Ce qui n'a pas été fait, et pourquoi
+
+Passer les images en diffusion `authenticated` est **techniquement
+possible et pratiquement destructeur** : le `public_id` survit, mais
+l'adresse `/image/upload/…` renvoie alors 401. Or ces adresses sont
+stockées dans Notion, affichées dans l'application, et transmises aux
+clients par les portails. Les basculer casserait tout, d'un coup, pour
+8 376 images.
+
+Bonne nouvelle au passage, vérifiée en décodant un PDF : **react-pdf
+télécharge et INCORPORE les images** (objets `/Image` en `FlateDecode`).
+Les rapports déjà générés ne dépendent donc d'aucun lien et survivraient
+à une migration.
+
+## La migration, préparée mais NON exécutée
+
+Elle se fait en trois temps, et aucun ne peut être improvisé :
+
+1. inventorier les 8 376 ressources et leur usage (Notion, portails, PDF) ;
+2. signer les URL à l'affichage — application, portails clients, liens
+   partagés — avec une expiration ;
+3. seulement ensuite, basculer le mode d'accès, par lots, en vérifiant.
+
+Tant que ce n'est pas fait, le compte reste en plan gratuit, où les
+fonctions de média restreint sont de toute façon limitées.
+
+---
+
+# Sauvegarde sur le NAS Synology
+
+Procédure complète dans **`docs/SAUVEGARDE-NAS-SYNOLOGY.md`** : dossier
+chiffré, compte dédié, tâche planifiée qui **va chercher** l'archive
+plutôt que de recevoir quoi que ce soit — aucun port ouvert, aucune clé
+qui sorte de chez vous — contrôle de taille, alerte en cas d'échec,
+rétention d'un an, et la vérification manuelle qui valide la chaîne.
+
+Une pièce manque côté application : une route d'export **à secret**
+(`/api/admin/sauvegardes/export-chiffre`), puisqu'un script de NAS ne peut
+pas tenir une session d'administrateur. Une quinzaine de lignes calquées
+sur la tâche hebdomadaire. Elle n'a pas été écrite : une route qui sort
+l'intégralité des données s'ajoute délibérément, pas en fin de campagne.
+En attendant, la copie hebdomadaire arrive déjà chiffrée dans la boîte aux
+lettres et peut être déposée sur le NAS à la main.
