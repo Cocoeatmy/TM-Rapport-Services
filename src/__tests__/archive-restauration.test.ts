@@ -153,9 +153,18 @@ describe("Tout est perdu — l'archive remet tout en place", () => {
     /* 6. Comparaison enregistrement par enregistrement. */
     expect(listes.get("defauts")).toEqual(defauts);
     expect(listes.get("pieces")).toEqual(pieces);
-    expect(listes.get("logs")).toEqual(logs);
     expect(listes.get("stocks")).toEqual(stocks);
     expect(listes.get("notifications")).toEqual(notifications);
+    /* Le journal, lui, revient du plus récent au plus ancien : l'archive le
+       lit de ses deux sources — la liste Redis et le reliquat Notion — et
+       les range par date, comme le fait `/api/logs`. L'ordre d'insertion du
+       jeu d'essai n'est donc pas celui qu'on retrouve ; le CONTENU, si. */
+    const journal = listes.get("logs") as typeof logs;
+    expect(journal).toHaveLength(logs.length);
+    expect([...journal].sort((a, b) => a.id.localeCompare(b.id)))
+      .toEqual([...logs].sort((a, b) => a.id.localeCompare(b.id)));
+    expect(journal.map((l) => l.timestamp))
+      .toEqual([...logs.map((l) => l.timestamp)].sort((a, b) => b - a));
 
     /* Et dans le détail de ce qui se perd d'habitude. */
     const d = listes.get("defauts") as typeof defauts;

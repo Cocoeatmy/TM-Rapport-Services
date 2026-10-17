@@ -18,6 +18,7 @@
  * que le volume grandisse indéfiniment.
  */
 import { getDataFresh, setBlob, getBlob } from "./kv-store";
+import { redisEnabled, redisLRange } from "./redis-cache";
 
 /** Les listes qu'on sauvegarde. Ce sont les données vivantes de l'app. */
 export const CLES_SAUVEGARDEES = ["pieces", "defauts", "logs", "stocks", "notifications"] as const;
@@ -182,6 +183,57 @@ export async function apercuRestauration(cle: string, emplacement: string): Prom
 }
 
 /**
+ * Le journal ne vit plus dans le magasin Notion.
+ *
+ * ── Ce que la première sauvegarde ne voyait pas ─────────────────────────
+ *
+ * `logs` a migré vers une LISTE Redis (ajout en O(1), jusqu'à 20 000
+ * entrées) parce que réécrire un gros bloc Notion à chaque action coûtait
+ * trop cher. La clé Notion `logs` existe toujours, mais elle ne contient
+ * plus que les 500 entrées d'avant la migration, et plus rien ne s'y écrit.
+ *
+ * L'archive lisait cette clé seule. Vérifié en production le 17 octobre
+ * 2026 : elle emportait 500 lignes sur 3 202. Elle ne mentait pas tout à
+ * fait — mais elle laissait croire qu'un journal complet était à l'abri.
+ *
+ * On lit donc les deux sources et on les fusionne, exactement comme le fait
+ * `/api/logs` pour l'affichage : Redis d'abord, le reliquat Notion ensuite,
+ * dédoublonné par identifiant et trié du plus récent au plus ancien.
+ */
+async function lireLeJournal(): Promise<unknown[]> {
+  const vus = new Set<string>();
+  const out: { id?: string; timestamp?: number }[] = [];
+  const ajouter = (l: { id?: string; timestamp?: number } | null) => {
+    if (!l || !l.id || vus.has(l.id)) return;
+    vus.add(l.id);
+    out.push(l);
+  };
+
+  let erreurRedis: unknown = null;
+  if (redisEnabled) {
+    try {
+      for (const s of await redisLRange("logs", 0, -1)) {
+        try { ajouter(JSON.parse(s)); } catch { /* une ligne illisible n'arrête pas le reste */ }
+      }
+    } catch (e) {
+      erreurRedis = e;
+    }
+  }
+
+  /* Le reliquat Notion. S'il échoue ET que Redis a échoué aussi, on lève :
+     rendre une liste vide ferait croire à un journal vide. */
+  try {
+    for (const l of await getDataFresh<{ id?: string; timestamp?: number }>("logs")) ajouter(l);
+  } catch (e) {
+    if (erreurRedis || out.length === 0) throw e;
+  }
+  if (erreurRedis && out.length === 0) throw erreurRedis;
+
+  out.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  return out;
+}
+
+/**
  * Lit toutes les listes sauvegardables, en disant ce qui a manqué.
  *
  * Sert à l'export manuel comme à la copie hebdomadaire par courriel : une
@@ -195,7 +247,7 @@ export async function rassemblerLesListes(
   const manquantes: Record<string, string> = {};
   for (const cle of cles) {
     try {
-      listes[cle] = await getDataFresh<unknown>(cle);
+      listes[cle] = cle === "logs" ? await lireLeJournal() : await getDataFresh<unknown>(cle);
     } catch (e) {
       /* Une liste illisible est SIGNALÉE, jamais remplacée par un tableau
          vide : une archive qui ment est pire qu'une archive incomplète. */
