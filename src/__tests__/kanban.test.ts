@@ -15,6 +15,18 @@ import {
   type OptionColonne,
 } from "../lib/kanban";
 import { correspond, foldSearch } from "../lib/recherche-projets";
+import { REGLES_PAR_DEFAUT, type Contexte } from "../lib/kanban-indicateurs";
+import { VUES_INTEGREES, idDepuisNom } from "../lib/kanban-vues";
+
+function contexteTest(): Contexte {
+  return {
+    aujourdhui: "2026-10-17",
+    maintenant: Date.parse("2026-10-17T12:00:00Z"),
+    piecesOuvertes: new Set(),
+    manuelles: {},
+    regles: REGLES_PAR_DEFAUT,
+  };
+}
 
 function projet(p: Partial<Project> & { id: string }): Project {
   return {
@@ -235,5 +247,73 @@ describe("lecture de l'adresse", () => {
   it("sépare les binômes", () => {
     expect(collaborateursDe(projet({ id: "a", collaborateurs: "Claudio & Jacobo" })))
       .toEqual(["Claudio", "Jacobo"]);
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Les filtres par couleur, ajoutés en phase 2.
+   ───────────────────────────────────────────────────────────────────────── */
+
+describe("filtrer par pastille", () => {
+  const urgent = projet({ id: "u", priorite: "Haute" });
+  const bloque = projet({ id: "b", etatCMD: "Soucis montage" });
+  const calme = projet({ id: "c", etatMesures: "RDV - Fixé" });
+  const orphelin = projet({ id: "o", etatMesures: "RDV - Fixé", collaborateurs: "" });
+  const porte = projet({ id: "p", etatMesures: "RDV - Fixé", collaborateurs: "Miguel" });
+  const idx = indexer([urgent, bloque, calme]);
+  const c = contexteTest();
+
+  it("retient une couleur", () => {
+    expect(filtrer(idx, { ...FILTRES_VIDES, indicateurs: ["urgent"] }, c).map((p) => p.id)).toEqual(["u"]);
+  });
+
+  it("retient l'une OU l'autre quand on en coche deux", () => {
+    const r = filtrer(idx, { ...FILTRES_VIDES, indicateurs: ["urgent", "bloque"] }, c).map((p) => p.id);
+    expect(r.sort()).toEqual(["b", "u"]);
+  });
+
+  it("ne filtre rien sans contexte : on ne devine pas", () => {
+    expect(filtrer(idx, { ...FILTRES_VIDES, indicateurs: ["urgent"] })).toHaveLength(3);
+  });
+
+  it("trouve les dossiers que personne ne porte", () => {
+    const i2 = indexer([orphelin, porte]);
+    expect(filtrer(i2, { ...FILTRES_VIDES, sansResponsable: true }, c).map((p) => p.id)).toEqual(["o"]);
+  });
+
+  it("rassemble « Mes priorités »", () => {
+    const r = filtrer(idx, { ...FILTRES_VIDES, mesPriorites: true }, c).map((p) => p.id);
+    expect(r.sort()).toEqual(["b", "u"]);
+  });
+});
+
+describe("les vues enregistrées", () => {
+  it("couvrent les questions du matin", () => {
+    const noms = VUES_INTEGREES.map((v) => v.nom);
+    expect(noms).toContain("À traiter aujourd'hui");
+    expect(noms).toContain("Projets urgents");
+    expect(noms).toContain("Projets à relancer");
+    expect(noms).toContain("Projets bloqués");
+    expect(noms).toContain("Projets sans responsable");
+  });
+
+  it("portent des filtres cohérents avec ce qu'elles annoncent", () => {
+    const urgents = VUES_INTEGREES.find((v) => v.id === "urgents")!;
+    expect(urgents.filtres.indicateurs).toEqual(["urgent"]);
+    const aujourdhui = VUES_INTEGREES.find((v) => v.id === "aujourdhui")!;
+    expect(aujourdhui.filtres.mesPriorites).toBe(true);
+  });
+
+  it("sont toutes marquées comme fournies, donc non supprimables", () => {
+    expect(VUES_INTEGREES.every((v) => v.integree)).toBe(true);
+  });
+
+  it("fabriquent un identifiant lisible depuis le nom", () => {
+    expect(idDepuisNom("À traiter aujourd'hui")).toBe("a-traiter-aujourd-hui");
+    expect(idDepuisNom("Mesures / Yverdon")).toBe("mesures-yverdon");
+  });
+
+  it("donnent un identifiant même à un nom qui n'a que des symboles", () => {
+    expect(idDepuisNom("###")).toMatch(/^vue-\d+$/);
   });
 });

@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-16T22:31:27.605Z",
+  "genereLe": "2026-10-17T10:06:16.385Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -697,6 +697,27 @@
       "gardePage": false,
       "methodes": [
         "GET"
+      ]
+    },
+    {
+      "url": "/api/kanban/deplacer",
+      "type": "api",
+      "fichier": "src/app/api/kanban/deplacer/route.ts",
+      "niveau": "droit",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/kanban/etat",
+      "type": "api",
+      "fichier": "src/app/api/kanban/etat/route.ts",
+      "niveau": "droit",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "PUT"
       ]
     },
     {

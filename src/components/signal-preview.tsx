@@ -72,6 +72,12 @@ export function ouvrirApercuSurvol(project: Project, mode = "dashboard") {
 const arbitre = creerArbitreSurvol({
   survolEnCours: () => current !== null && !current.epingle,
   ferme: () => closeSignalPreview(),
+  /* 400 ms avant d'ouvrir : assez pour qu'un curseur qui traverse une liste
+     de quarante numéros n'en ouvre aucun, assez peu pour qu'on n'ait pas
+     l'impression d'attendre quand on vise vraiment. Le réglage vaut pour
+     toutes les listes de l'app — elles partagent cet arbitre, et deux délais
+     différents sur deux écrans se remarqueraient tout de suite. */
+  delaiOuverture: 400,
 });
 
 /**

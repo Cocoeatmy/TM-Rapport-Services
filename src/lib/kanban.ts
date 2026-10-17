@@ -14,6 +14,10 @@
  */
 import type { Project } from "./notion";
 import { correspond, foldSearch, indexDeProjet } from "./recherche-projets";
+import {
+  estDansMesPriorites, situationDe, type Contexte, type Indicateur,
+} from "./kanban-indicateurs";
+import { jourDe } from "./signaux";
 
 /** Les deux propriétés Notion qu'on peut mettre en colonnes. */
 export type Vue = "mesures" | "cmd";
@@ -69,6 +73,12 @@ export interface Filtres {
   localite: string | null;
   /** Les projets terminés et annulés sont écartés tant qu'on ne les demande pas. */
   avecTermines: boolean;
+  /** Les pastilles retenues. Plusieurs couleurs = l'une OU l'autre. */
+  indicateurs: Indicateur[];
+  /** Les dossiers que personne ne porte. */
+  sansResponsable: boolean;
+  /** Urgent, bloqué, à relancer, ou un rendez-vous aujourd'hui. */
+  mesPriorites: boolean;
 }
 
 export const FILTRES_VIDES: Filtres = {
@@ -77,6 +87,9 @@ export const FILTRES_VIDES: Filtres = {
   fournisseur: null,
   localite: null,
   avecTermines: false,
+  indicateurs: [],
+  sansResponsable: false,
+  mesPriorites: false,
 };
 
 export function filtresActifs(f: Filtres): number {
@@ -85,7 +98,10 @@ export function filtresActifs(f: Filtres): number {
     (f.collaborateur ? 1 : 0) +
     (f.fournisseur ? 1 : 0) +
     (f.localite ? 1 : 0) +
-    (f.avecTermines ? 1 : 0)
+    (f.avecTermines ? 1 : 0) +
+    (f.indicateurs.length > 0 ? 1 : 0) +
+    (f.sansResponsable ? 1 : 0) +
+    (f.mesPriorites ? 1 : 0)
   );
 }
 
@@ -130,24 +146,38 @@ export function indexer(projets: Project[]): IndexProjet[] {
   return projets.map((projet) => ({ projet, index: indexDeProjet(projet) }));
 }
 
-export function filtrer(indexes: IndexProjet[], f: Filtres): Project[] {
+export function filtrer(indexes: IndexProjet[], f: Filtres, c?: Contexte): Project[] {
   const collab = f.collaborateur ? foldSearch(f.collaborateur) : null;
   const fourn = f.fournisseur ? foldSearch(f.fournisseur) : null;
   const loc = f.localite ? foldSearch(f.localite) : null;
+  /* Les filtres par couleur ont besoin du contexte (dates, pièces ouvertes,
+     priorités). Sans lui, on ne devine pas : on laisse passer. */
+  const parCouleur = c && f.indicateurs.length > 0;
 
   return indexes
     .filter(({ projet, index }) => {
       if (!f.avecTermines && estClos(projet)) return false;
       if (!correspond(projet, f.recherche, index)) return false;
-      if (collab && !collaborateursDe(projet).some((c) => foldSearch(c).includes(collab))) return false;
+      if (collab && !collaborateursDe(projet).some((x) => foldSearch(x).includes(collab))) return false;
       if (fourn) {
         const liste = [...(projet.fournisseurs || []), ...(projet.fournisseursNames || [])];
         if (!liste.some((x) => foldSearch(x).includes(fourn))) return false;
       }
       if (loc && !foldSearch(localiteDe(projet)).includes(loc)) return false;
+      if (f.sansResponsable && collaborateursDe(projet).length > 0) return false;
+      if (parCouleur) {
+        const situation = situationDe(projet, c!);
+        if (!situation.tous.some((i) => f.indicateurs.includes(i))) return false;
+      }
+      if (f.mesPriorites && c && !estDansMesPriorites(projet, c)) return false;
       return true;
     })
     .map((x) => x.projet);
+}
+
+/** Un rendez-vous de montage prévu aujourd'hui. */
+export function estDuJour(p: Project, aujourdhui: string): boolean {
+  return jourDe(p.dateMontage) === aujourdhui;
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
