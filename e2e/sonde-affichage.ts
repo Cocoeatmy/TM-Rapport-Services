@@ -41,6 +41,8 @@ export const GABARITS = {
   "ipad-mini-portrait": { width: 744, height: 1024, tactile: true },
   "ipad-mini-paysage": { width: 1133, height: 700, tactile: true },
   "ipad-11-portrait": { width: 820, height: 1060, tactile: true },
+  /* Le gabarit exact des captures envoyées par le propriétaire. */
+  "ipad-913": { width: 913, height: 1192, tactile: true },
   "ipad-11-paysage": { width: 1180, height: 760, tactile: true },
   "ipad-13-portrait": { width: 1032, height: 1250, tactile: true },
   "ipad-13-paysage": { width: 1366, height: 920, tactile: true },

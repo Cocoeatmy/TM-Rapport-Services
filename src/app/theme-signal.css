@@ -457,11 +457,20 @@ html[data-ui="signal"] .signal-new:hover { filter: brightness(1.08); }
    abandonne son libellé. Au-delà, rien ne change : le Mac le garde entier. */
 @media (max-width: 1099px) {
   html[data-ui="signal"] .signal-new {
-    padding: 0 11px;
-    font-size: 0;
+    /* Un DISQUE, pas un carré aux coins arrondis. Il voisine sept boutons
+       ronds de même diamètre : une forme différente au milieu d'eux se
+       remarque immédiatement, et pour rien. La largeur est forcée égale à
+       la hauteur pour que le « + » tombe au centre exact. */
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    padding: 0;
     gap: 0;
+    font-size: 0;
+    border-radius: 999px;
+    justify-content: center;
   }
-  html[data-ui="signal"] .signal-new svg { width: 18px; height: 18px; }
+  html[data-ui="signal"] .signal-new svg { width: 18px; height: 18px; flex-shrink: 0; }
 }
 
 /* ── Rail vertical (desktop ≥ 1024 px) ────────────────────────────────────
@@ -1369,6 +1378,20 @@ html[data-ui="signal"] .sg-signal-arrow {
 @media (min-width: 1024px) {
   html[data-ui="signal"] .sg-duo {
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  }
+}
+/* ── L'iPad en portrait garde UNE colonne plus longtemps ─────────────────
+   À 1024 px le partage en deux laisse 500 px au panneau de gauche. Le
+   graphique de charge et le tableau des disponibilités y vivent très mal :
+   « Cette semaine » sortait de la carte, « COLLABORATEUR » s'imprimait sur
+   la première date, les noms se coupaient. Sur un iPad en portrait, l'écran
+   est haut : empiler coûte un peu de défilement et rend tout lisible.
+   `pointer: coarse` réserve la règle aux écrans qu'on touche — le Mac, lui,
+   passe en deux colonnes dès 1024 px comme avant. Le seuil de 1250 px laisse
+   l'iPad en PAYSAGE (1366) profiter des deux colonnes, où il a la place. */
+@media (max-width: 1249px) and (pointer: coarse) {
+  html[data-ui="signal"] .sg-duo {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -2428,15 +2451,40 @@ html[data-ui="signal"] .sg-day-chev { color: var(--sg-text-3); flex-shrink: 0; }
    Les classes sgv-* sont des repères ajoutés dans page.tsx ; elles n'ont
    aucun style hors de ce thème. */
 
-/* Sous-menu des onglets (Mesures / Montages / Services / SAV) */
+/* ── Sous-onglets (Mesures / Montages / Services / SAV · Contacts /
+   Entreprises / Fournisseurs / Grossistes) ───────────────────────────────
+
+   Ils étaient trop discrets, et surtout : ON NE VOYAIT PAS LEQUEL ÉTAIT
+   OUVERT. La règle ci-dessous imposait `background: var(--sg-paper)` à
+   TOUS les boutons du sous-menu, y compris celui que React marque actif
+   avec `bg-[#1e3a5f]` — une classe utilitaire qui perd la bataille de
+   spécificité. L'onglet actif était donc peint comme les autres.
+
+   On garde la sobriété du thème : un filet un peu plus marqué pour que la
+   rangée existe, et l'accent Signal plein pour celui qui est ouvert. */
 html[data-ui="signal"] .nav-submenu button {
   border-radius: 999px;
   font-size: 12px;
-  border: 1px solid var(--sg-line);
+  border: 1px solid var(--sg-line-strong);
   background: var(--sg-paper);
   color: var(--sg-text-2);
 }
-html[data-ui="signal"] .nav-submenu button:hover { border-color: var(--sg-line-strong); }
+html[data-ui="signal"] .nav-submenu button:hover {
+  border-color: var(--sg-signal);
+  color: var(--sg-text);
+}
+/* Celui qui est ouvert : plein, contrasté, reconnaissable d'un coup d'œil. */
+html[data-ui="signal"] .nav-submenu button.is-active,
+html[data-ui="signal"] .nav-submenu button.nav-sub-chip.is-active {
+  background: var(--sg-signal);
+  border-color: var(--sg-signal);
+  color: #ffffff;
+  font-weight: 600;
+}
+html[data-ui="signal"] .nav-submenu button.is-active:hover {
+  color: #ffffff;
+  filter: brightness(1.06);
+}
 
 /* Tuiles Calendrier / Collaborateurs / Semaine / Kanban */
 html[data-ui="signal"] .sgv-tiles button {
@@ -5370,12 +5418,19 @@ html[data-ui="signal"] .sg-dispo-leg i:first-of-type { margin-left: 0; }
    pouvoir rétrécir sous la largeur de son contenu. */
 html[data-ui="signal"] .sg-dispo-grille {
   display: grid;
+  /* La colonne des noms a une largeur PLANCHER : sans elle, `minmax(0, …)`
+     la laissait se réduire jusqu'à ce que « COLLABORATEUR » déborde sur la
+     première date et que « Jean-Marc » se coupe. 108 px suffisent au plus
+     long des prénoms. Le tableau défile plutôt que de se chevaucher. */
   grid-template-columns:
-    minmax(0, 1.5fr) repeat(var(--jours, 5), minmax(0, 1fr))
-    78px minmax(0, 1.5fr);
+    minmax(108px, 1.5fr) repeat(var(--jours, 5), minmax(34px, 1fr))
+    78px minmax(72px, 1.5fr);
   align-items: center;
   gap: 0 8px;
 }
+/* Quand même cela ne tient plus — demi-écran, iPhone — le tableau défile
+   horizontalement DANS sa carte au lieu d'élargir la page. */
+html[data-ui="signal"] .sg-dispo { overflow-x: auto; }
 html[data-ui="signal"] .sg-dispo-coin {
   font-size: 9.5px; font-weight: 600; letter-spacing: 0.05em;
   text-transform: uppercase; color: var(--sg-text-3);
@@ -5436,15 +5491,29 @@ html[data-ui="signal"] .sg-dispo-pastille:disabled:hover { transform: none; }
 html[data-ui="signal"] .sg-dispo-pastille:focus-visible {
   outline: 2px solid var(--sg-signal); outline-offset: 2px;
 }
-/* Vert : la journée est faite. Orange : commencée, il reste de la place.
-   Rouge : rien de prévu — c'est celle-là qu'on cherche en fixant un RDV.
-   Noir : absent, noté à la main. */
+/* ── Ce que disent les couleurs ───────────────────────────────────────────
+   Elles ont été INVERSÉES le 17 octobre 2026, à la demande du propriétaire,
+   et le sens nouveau est celui d'un feu de circulation :
+
+     vert   = il reste de la place — c'est celui qu'on cherche en fixant un RDV
+     orange = la journée est entamée, il reste un peu
+     rouge  = complet, n'y mettez rien de plus
+     noir   = absent
+
+   Avant, le vert disait « journée pleine » : on lisait « tout va bien » là
+   où il fallait lire « n'y touchez plus », et l'inverse pour le rouge. Les
+   LIBELLÉS de la légende ne changent pas — « journée pleine » reste
+   « journée pleine » — seule la couleur qui l'accompagne change.
+
+   Ce changement s'applique AUSSI à macOS, et c'est voulu : un vert qui
+   signifierait « libre » sur l'iPad et « complet » sur le Mac serait pire
+   que l'ancienne convention. */
 html[data-ui="signal"] .sg-dispo-pastille.is-plein,
-html[data-ui="signal"] .sg-dispo-leg i.is-plein { background: #22c55e; }
+html[data-ui="signal"] .sg-dispo-leg i.is-plein { background: #ef4444; }
 html[data-ui="signal"] .sg-dispo-pastille.is-partiel,
 html[data-ui="signal"] .sg-dispo-leg i.is-partiel { background: #f59e0b; }
 html[data-ui="signal"] .sg-dispo-pastille.is-libre,
-html[data-ui="signal"] .sg-dispo-leg i.is-libre { background: #ef4444; }
+html[data-ui="signal"] .sg-dispo-leg i.is-libre { background: #22c55e; }
 html[data-ui="signal"] .sg-dispo-pastille.is-absent,
 html[data-ui="signal"] .sg-dispo-leg i.is-absent { background: #0f172a; }
 html[data-ui="signal"].dark .sg-dispo-pastille.is-absent,
@@ -5460,8 +5529,12 @@ html[data-ui="signal"] .sg-dispo-total b {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   font-size: 12px; font-weight: 700; color: var(--sg-text-2);
 }
-html[data-ui="signal"] .sg-dispo-total b.is-vide { color: #ef4444; }
-html[data-ui="signal"] .sg-dispo-total b.is-plein { color: #15803d; }
+/* Le total de la semaine suit la même convention que les pastilles, sans
+   quoi la même ligne dirait deux choses contraires : un vert « journée
+   libre » à côté d'un vert « semaine pleine ». Rien à zéro = tout
+   disponible = vert ; au-delà de 75 % = presque complet = rouge. */
+html[data-ui="signal"] .sg-dispo-total b.is-vide { color: #15803d; }
+html[data-ui="signal"] .sg-dispo-total b.is-plein { color: #b91c1c; }
 html[data-ui="signal"] .sg-dispo-total i {
   font-style: normal; font-family: var(--font-mono);
   font-size: 10px; color: var(--sg-text-3);
@@ -5480,8 +5553,8 @@ html[data-ui="signal"] .sg-dispo-barre i {
   display: block; height: 100%; border-radius: 999px; background: #f59e0b;
   transition: width 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-html[data-ui="signal"] .sg-dispo-barre i.is-plein { background: #22c55e; }
-html[data-ui="signal"] .sg-dispo-barre i.is-vide { background: #fecaca; }
+html[data-ui="signal"] .sg-dispo-barre i.is-plein { background: #ef4444; }
+html[data-ui="signal"] .sg-dispo-barre i.is-vide { background: #bbf7d0; }
 html[data-ui="signal"] .sg-dispo-part em {
   font-style: normal; font-family: var(--font-mono);
   font-size: 11px; font-weight: 600; color: var(--sg-text-3);

@@ -579,9 +579,14 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
         <div className="nav-submenu flex gap-1.5 overflow-x-auto scrollbar-hide px-1 touch-pan-x overscroll-x-contain">
           {servicesModes.map((m) => (
             <button key={m} onClick={() => handleSelect(m)}
-              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+              /* `nav-sub-chip` / `is-active` : des repères pour le thème,
+                 qui ne changent rien au thème classique. Ils existent parce
+                 que la règle Signal `.nav-submenu button` écrasait le fond
+                 `bg-[#1e3a5f]` de l'onglet actif — on ne voyait plus lequel
+                 était ouvert. */
+              className={`nav-sub-chip shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
                 mode === m || mode === `${m}-termine`
-                  ? "bg-[#1e3a5f] text-white"
+                  ? "is-active bg-[#1e3a5f] text-white"
                   : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
               }`}>
               {servicesLabels[m]} ({count(m)})
@@ -595,9 +600,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
         <div className="nav-submenu flex gap-1.5 overflow-x-auto scrollbar-hide px-1 touch-pan-x overscroll-x-contain">
           {clientsModes.map((m) => (
             <button key={m} onClick={() => handleSelect(m)}
-              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+              className={`nav-sub-chip shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
                 mode === m
-                  ? "bg-[#1e3a5f] text-white"
+                  ? "is-active bg-[#1e3a5f] text-white"
                   : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
               }`}>
               {clientsLabels[m]}

@@ -41,7 +41,9 @@ const ECRANS = [
 const PLAFOND_CIBLES = 12;
 
 for (const theme of ["", "signal"]) {
-  for (const gab of ["ipad-11-portrait", "ipad-split", "iphone-13"] as NomGabarit[]) {
+  /* `ipad-913` et `ipad-13-portrait` : les gabarits où le partage en deux
+     colonnes serrait le tableau de bord — le défaut rapporté le 17 octobre. */
+  for (const gab of ["ipad-11-portrait", "ipad-13-portrait", "ipad-split", "iphone-13"] as NomGabarit[]) {
     test.describe(`${gab}${theme ? " · " + theme : " · classique"}`, () => {
       test(`aucun chevauchement, aucun débordement`, async ({ page, context }) => {
         test.setTimeout(180_000);

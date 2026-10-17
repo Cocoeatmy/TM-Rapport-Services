@@ -50,6 +50,22 @@
     min-height: 40px;
   }
 
+  /* ── Les sous-onglets, au doigt ───────────────────────────────────────
+     Plus hauts, plus espacés, et assez larges pour qu'on les vise sans
+     regarder. Le dessin — couleurs, formes, accent — reste celui du thème :
+     seule la taille change, et seulement ici. */
+  .nav-submenu {
+    gap: 8px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+  .nav-submenu button {
+    min-height: 40px;
+    padding-left: 16px;
+    padding-right: 16px;
+    font-size: 13px;
+  }
+
   /* ── Les pastilles de filtre et les petits boutons de liste ───────────── */
   button.kb-pilule,
   button.sg-link,
@@ -94,7 +110,16 @@
        commandes même quand ils sont écrits en `button` ;
      — les boutons posés DANS une ligne de tableau ou de liste dense, où
        quarante pixels doubleraient la hauteur de chaque ligne ;
-     — les cases à cocher, qui ont leur propre dimension. */
+     — les cases à cocher, qui ont leur propre dimension.
+
+     ── Les pastilles de disponibilité, en particulier ──────────────────
+     Ce sont des RONDS de 13 px, écrits en `<button>` parce qu'on clique
+     dessus pour noter une absence. La règle générale les étirait en
+     barres verticales : le tableau des disponibilités devenait
+     méconnaissable sur iPad alors qu'il restait net sur Mac. Un rond doit
+     rester rond ; sa zone sensible est élargie plus bas, sans le
+     déformer. */
+  .sg-dispo-pastille,
   .sg-row button,
   .sg-plist button,
   table button,
@@ -105,6 +130,18 @@
   input[type="checkbox"],
   input[type="radio"] {
     min-height: 0;
+  }
+
+  /* La pastille garde ses 13 px dessinés et gagne une zone sensible de
+     36 px : on la vise au doigt sans que la grille ne gonfle. */
+  .sg-dispo-pastille {
+    position: relative;
+    min-width: 0;
+  }
+  .sg-dispo-pastille::after {
+    content: "";
+    position: absolute;
+    inset: -11px;
   }
 
   /* ── Les statistiques de la semaine, sur un téléphone ─────────────────

@@ -105,7 +105,7 @@ test("captures", async ({ page, context }) => {
             caret-color: transparent !important;
           }` }).catch(() => {});
         await page.waitForTimeout(150);
-        await page.screenshot({ path: `${DOSSIER}/${gab}/${v.nom}.png`, fullPage: false });
+        await page.screenshot({ path: `${DOSSIER}/${gab}/${v.nom}.png`, fullPage: !!process.env.TM_PLEINE_PAGE });
       } catch { /* un écran inaccessible se verra à l'image manquante */ }
     }
     console.log(`  ${gab} : ${VUES.length} captures`);
