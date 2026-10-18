@@ -779,3 +779,96 @@ sur la tâche hebdomadaire. Elle n'a pas été écrite : une route qui sort
 l'intégralité des données s'ajoute délibérément, pas en fin de campagne.
 En attendant, la copie hebdomadaire arrive déjà chiffrée dans la boîte aux
 lettres et peut être déposée sur le NAS à la main.
+
+---
+
+# Sixième campagne — 17-18 octobre 2026 (cinq captures, cinq défauts)
+
+## Ce que les captures montraient
+
+| Capture | Défaut | Cause trouvée |
+|---|---|---|
+| 1 — iPad portrait | « Cette semaine » coupé, « COLLABORATEUR » imprimé sur la première date, « Jean-Marc » tronqué | À 1024 px le partage en **deux colonnes** ne laisse que 500 px au panneau de gauche |
+| 2 et 3 — sous-onglets | On ne voyait pas lequel était ouvert | La règle Signal imposait le même fond à **tous** les boutons, y compris l'actif : la classe utilitaire de React perdait la bataille de spécificité |
+| 4 — menu MF | Un bouton à déplacer, un doublon à retirer | Identifiés **avec le propriétaire** : retirer un bouton de navigation ne se devine pas |
+| 5 — disponibilités | Barres verticales au lieu de pastilles rondes | **Ma régression** : la règle « tout bouton fait 40 px » étirait des ronds de 13 px |
+| 5 — bouton « + » | Carré aux coins arrondis parmi sept ronds | **Ma régression** : en le passant en icône seule, je lui avais laissé un rayon de 10 px |
+
+## Les corrections
+
+**iPad en portrait** — une seule colonne jusqu'à 1250 px, **sur écran tactile
+seulement**. Le Mac passe toujours en deux colonnes dès 1024 px ; l'iPad en
+paysage (1366) aussi, où il a la place. La grille des disponibilités reçoit
+une largeur plancher par colonne et défile dans sa carte plutôt que de se
+chevaucher.
+
+**Sous-onglets** — l'actif est plein, à l'accent Signal, blanc sur bleu. Les
+autres gagnent un filet plus marqué. Au doigt : 40 px de haut, 16 px de
+rembourrage. Le dessin reste celui du thème.
+
+**Nuage « Journée hors ligne »** — descendu de la barre du haut vers le menu
+MF. Fonctionnement intact ; l'entrée affiche en plus l'état en sous-titre.
+Le panneau se **déplie dans le menu**. La première version fermait le menu
+pour laisser la place à une bulle : elle ne s'ouvrait jamais, parce que
+fermer le menu démonte le composant qui la porte.
+
+**« Pièces & Défauts »** — retiré du menu MF. Vérifié avant : les deux
+chemins menaient à `/admin/pieces-defauts`. La page et ses droits sont
+intacts, et quatre tests le tiennent.
+
+**Pastilles de disponibilité** — redevenues rondes, 13 px dessinés, zone
+sensible de 36 px par pseudo-élément. Identiques à celles du Mac.
+
+**Couleurs inversées** — le sens d'un feu de circulation :
+
+| | Avant | Maintenant |
+|---|---|---|
+| Journée pleine | 🟢 vert | 🔴 **rouge** |
+| Entamée | 🟠 orange | 🟠 orange |
+| Libre | 🔴 rouge | 🟢 **vert** |
+| Absent | ⚫ noir | ⚫ noir |
+
+Le total de la semaine et la barre de charge suivent, sans quoi la même
+ligne dirait deux choses contraires. **Appliqué aussi sur macOS**, comme
+demandé : un vert qui changerait de sens selon l'appareil serait pire que
+l'ancienne convention.
+
+**Bouton « + »** — un disque de 40 px, du diamètre de ses voisins, « + »
+centré.
+
+## Non-régression macOS
+
+Captures avant/après **du même jour**, comparées octet par octet.
+
+| Thème | Résultat |
+|---|---|
+| **Classique** | **44 / 46 rigoureusement identiques** ; 2 à 0,002 %, sous le bruit mesuré (0,013 %) |
+| **Signal** | Les écarts sont **confinés à la barre du haut** (y 12→49, le bouton déplacé) **et à la rangée des sous-onglets** — les deux changements demandés, et rien d'autre |
+
+Un piège évité : la première comparaison annonçait 0,4 % d'écart partout, y
+compris en classique où rien n'avait changé. C'était la **date** qui avait
+tourné entre les deux séries — le tableau de bord affiche le jour. Refaite
+le même jour, elle dit la vérité.
+
+## Tests
+
+`e2e/53-menu-profil.spec.ts` — 4 tests : le nuage a quitté l'en-tête, son
+panneau s'ouvre depuis le menu et s'y replie, le doublon a disparu, **et la
+page reste accessible depuis « Signaux »**.
+
+Le garde-fou d'affichage couvre maintenant l'iPad 13″ portrait, le gabarit
+où vivait le défaut de la capture 1.
+
+Suite complète : **1 238 tests unitaires, 30 Playwright, tsc et build verts.**
+
+## Ménage : iCloud dupliquait le dépôt
+
+Trouvé en cherchant un composant : `monteur-dashboard 2.tsx` existait à côté
+de l'original — et **99 autres copies**, dont des sources, des feuilles de
+style et des tests. Toutes plus petites que leur original : des instantanés
+perdus, pas du travail plus récent. Certaines avaient été commitées.
+
+Une copie de composant dans `src/` n'est pas anodine : un glob d'import peut
+la ramasser, et une correction s'applique alors à un fichier que plus
+personne ne lit. Les 100 copies sont retirées (archivées hors du dépôt
+avant suppression) et le motif de `.gitignore` les couvre désormais toutes.
