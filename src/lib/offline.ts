@@ -436,10 +436,21 @@ async function passeDeFile(): Promise<{ success: number; failed: number; skipped
     return { success: 0, failed: 0, skipped: queue.length };
   }
 
+  /* L'ORDRE par adresse est sacré. Si une écriture vers une fiche ne part pas
+     (délai d'attente, échec passager), les suivantes vers la MÊME fiche
+     attendent leur tour : sinon une correction faite plus tard partait
+     avant l'ancienne version, que le serveur écrivait ensuite par-dessus
+     (constaté : « V2 puis V1 », le serveur gardait V1). Les autres fiches,
+     elles, partent normalement. */
+  const enAttente = new Set<string>();
+  const cle = (it: QueueItem) => `${it.method} ${it.url}`;
+
   for (const item of queue) {
     // Mis de côté : attend une relance explicite (retour au premier plan,
     // retour du réseau). Il n'est jamais supprimé pour autant.
     if (item.statut === "echec") { skipped++; continue; }
+    // Une écriture plus ancienne vers la même fiche n'est pas encore partie.
+    if (enAttente.has(cle(item))) { skipped++; continue; }
     // Garde-fou d'ÂGE : un item trop vieux (poison / projet supprimé) est
     // abandonné, quel que soit son compteur de retries.
     if (item.timestamp && now - item.timestamp > MAX_QUEUE_AGE_MS) {
@@ -454,6 +465,7 @@ async function passeDeFile(): Promise<{ success: number; failed: number; skipped
       continue;
     }
     if (item.nextAttemptAt && item.nextAttemptAt > now) {
+      enAttente.add(cle(item));
       skipped++;
       continue;
     }
@@ -481,6 +493,7 @@ async function passeDeFile(): Promise<{ success: number; failed: number; skipped
           updateQueueItem({ ...item, retryCount: retries, statut: "echec" });
         } else {
           updateQueueItem({ ...item, retryCount: retries, nextAttemptAt: now + suite.dansMs });
+          enAttente.add(cle(item));
         }
         failed++;
       }
@@ -495,6 +508,7 @@ async function passeDeFile(): Promise<{ success: number; failed: number; skipped
         updateQueueItem({ ...item, retryCount: retries, statut: "echec" });
       } else {
         updateQueueItem({ ...item, retryCount: retries, nextAttemptAt: now + suite.dansMs });
+        enAttente.add(cle(item));
       }
       failed++;
     }
@@ -510,6 +524,23 @@ async function passeDeFile(): Promise<{ success: number; failed: number; skipped
  * l'app, événement `online`, retour au premier plan — exactement comme pour
  * les photos. Le monteur n'a jamais à appuyer sur quoi que ce soit.
  */
+/**
+ * Le réseau revient (ou l'app revient au premier plan) : les délais
+ * d'attente des saisies sont levés, comme ceux des photos. Sans cela, une
+ * saisie qui avait échoué attendait encore jusqu'à trente minutes alors que
+ * le réseau était là. L'ordre par fiche reste respecté par la passe.
+ */
+export function leverLesDelais(): number {
+  const queue = getQueue();
+  let n = 0;
+  const maj = queue.map((q) => {
+    if (q.statut !== "echec" && q.nextAttemptAt && q.nextAttemptAt > Date.now()) { n++; return { ...q, nextAttemptAt: 0 }; }
+    return q;
+  });
+  if (n > 0) ecrireFile(JSON.stringify(maj));
+  return n;
+}
+
 export function relancerEchecs(): number {
   const queue = getQueue();
   let n = 0;

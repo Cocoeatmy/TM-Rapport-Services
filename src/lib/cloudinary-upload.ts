@@ -68,6 +68,11 @@ export async function uploadToCloudinary(
   projectId: string,
   category: string,
 ): Promise<string> {
+  /* Jamais de photo vide : une référence d'octets périmée (WebKit, après une
+     réécriture de la file) se lit comme un fichier de 0 octet. L'envoyer, ce
+     serait rattacher une photo vide au rapport et croire la vraie partie. On
+     échoue « passagèrement » : la file réessaiera avec des octets relus. */
+  if (!blob || blob.size === 0) throw new UploadError("photo illisible sur l'appareil (0 octet)", false);
   // 1. Signature (petit appel Vercel)
   let sign: { signature: string; timestamp: number; folder: string; apiKey: string; cloudName: string };
   try {
@@ -176,6 +181,30 @@ export async function attacherChampTexte(
   if (!res.ok) {
     const permanent = res.status >= 400 && res.status < 500 && res.status !== 429;
     let msg = `champ ${res.status}`;
+    try { const d = await res.json(); if (d?.error) msg = String(d.error).slice(0, 140); } catch {}
+    throw new UploadError(msg, permanent);
+  }
+}
+
+/**
+ * Crée un signalement de défaut (POST /api/defauts), une fois ses photos sur
+ * Cloudinary. Le corps porte son identifiant, fabriqué à la saisie : un
+ * renvoi après une coupure ne crée pas de second signalement.
+ */
+export async function envoyerSignalement(corps: Record<string, unknown>): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      "/api/defauts",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corps) },
+      API_TIMEOUT_MS,
+    );
+  } catch (e: any) {
+    throw new UploadError(e?.name === "AbortError" ? "timeout (signalement)" : "réseau (signalement)");
+  }
+  if (!res.ok) {
+    const permanent = res.status >= 400 && res.status < 500 && res.status !== 429 && res.status !== 408;
+    let msg = `signalement ${res.status}`;
     try { const d = await res.json(); if (d?.error) msg = String(d.error).slice(0, 140); } catch {}
     throw new UploadError(msg, permanent);
   }

@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { Camera, ImagePlus, Loader2, Send, ShieldAlert, X, Check, Sparkles } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { offlineFetch } from "@/lib/offline";
+import { addPendingUpload } from "@/lib/idb-uploads";
 import { identifiantSignalement } from "@/lib/signalement-id";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -149,12 +150,50 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
       return;
     }
     setSending(true);
+    /* Le corps du signalement, fabriqué une fois : l'identifiant reste le
+       même que le défaut parte tout de suite ou plus tard, depuis la file. */
+    const idSignalement = identifiantSignalement();
+    const corpsDuSignalement = (): Record<string, unknown> => {
+      // Libellés lisibles des types sélectionnés ; « autre » → texte saisi.
+      const typeLabels = selectedTypes.map((sid) =>
+        sid === "autre" ? (otherText.trim() || "Autre") : (TYPES.find((t) => t.id === sid)?.label || sid)
+      );
+      const typesLabel = typeLabels.filter(Boolean).join(", ");
+      // Formulaire par défaut : on garde les ids (rétro-compat). Formulaire
+      // personnalisé : on envoie les libellés pour un affichage propre.
+      const typesToSend = usingCustomTypes ? typeLabels : selectedTypes;
+      return {
+        /* Fabriqué ICI : une requête coupée puis rejouée par la file
+           reviendrait sinon créer un second signalement identique. */
+        id: idSignalement,
+        projectId,
+        projectName,
+        types: typesToSend,
+        typesLabel,
+        description,
+        displayInRapport,
+        ...(phase ? { phase } : {}),
+        // Lot du défaut : sélection manuelle > lot imposé par le contexte
+        // cabine (prop cabineLabel) > unique option disponible. Garantit que
+        // le lot est TOUJOURS enregistré quand on signale depuis une cabine.
+        cabineLabel: selectedCabine || cabineLabel || (cabineOptions && cabineOptions.length === 1 ? cabineOptions[0] : undefined),
+        /* Le NUMÉRO du lot, quand le signalement vient d'un lot précis :
+           deux lots peuvent porter le même nom, et le signalement se
+           retrouvait alors sur les deux. Une sélection manuelle dans la
+           liste ne désigne qu'un nom — on laisse le nom décider, faute de
+           mieux. */
+        ...(typeof cabineIdx === "number" && !selectedCabine ? { cabineIdx } : {}),
+      };
+    };
     try {
       const photoUrls: string[] = [];
 
       if (photos.length > 0) {
         // Retry automatique : on essaie 2 fois avant d'abandonner
         let uploadOk = false;
+        /* Coupure réseau ou serveur indisponible (5xx) : ce n'est pas la
+           photo qui est en cause. Le défaut sera gardé sur l'appareil. */
+        let passager = typeof navigator !== "undefined" && navigator.onLine === false;
         for (let attempt = 1; attempt <= 2; attempt++) {
           try {
             const formData = new FormData();
@@ -162,6 +201,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
             formData.append("projectId", projectId);
             formData.append("category", "defauts");
             const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+            if (uploadRes.status >= 500) passager = true;
             if (uploadRes.ok) {
               const uploadData = await uploadRes.json();
               const urls = uploadData.files?.map((f: { url: string }) => f.url) || [];
@@ -170,11 +210,40 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
               if (uploadOk) break;
             }
           } catch {
+            passager = true;
             if (attempt === 2) break;
             // Petite pause avant le 2e essai
             await new Promise((r) => setTimeout(r, 1500));
           }
           if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+        }
+
+        if (!uploadOk && passager) {
+          /* SANS RÉSEAU : le défaut et ses photos vont dans la file des
+             photos (IndexedDB, et le coffre de l'app Apple). Ils partiront
+             seuls au retour du réseau : les photos d'abord, puis le
+             signalement avec leurs URLs, une seule fois grâce à son id. */
+          try {
+            await addPendingUpload({
+              projectId,
+              /* Une catégorie à part : la galerie « Photos du défaut » de la
+                 fiche lit la catégorie « defauts » et y afficherait ces
+                 photos en attente. */
+              category: "signalements-hors-ligne",
+              signalement: corpsDuSignalement(),
+              files: photos.map((p) => ({ name: p.name, type: p.type, blob: p })),
+            });
+          } catch {
+            toast.error("Défaut non enregistré sur l'appareil — la mémoire est peut-être pleine", { duration: 8000 });
+            setSending(false);
+            return;
+          }
+          toast.success("Défaut enregistré sur l'appareil — il partira avec ses photos au retour du réseau", { duration: 6000 });
+          onSubmitted?.([]);
+          resetForm();
+          setOpen(false);
+          setSending(false);
+          return;
         }
 
         if (!uploadOk) {
@@ -185,45 +254,10 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
         }
       }
 
-      // Libellés lisibles des types sélectionnés ; « autre » → texte saisi.
-      const typeLabels = selectedTypes.map((sid) =>
-        sid === "autre" ? (otherText.trim() || "Autre") : (TYPES.find((t) => t.id === sid)?.label || sid)
-      );
-      const typesLabel = typeLabels.filter(Boolean).join(", ");
-      // Formulaire par défaut : on garde les ids (rétro-compat). Formulaire
-      // personnalisé : on envoie les libellés pour un affichage propre.
-      const typesToSend = usingCustomTypes ? typeLabels : selectedTypes;
-
-      // offlineFetch : le défaut est mis en queue si offline ; les
-      // photoUrls (Cloudinary) ne marchent que si l'upload est passé
-      // — l'upload binaire reste online-only, mais les défauts SANS
-      // photo (ou avec photos déjà uploadées) sont rejouables.
       const envoi = offlineFetch("/api/defauts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          /* Fabriqué ICI : une requête coupée puis rejouée par la file
-             reviendrait sinon créer un second signalement identique. */
-          id: identifiantSignalement(),
-          projectId,
-          projectName,
-          types: typesToSend,
-          typesLabel,
-          description,
-          photoUrls,
-          displayInRapport,
-          ...(phase ? { phase } : {}),
-          // Lot du défaut : sélection manuelle > lot imposé par le contexte
-          // cabine (prop cabineLabel) > unique option disponible. Garantit que
-          // le lot est TOUJOURS enregistré quand on signale depuis une cabine.
-          cabineLabel: selectedCabine || cabineLabel || (cabineOptions && cabineOptions.length === 1 ? cabineOptions[0] : undefined),
-          /* Le NUMÉRO du lot, quand le signalement vient d'un lot précis :
-             deux lots peuvent porter le même nom, et le signalement se
-             retrouvait alors sur les deux. Une sélection manuelle dans la
-             liste ne désigne qu'un nom — on laisse le nom décider, faute de
-             mieux. */
-          ...(typeof cabineIdx === "number" && !selectedCabine ? { cabineIdx } : {}),
-        }),
+        body: JSON.stringify({ ...corpsDuSignalement(), photoUrls }),
       });
       /* On ne RETIENT plus le monteur le temps de l'enregistrement.
          Le serveur relit la liste des signalements, la réécrit et met la

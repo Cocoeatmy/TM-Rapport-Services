@@ -80,6 +80,17 @@ export default defineConfig({
       testMatch: /(50|52|59)-.*\.spec\.ts$/,
       use: { viewport: { width: 1440, height: 900 }, hasTouch: false },
     },
+    /* ── La journée complète sans réseau, dans WebKit ─────────────────────
+       Le moteur des applications Apple, au gabarit d'un iPhone. Le test
+       ouvre lui-même un contexte PERSISTANT (profil sur disque) avec ces
+       réglages : c'est la session ÉPHÉMÈRE de Playwright, pas WebKit, qui
+       refuse les `Blob` dans IndexedDB — un profil sur disque les accepte,
+       comme Safari et les WKWebView des apps (vérifié le 18.10.2026). */
+    {
+      name: "journee-webkit",
+      testMatch: /60-.*\.spec\.ts$/,
+      use: { ...devices["iPhone 13"] },
+    },
   ],
   webServer: {
     /* La version COMPILÉE, pas le serveur de développement : celui-ci

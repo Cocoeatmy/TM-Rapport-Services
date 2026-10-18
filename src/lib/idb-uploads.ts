@@ -34,8 +34,9 @@
  *     afficher une alerte persistante dans l'UI.
  */
 
-import { uploadToCloudinary, attachPhotos, attacherChampTexte, UploadError } from "@/lib/cloudinary-upload";
+import { uploadToCloudinary, attachPhotos, attacherChampTexte, envoyerSignalement, UploadError } from "@/lib/cloudinary-upload";
 import { coffreDeposerPhoto, coffreRetirerPhoto } from "@/lib/pont-apple";
+import { leverLesDelais } from "@/lib/offline";
 
 const DB_NAME = "tm-rapport-uploads";
 const DB_VERSION = 2; // bumped : ajout du champ `status`
@@ -72,6 +73,12 @@ export interface PendingUpload {
    * octets, aucune suppression avant confirmation (audit A2 du 17.10.2026).
    */
   champTexte?: string;
+  /**
+   * Un signalement de défaut saisi SANS réseau, avec ses photos. Une fois les
+   * photos sur Cloudinary, il est créé (POST /api/defauts) avec leurs URLs.
+   * Son `id` est fabriqué à la saisie : un renvoi ne le crée pas deux fois.
+   */
+  signalement?: Record<string, unknown>;
   files: PendingUploadFile[];
   createdAt: number;
   retryCount: number;
@@ -251,7 +258,32 @@ export async function removePendingUpload(id: string, motif = "retire"): Promise
   });
 }
 
+/**
+ * Les octets d'une photo, recopiés dans un Blob neuf, en mémoire.
+ *
+ * WebKit (Safari, l'app Apple) refuse de réenregistrer TEL QUEL un Blob qu'il
+ * vient de relire dans IndexedDB : « Error preparing Blob/File data to be
+ * stored in object store ». Or chaque mise à jour d'une photo en attente —
+ * noter son URL Cloudinary, son nombre d'essais — la réécrit. L'erreur
+ * figeait la file : les octets repartaient chez Cloudinary à chaque essai,
+ * sans que la photo soit jamais rattachée. Une copie neuve s'enregistre.
+ */
+async function avecOctetsNeufs(item: PendingUpload): Promise<PendingUpload> {
+  const files = await Promise.all(item.files.map(async (f) => {
+    try {
+      const octets = await f.blob.arrayBuffer();
+      return { ...f, blob: new Blob([octets], { type: f.blob.type || f.type }) };
+    } catch {
+      return f; // illisible : on garde l'original, l'écriture dira si elle passe
+    }
+  }));
+  return { ...item, files };
+}
+
 async function updatePendingUpload(item: PendingUpload): Promise<void> {
+  // Lecture des octets AVANT d'ouvrir la transaction : une transaction
+  // IndexedDB se referme d'elle-même si l'on attend autre chose pendant.
+  item = await avecOctetsNeufs(item);
   const db = await openDB();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
@@ -301,6 +333,9 @@ export async function retryAllFailedUploads(): Promise<number> {
  * attendre l'expiration du backoff (jusqu'à 1h).
  */
 export async function resetBackoffForAll(): Promise<number> {
+  /* Les saisies aussi : elles attendaient jusqu'à trente minutes après un
+     échec, même une fois le réseau revenu. */
+  try { leverLesDelais(); } catch { /* stockage illisible : la passe suivante rattrapera */ }
   try {
     const items = await getPendingUploads({ status: "pending" });
     await Promise.all(
@@ -337,20 +372,73 @@ interface ItemOutcome { success: number; failed: number; permanentlyFailed: numb
  * Ne lève jamais — renvoie un décompte et met à jour l'IDB (retrait / backoff /
  * échec permanent après MAX_RETRIES).
  */
+/** Une entrée de la file, relue à l'instant (références d'octets fraîches). */
+async function lireEntree(id: string): Promise<PendingUpload | undefined> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readonly");
+    const req = tx.objectStore(STORE).get(id);
+    req.onsuccess = () => resolve(req.result as PendingUpload | undefined);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * Les octets d'un fichier en file, copiés en mémoire au moment de l'envoi.
+ *
+ * WebKit range les octets d'une entrée dans un nouveau fichier à chaque
+ * réécriture, et une référence lue AVANT se lit alors comme un fichier vide
+ * — constaté : une photo partie avec 0 octet. On relit donc l'entrée juste
+ * avant l'envoi, on copie ses octets, et l'on n'envoie rien de vide.
+ */
+async function octetsPourEnvoi(id: string, index: number, secours: PendingUploadFile): Promise<Blob | null> {
+  for (let essai = 0; essai < 3; essai++) {
+    try {
+      const frais = (await lireEntree(id))?.files?.[index] ?? secours;
+      /* Banc d'essai (fake-indexeddb sous jsdom) : la base y rend un objet
+         qui n'est plus un Blob. Un vrai navigateur rend toujours un Blob. */
+      if (typeof (frais.blob as Blob | undefined)?.arrayBuffer !== "function") return frais.blob;
+      const octets = await frais.blob.arrayBuffer();
+      if (octets.byteLength > 0) return new Blob([octets], { type: frais.blob.type || frais.type });
+    } catch { /* référence en cours de réécriture : on relit */ }
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  return null;
+}
+
 async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOutcome> {
+  /* L'entrée a pu changer, ou être envoyée, depuis la lecture de la liste. */
+  try {
+    const frais = await lireEntree(item.id);
+    if (!frais) return { success: 0, failed: 0, permanentlyFailed: 0 };
+    item = { ...frais, status: frais.status ?? "pending" };
+  } catch { /* lecture impossible : on garde la version de la liste */ }
   const files = item.files.map((f) => ({ ...f })); // copie mutable (uploadedUrl)
   let networkError = false;
   let permanent = false;
   let reasonMsg = "";
 
   // ── Étape 1 : Cloudinary pour chaque fichier pas encore uploadé ──────────
-  for (const f of files) {
+  for (const [index, f] of files.entries()) {
     if (f.uploadedUrl) continue;
+    const octets = await octetsPourEnvoi(item.id, index, f);
+    if (!octets) {
+      reasonMsg = "octets illisibles pour l'instant";
+      networkError = true; // passager : la photo reste, on réessaiera
+      break;
+    }
     try {
-      f.uploadedUrl = await uploadToCloudinary(f.blob, f.name, item.projectId, item.category);
+      // Les photos d'un défaut saisi hors ligne se rangent avec celles des
+      // défauts envoyés en ligne (dossier « defauts »).
+      const dossier = item.signalement ? "defauts" : item.category;
+      f.uploadedUrl = await uploadToCloudinary(octets, f.name, item.projectId, dossier);
       // Persiste immédiatement : si la suite échoue, ce fichier ne sera pas
-      // re-uploadé (octets déjà sûrs sur Cloudinary).
-      await updatePendingUpload({ ...item, files });
+      // re-uploadé (octets déjà sûrs sur Cloudinary). Si cette écriture-là
+      // échoue, on continue quand même avec l'URL en mémoire : le rattachement
+      // peut aboutir, et au pire un nouvel essai renverra les octets — le
+      // serveur écarte le doublon par son nom.
+      try { await updatePendingUpload({ ...item, files }); }
+      catch (e) { console.warn("[idb-uploads] URL Cloudinary non notée", item.id, e); }
     } catch (e) {
       const ue = e as UploadError;
       reasonMsg = ue?.message || "upload échoué";
@@ -362,7 +450,16 @@ async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOu
   // ── Étape 2 : rattachement Notion (si tout est sur Cloudinary) ───────────
   let done = false;
   if (!networkError && !permanent && files.every((f) => f.uploadedUrl)) {
-    if (item.champTexte) {
+    if (item.signalement) {
+      try {
+        await envoyerSignalement({ ...item.signalement, photoUrls: files.map((f) => f.uploadedUrl as string) });
+        done = true;
+      } catch (e) {
+        const ue = e as UploadError;
+        reasonMsg = ue?.message || "signalement non enregistré";
+        if (ue?.permanent) permanent = true; else networkError = true;
+      }
+    } else if (item.champTexte) {
       try {
         await attacherChampTexte(item.projectId, item.champTexte, files[0].uploadedUrl as string);
         done = true;
@@ -418,17 +515,20 @@ async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOu
   const reason = `${permanent ? "Erreur" : "Réseau"}${reasonMsg ? " : " + reasonMsg : ""}`;
   if (permanent) {
     console.warn("[idb-uploads] échec permanent", item.id, reason);
-    await _markPermanentlyFailed({ ...item, files }, reason);
+    try { await _markPermanentlyFailed({ ...item, files }, reason); }
+    catch (e) { console.warn("[idb-uploads] statut non noté", item.id, e); }
     return { success: 0, failed: 1, permanentlyFailed: 1 };
   }
   const retries = (item.retryCount || 0) + 1;
   if (retries >= MAX_RETRIES) {
     console.error("[idb-uploads] MAX_RETRIES atteint — permanently-failed", item.id, reason);
-    await _markPermanentlyFailed({ ...item, files }, reason);
+    try { await _markPermanentlyFailed({ ...item, files }, reason); }
+    catch (e) { console.warn("[idb-uploads] statut non noté", item.id, e); }
     return { success: 0, failed: 1, permanentlyFailed: 1 };
   }
   const delayMs = Math.min(3_000 * 2 ** (retries - 1), 30_000);
-  await updatePendingUpload({ ...item, files, retryCount: retries, nextAttemptAt: now + delayMs, reason });
+  try { await updatePendingUpload({ ...item, files, retryCount: retries, nextAttemptAt: now + delayMs, reason }); }
+  catch (e) { console.warn("[idb-uploads] délai non noté", item.id, e); }
   return { success: 0, failed: 1, permanentlyFailed: 0 };
 }
 

@@ -238,30 +238,33 @@ export function SyncButton() {
     // race condition sur l'écriture Notion → perte d'une photo.
     if (autoSyncingRef.current) return;
     autoSyncingRef.current = true;
+    /* Le verrou est TOUJOURS relâché, même si un envoi lève une erreur :
+       sinon plus aucune synchronisation automatique ne repartait avant un
+       rechargement de la page (constaté dans WebKit, scénario « journée
+       hors ligne »). Chaque file est traitée même si l'autre a échoué. */
+    try {
+      const jsonQueue = getQueue();
+      const uploadCount = await countPendingUploads();
+      if (jsonQueue.length === 0 && uploadCount === 0) return;
 
-    const jsonQueue = getQueue();
-    const uploadCount = await countPendingUploads();
-    if (jsonQueue.length === 0 && uploadCount === 0) {
+      let totalSuccess = 0;
+      if (jsonQueue.length > 0) {
+        try { totalSuccess += (await processQueue()).success; }
+        catch (e) { console.warn("[sync] file des saisies", e); }
+      }
+      if (uploadCount > 0) {
+        try { totalSuccess += (await processPendingUploads()).success; }
+        catch (e) { console.warn("[sync] file des photos", e); }
+      }
+      if (totalSuccess > 0) {
+        toast.success(`${totalSuccess} opération(s) synchronisée(s)`);
+        setQueueCount(getQueue().length + (await countPendingUploads()));
+        setLastSync(Date.now());
+        markSynced(); // nuage vert ≥ 3 min → preuve visuelle que l'envoi est parti
+      }
+    } finally {
       autoSyncingRef.current = false;
-      return;
     }
-
-    let totalSuccess = 0;
-    if (jsonQueue.length > 0) {
-      const result = await processQueue();
-      totalSuccess += result.success;
-    }
-    if (uploadCount > 0) {
-      const upRes = await processPendingUploads();
-      totalSuccess += upRes.success;
-    }
-    if (totalSuccess > 0) {
-      toast.success(`${totalSuccess} opération(s) synchronisée(s)`);
-      setQueueCount(getQueue().length + (await countPendingUploads()));
-      setLastSync(Date.now());
-      markSynced(); // nuage vert ≥ 3 min → preuve visuelle que l'envoi est parti
-    }
-    autoSyncingRef.current = false;
   };
 
   const handleSync = useCallback(async () => {
