@@ -11,9 +11,28 @@
  */
 import { test, expect } from "@playwright/test";
 import { brancherFixtures, seConnecter, sansServiceWorker, MONTEUR, projetFictif, PROJET_ID } from "./harnais";
-import { projetsDenses } from "./fixtures-denses";
 
 const CLE = "tm-offline-auto-jour";
+const CLE_PRETS = "tm-offline-ready-projects";
+
+/**
+ * Les chantiers en cache, au FORMAT RÉEL de Notion : des prénoms, joints par
+ * « & ». La première version de ce fichier utilisait des fixtures datées du
+ * 1er au 8 octobre, toutes hors de la fenêtre de sept jours : la préparation
+ * « réussissait » sans préparer un seul chantier, et le test passait. Ici,
+ * chaque projet a une raison précise d'être pris ou laissé.
+ */
+const PROJETS_EN_CACHE = [
+  /* Pris : le compte est Jacobo Fontan Cassas. */
+  projetFictif({ id: "prep-montage-jacobo", collaborateurs: "Jacobo & Claudio", dateMontage: "2026-10-19" }),
+  projetFictif({ id: "prep-team", collaborateurs: "Team TM", dateMontage: "2026-10-22" }),
+  projetFictif({ id: "prep-mesures-jacobo", collaborateurs: "", mesuresTraiteePar: "Jacobo", dateMesures: "2026-10-21", dateMontage: "" }),
+  /* Laissés : un autre monteur, trop loin, déjà passé. */
+  projetFictif({ id: "laisse-miguel", collaborateurs: "Miguel", dateMontage: "2026-10-20" }),
+  projetFictif({ id: "laisse-trop-loin", collaborateurs: "Jacobo", dateMontage: "2026-11-15" }),
+  projetFictif({ id: "laisse-passe", collaborateurs: "Jacobo", dateMontage: "2026-10-10" }),
+];
+const ATTENDUS = ["prep-montage-jacobo", "prep-team", "prep-mesures-jacobo"];
 
 /** Un lundi, un samedi — à l'heure qu'on veut. */
 const LUNDI = (h: string) => new Date(`2026-10-19T${h}:00`);
@@ -32,7 +51,7 @@ async function ouvrir(
   });
   /* Une liste de chantiers déjà en cache : c'est l'état d'un téléphone qui
      a servi la veille, et la préparation s'appuie dessus. */
-  const projets = projetsDenses(8);
+  const projets = PROJETS_EN_CACHE;
   await context.addInitScript((liste) => {
     try { localStorage.setItem("tm-projects-cache", JSON.stringify({ tous: liste })); } catch { /* ignore */ }
   }, projets);
@@ -40,6 +59,21 @@ async function ouvrir(
   await seConnecter(context, compte);
   const principal = projetFictif({ id: PROJET_ID });
   const trace = await brancherFixtures(page, { projet: principal, compte });
+  /* Le serveur doit rendre LES MÊMES chantiers que le cache semé. La
+     préparation part de la liste vivante du tableau de bord — qui, en
+     prime, réécrit le cache local. Un cache semé que le serveur contredit
+     est aussitôt écrasé par une liste d'un seul chantier, et la première
+     préparation (à vide) verrouille la suivante pour une heure : le test
+     croyait alors que la règle ne marchait pas, alors que c'était le
+     décor. */
+  await page.route("**/api/projects**", async (route) => {
+    const u = new URL(route.request().url()).pathname;
+    const j = (c: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(c) });
+    if (u.startsWith("/api/projects/") && u.split("/").length === 4) {
+      return route.request().method() === "GET" ? j(principal) : j({ ok: true });
+    }
+    return j(PROJETS_EN_CACHE);
+  });
   await page.goto("/?mode=dashboard", { waitUntil: "domcontentloaded" });
   return trace;
 }
@@ -48,6 +82,12 @@ async function ouvrir(
 const marque = (page: import("@playwright/test").Page) =>
   page.evaluate((c) => localStorage.getItem(c), CLE);
 
+/** Les chantiers effectivement préparés — ce qui compte vraiment. */
+const prets = (page: import("@playwright/test").Page) =>
+  page.evaluate((c) => {
+    try { return JSON.parse(localStorage.getItem(c) || "null") as string[] | null; } catch { return null; }
+  }, CLE_PRETS);
+
 test.describe("la préparation automatique du matin", () => {
   test("un lundi à 6 h 45, elle se lance seule", async ({ page, context }) => {
     await ouvrir(page, context, LUNDI("06:45"));
@@ -55,6 +95,15 @@ test.describe("la préparation automatique du matin", () => {
     await expect
       .poll(() => marque(page), { timeout: 30_000, message: "elle doit avoir tourné" })
       .toBe("2026-10-19");
+
+    /* La marque ne suffit pas : elle est posée AVANT le tri, et la première
+       version de ce test passait alors que zéro chantier était préparé.
+       C'est la liste des chantiers prêts qui fait foi. */
+    await expect
+      .poll(async () => [...(await prets(page) || [])].sort(), {
+        timeout: 30_000, message: "les chantiers de Jacobo doivent être préparés, et eux seuls",
+      })
+      .toEqual([...ATTENDUS].sort());
   });
 
   test("…et ne recommence pas si l'on rouvre l'application", async ({ page, context }) => {

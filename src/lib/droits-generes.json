@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-18T10:01:07.641Z",
+  "genereLe": "2026-10-18T11:53:31.201Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -48,6 +48,14 @@
       "url": "/admin/anomalies",
       "type": "page",
       "fichier": "src/app/admin/anomalies/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/admin/appareils",
+      "type": "page",
+      "fichier": "src/app/admin/appareils/page.tsx",
       "niveau": "admin-ecran",
       "gardePage": true,
       "methodes": []
@@ -136,6 +144,17 @@
       ]
     },
     {
+      "url": "/api/admin/appareils",
+      "type": "api",
+      "fichier": "src/app/api/admin/appareils/route.ts",
+      "niveau": "droit",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
       "url": "/api/admin/sauvegardes",
       "type": "api",
       "fichier": "src/app/api/admin/sauvegardes/route.ts",
@@ -180,6 +199,16 @@
       "url": "/api/ai",
       "type": "api",
       "fichier": "src/app/api/ai/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/appareils/etat",
+      "type": "api",
+      "fichier": "src/app/api/appareils/etat/route.ts",
       "niveau": "connecte",
       "gardePage": false,
       "methodes": [

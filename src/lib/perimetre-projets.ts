@@ -55,6 +55,40 @@ export function prenomDe(nomComplet: string): string {
   return (nomComplet || "").trim().split(/\s+/)[0] || "";
 }
 
+/** Les prénoms d'un champ Notion quelconque — « Claudio & Jacobo », « Team TM ». */
+export function prenomsDuChamp(champ: unknown): string[] {
+  return (typeof champ === "string" ? champ : "")
+    .split(/[&,/]|\bet\b/i)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Ce champ nomme-t-il cette personne ?
+ *
+ * Notion écrit « Jean-Marc & Miguel » ; le compte s'appelle « Jean-Marc
+ * Nelzi ». Comparer le champ au nom COMPLET ne trouvait donc jamais rien —
+ * c'est ainsi que la préparation hors ligne a chargé zéro chantier pour
+ * tout le monde pendant des semaines sans qu'aucune erreur ne paraisse
+ * (découvert le 18 octobre 2026). On compare prénom contre prénom, accents
+ * et casse neutralisés, et « Team… » désigne chacun.
+ *
+ * Sert aux trois champs d'attribution : montages, mesures, SAV. `estSien`
+ * reste la règle de périmètre (avec sa politique souple/stricte) ; celle-ci
+ * est la brique de comparaison qu'elle partage désormais.
+ */
+export function champNomme(champ: unknown, nomComplet: string): boolean {
+  const moi = net(prenomDe(nomComplet));
+  if (!moi) return false;
+  return prenomsDuChamp(champ).some((x) => {
+    const n = net(x);
+    /* Le PREMIER MOT du segment : Notion écrit des prénoms, mais une saisie
+       « Jacobo Fontan » doit nommer Jacobo aussi. « Jean-Marc » reste un
+       seul mot — le trait d'union n'est pas un séparateur. */
+    return n.startsWith("team") || net(prenomDe(x)) === moi;
+  });
+}
+
 /**
  * Ce projet est-il le sien ?
  *

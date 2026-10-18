@@ -15,6 +15,7 @@
 
 import type { Project } from "./notion";
 import { doitPreparerAutomatiquement, jourDe } from "./preparation-auto";
+import { champNomme } from "./perimetre-projets";
 
 const LS_OFFLINE_READY    = "tm-offline-ready-projects";
 const LS_LAST_PREFETCH    = "tm-offline-prefetch-ts"; // timestamp Unix (ms)
@@ -134,11 +135,13 @@ export async function prefetchTodaysProjects(
     try { localStorage.setItem(LS_AUTO_JOUR, jourDe(maintenant)); } catch { /* ignore */ }
   }
 
-  const moi = userName.toLowerCase();
-  const aMoi = (champ: string | null | undefined) => {
-    const c = (champ || "").toLowerCase();
-    return !!c && (c.includes(moi) || c.includes("team tm"));
-  };
+  /* Prénom contre prénom. L'ancien test exigeait que le champ CONTIENNE le
+     nom complet du compte : « Jean-Marc & Miguel » ne contient pas « Jean-Marc
+     Nelzi », et la préparation chargeait zéro chantier pour tout le monde —
+     silencieusement — depuis sa mise en service. Vérifié sur la production le
+     18 octobre 2026 : les six comptes portent un nom complet, les 1 649 fiches
+     ne portent que des prénoms. */
+  const aMoi = (champ: string | null | undefined) => champNomme(champ, userName);
   /** Une intervention des sept prochains jours, qui n'est pas déjà passée. */
   const dansLaFenetre = (debut: string | null | undefined, fin?: string | null) => {
     const d = (debut || "").slice(0, 10);
@@ -181,9 +184,17 @@ export async function prefetchTodaysProjects(
     return jours.some((d) => d === todayStr || d === demainStr);
   };
 
-  // Pré-cache en séquence avec pause pour ne pas surcharger le réseau
-  // Limite augmentée à 20 projets (7 jours × quelques projets/jour)
-  for (const p of mine.slice(0, 20)) {
+  /* TOUS les chantiers attribués, pas les vingt premiers : un monteur
+     n'ouvre pas les fiches au dépôt, il les ouvre dans le sous-sol, et celle
+     qui manque est toujours la vingt-et-unième. Le plafond ne reste qu'en
+     garde-fou contre une attribution aberrante — soixante chantiers sur sept
+     jours, c'est une erreur de saisie, pas une tournée. En séquence, avec une
+     pause : Notion n'aime pas les rafales. */
+  const PLAFOND = 60;
+  if (mine.length > PLAFOND) {
+    console.warn(`[hors-ligne] ${mine.length} chantiers attribués sur sept jours : seuls les ${PLAFOND} premiers sont préparés`);
+  }
+  for (const p of mine.slice(0, PLAFOND)) {
     await prefetchOne(p.id);
     if (imminent(p)) await prefetchDocuments(p);
     await sleep(300); // étale les requêtes

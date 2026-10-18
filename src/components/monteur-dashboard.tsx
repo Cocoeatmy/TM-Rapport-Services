@@ -4,7 +4,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
-import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText, Check, Mail } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText, Check, Mail, Smartphone
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, openSignalListe, survolerApercu, quitterApercu, ouvrirApercuSurvol, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
@@ -3037,6 +3038,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
   /** Carnet de commandes — calculé par le serveur, comme les relances. */
   const [carnet, setCarnet] = useState<{ jours: number; cabines: number; rythme: { semaines: number | null } } | null>(null);
+  /* ── Les téléphones des monteurs, vus d'ici ────────────────────────────
+     Ce que chaque appareil a déposé à son dernier battement : photos en
+     attente, échecs, rapports finalisés dont le PDF n'est pas parti. Lu
+     toutes les minutes ; la page /admin/appareils donne le détail et le
+     bouton « Relancer ». */
+  const [appareils, setAppareils] = useState<{
+    resume: { appareils: number; photosEnAttente: number; photosEnEchec: number; requetesEnAttente: number; rapportsNonEnvoyes: number; bloques: { nom: string; projectId: string; depuis: number }[] };
+  } | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    const lire = () => fetch("/api/admin/appareils")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivant && d?.resume) setAppareils({ resume: d.resume }); })
+      .catch(() => {});
+    lire();
+    const arreter = intervalleVisible(lire, 60_000);
+    return () => { vivant = false; arreter(); };
+  }, []);
   useEffect(() => {
     let vivant = true;
     fetch("/api/carnet")
@@ -4724,6 +4743,48 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </span>
                 <ChevronRight className="w-4 h-4 sg-signal-arrow" />
               </Link>
+              {/* ── Ce qui dort encore sur les téléphones ───────────────────
+                  « Il n'a pas pu envoyer ses photos » s'apprenait le
+                  lendemain, par le client. Les téléphones rendent compte
+                  toutes les trente secondes ; voici la somme. La ligne reste
+                  visible même à zéro : c'est précisément le zéro qu'on veut
+                  pouvoir constater avant de rentrer. */}
+              {appareils && (
+                <Link href="/admin/appareils" className="sg-signal-row">
+                  <span className="sg-signal-chip" style={{ background: "#e0f2fe", color: "#0369a1" }}>
+                    <Smartphone className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="sg-signal-label">
+                    Envois en attente sur les téléphones
+                    <em className="sg-signal-note">
+                      {appareils.resume.appareils} appareil{appareils.resume.appareils > 1 ? "s" : ""}
+                      {appareils.resume.photosEnEchec > 0 ? ` · ${appareils.resume.photosEnEchec} en échec` : ""}
+                    </em>
+                  </span>
+                  <span className="sg-signal-count" style={{ color: (appareils.resume.photosEnAttente + appareils.resume.photosEnEchec + appareils.resume.requetesEnAttente + appareils.resume.rapportsNonEnvoyes) > 0 ? "#0369a1" : "#15803d" }}>
+                    {(appareils.resume.photosEnAttente + appareils.resume.photosEnEchec + appareils.resume.requetesEnAttente + appareils.resume.rapportsNonEnvoyes)}
+                  </span>
+                  <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+                </Link>
+              )}
+              {/* Un rapport finalisé dont le PDF n'est pas parti depuis plus de
+                  vingt-quatre heures n'est plus un délai : c'est un client qui
+                  n'a rien reçu. Rouge, et seulement quand il y en a. */}
+              {appareils && appareils.resume.bloques.length > 0 && (
+                <Link href="/admin/appareils" className="sg-signal-row">
+                  <span className="sg-signal-chip" style={{ background: "#fee2e2", color: "#b91c1c" }}>
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="sg-signal-label">
+                    Rapports non envoyés depuis plus de 24 h
+                    <em className="sg-signal-note">
+                      {[...new Set(appareils.resume.bloques.map((b) => b.nom))].join(", ")}
+                    </em>
+                  </span>
+                  <span className="sg-signal-count" style={{ color: "#b91c1c" }}>{appareils.resume.bloques.length}</span>
+                  <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+                </Link>
+              )}
             </div>
           </div>
 

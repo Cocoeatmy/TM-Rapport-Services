@@ -183,6 +183,26 @@ export async function brancherFixtures(
     if (chemin === "/api/photos/attach") return json(route, { ok: true });
     if (chemin === "/api/upload") return json(route, { files: [{ name: "f", url: "https://c.test/f" }] });
     if (chemin === "/api/build") return json(route, { build: "test" });
+    /* Le battement des appareils et sa lecture par le bureau : un téléphone
+       fictif avec un rapport bloqué, pour que les lignes de « Signaux »
+       aient quelque chose à montrer. */
+    if (chemin === "/api/appareils/etat") return json(route, { ok: true, signal: null });
+    if (chemin === "/api/admin/appareils") {
+      const vu = Date.now() - 45_000;
+      const appareil = {
+        appareil: "tel-fictif-1", email: "jacobo@test.local", nom: "Jacobo Fontan Cassas", role: "monteur",
+        navigateur: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", enLigne: true,
+        photosEnAttente: 3, photosEnEchec: 1, requetesEnAttente: 0,
+        rapportsNonEnvoyes: [{ projectId: PROJET_ID, depuis: Date.now() - 30 * 3600_000, client: true, retenuPar: 0 }],
+        preparesHorsLigne: 5, preparesQuand: Date.now() - 3600_000, build: "test", vu, signalEnAttente: null,
+      };
+      return json(route, {
+        maintenant: Date.now(),
+        resume: { appareils: 1, photosEnAttente: 3, photosEnEchec: 1, requetesEnAttente: 0, rapportsNonEnvoyes: 1,
+                  bloques: [{ appareil: "tel-fictif-1", nom: "Jacobo Fontan Cassas", projectId: PROJET_ID, depuis: appareil.rapportsNonEnvoyes[0].depuis, retenuPar: 0 }] },
+        appareils: [appareil],
+      });
+    }
     if (chemin === "/api/bexio/projet") return json(route, { etat: "inconnue", factures: [], restant: 0 });
     /* Les listes de projets contiennent le projet fictif : c'est ainsi que
        l'application le met dans son cache local, exactement comme lorsqu'un

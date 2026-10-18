@@ -173,6 +173,7 @@ import {
 } from "@/lib/noms-lots";
 import { useEtatRapport } from "@/lib/use-etat-rapport";
 import { marquerFinalise, marquerEnvoye, lireFinalisation, LIBELLE_ETAT_RAPPORT } from "@/lib/rapport-finalise";
+import { relancerEnvoisDifferes } from "@/lib/envois-differes";
 import { ColoredSelect } from "@/components/colored-select";
 import { thumbnailUrl } from "@/lib/image-url";
 import { ZoneTexte } from "@/components/zone-texte";
@@ -4824,8 +4825,6 @@ function ProjectPageContent({ id }: { id: string }) {
   /* Les paramètres du PDF différé : ils décrivent le rapport tel qu'il était
      à la clôture (heures, version client ou interne). */
   const paramsPdfRef = useRef<string>("");
-  const envoiDiffereEnCours = useRef(false);
-  const dernierEnvoiDiffere = useRef(0);
   const [reformulating, setReformulating] = useState(false);
   const [reformulatingCabineIdx, setReformulatingCabineIdx] = useState<number | null>(null);
   const [missingPhotosPrompt, setMissingPhotosPrompt] = useState<{
@@ -8001,6 +8000,11 @@ function ProjectPageContent({ id }: { id: string }) {
       // pas et n'envoient donc aucun mail.
       pdfParams.set("send", "1");
       paramsPdfRef.current = pdfParams.toString();
+      /* Les mêmes paramètres, PERSISTÉS : la reprise d'envoi peut désormais
+         partir de n'importe quelle page, après fermeture de l'application,
+         avec exactement les heures et la version que le monteur a choisies —
+         au lieu du repli sans heures qu'imposait une `ref` perdue. */
+      marquerFinalise(id, { client, params: paramsPdfRef.current });
       /* Le PDF et le mail se font sur le SERVEUR, à partir de données qu'il
          doit déjà avoir. Hors ligne, les réclamer n'aurait aucun sens : on
          s'arrête ici, le rapport reste « finalisé — synchronisation en
@@ -8084,29 +8088,21 @@ function ProjectPageContent({ id }: { id: string }) {
     const f = suiviRapport.finalise;
     if (!f || f.envoye) return;
     if (suiviRapport.photosEnAttente > 0 || suiviRapport.requetesEnAttente > 0) return;
-    if (!isOnline() || envoiDiffereEnCours.current) return;
-    /* Une minute entre deux tentatives : l'état se relit toutes les dix
-       secondes, et un serveur qui refuse ne doit pas être martelé. */
-    if (Date.now() - dernierEnvoiDiffere.current < 60_000) return;
-    envoiDiffereEnCours.current = true;
-    dernierEnvoiDiffere.current = Date.now();
-    const params = paramsPdfRef.current || `client=${f.client ? "1" : "0"}&send=1`;
-    (async () => {
-      try {
-        const res = await fetch(`/api/pdf/${id}?${params}`);
-        if (res.ok) {
-          marquerEnvoye(id);
-          toast.success("Rapport synchronisé", {
-            description: "Tout est arrivé : photos, heures et rapport.",
-            duration: 5000,
-          });
-        }
-      } catch {
-        /* Toujours pas de réseau : on réessaiera au prochain signal. */
-      } finally {
-        envoiDiffereEnCours.current = false;
-      }
-    })();
+    if (!isOnline()) return;
+    /* La logique vit dans `envois-differes.ts`, la même que celle du bouton
+       de synchro qui tourne sur toutes les pages : ici on ne fait que
+       réagir plus vite quand on est justement sur la fiche. Le délai entre
+       deux tentatives et l'interdiction de renvoyer un rapport déjà envoyé
+       y sont tenus une fois pour toutes. */
+    relancerEnvoisDifferes({
+      surEnvoi: (pid) => {
+        if (pid !== id) return;
+        toast.success("Rapport synchronisé", {
+          description: "Tout est arrivé : photos, heures et rapport.",
+          duration: 5000,
+        });
+      },
+    }).catch(() => {});
   }, [suiviRapport, id]);
 
   // Mise à jour synchrone de la ref à chaque render pour que le timer

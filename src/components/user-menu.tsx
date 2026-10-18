@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { BoutonHorsLigne } from "@/components/bouton-hors-ligne";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins, RefreshCcw, Database
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins, RefreshCcw, Database, Smartphone
 } from "lucide-react";
 import { viderCachesDeLecture, viderCacheServiceWorker } from "@/lib/vider-caches";
 import { getQueue } from "@/lib/offline";
@@ -335,6 +335,17 @@ export function UserMenu() {
               >
                 <Database className="w-4 h-4" />
                 Sauvegardes
+              </button>
+            )}
+            {/* Ce qui attend encore sur les téléphones des monteurs, et le
+                bouton pour les relancer à distance. */}
+            {user.role === "admin" && (
+              <button
+                onClick={() => { setOpen(false); router.push("/admin/appareils"); }}
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              >
+                <Smartphone className="w-4 h-4" />
+                Appareils
               </button>
             )}
             {user.role === "admin" && (

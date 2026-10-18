@@ -15,6 +15,14 @@ import { processPendingUploads, countPendingUploads, retryAllFailedUploads, rese
 import { acquireWakeLock, releaseWakeLock, reacquireWakeLockIfWanted } from "@/lib/wake-lock";
 import { toast } from "sonner";
 import { intervalleVisible } from "@/lib/timers";
+import { relancerEnvoisDifferes } from "@/lib/envois-differes";
+import { battre } from "@/lib/telemetrie-appareil";
+
+/** Le commit servi, lu dans la page : il part dans chaque battement. */
+function buildCourant(): string {
+  if (typeof document === "undefined") return "";
+  return document.querySelector('meta[name="tm-build"]')?.getAttribute("content") || "";
+}
 
 export function SyncButton() {
   const [syncing, setSyncing] = useState(false);
@@ -83,6 +91,12 @@ export function SyncButton() {
     }
 
     const handleOnline = () => {
+      /* Le réseau revient : c'est le moment où les rapports en attente
+         peuvent enfin partir, et où le bureau veut savoir où l'on en est. */
+      setTimeout(() => {
+        relancerEnvoisDifferes().catch(() => {});
+        battre(buildCourant()).catch(() => {});
+      }, 1500);
       setOnline(true);
       // Réinitialiser les backoffs ET remettre en jeu tout ce qui a été mis de
       // côté (photos ET écritures) : rien ne doit attendre un clic manuel.
@@ -150,6 +164,25 @@ export function SyncButton() {
         await resetBackoffForAll();
         if (failedCount > 0) await retryAllFailedUploads();
         autoSync();
+      }
+      /* ── Les rapports finalisés qui attendent leur PDF ─────────────────
+         Depuis N'IMPORTE QUELLE page : c'est ce qui manquait. La reprise ne
+         vivait que dans la fiche du chantier ; un monteur qui refermait
+         l'application dans la camionnette laissait le client sans rapport,
+         et personne ne le voyait. La fonction ne fait rien tant qu'une photo
+         du rapport attend encore, et respecte cinq minutes entre deux
+         tentatives — au-dessus de l'anti-doublon du serveur. */
+      if (isOnline()) {
+        relancerEnvoisDifferes({
+          surEnvoi: () => toast.success("Rapport synchronisé", {
+            description: "Tout est arrivé : photos, heures et rapport.", duration: 5000,
+          }),
+        }).catch(() => {});
+        /* ── Le battement vers le bureau ─────────────────────────────────
+           L'état de ce téléphone, en chiffres, pour que l'administrateur
+           voie ce qui attend sans avoir à demander. La réponse peut porter
+           un signal « relance tout » : `battre` s'en charge. */
+        battre(buildCourant()).catch(() => {});
       }
       // Vérifier le signal force-sync depuis le serveur
       try {

@@ -30,6 +30,16 @@ export interface Finalisation {
   client: boolean;
   /** Le serveur a produit le PDF et expédié le rapport. */
   envoye: boolean;
+  /**
+   * Les paramètres exacts du PDF à demander (heures, version client, send=1).
+   *
+   * Ils vivaient dans une `ref` React de la page du chantier : fermer
+   * l'onglet les perdait, et la reprise d'envoi devait alors se contenter
+   * d'un repli sans les heures. Persistés ici, la reprise peut partir de
+   * n'importe quelle page, n'importe quand, avec les mêmes paramètres que
+   * si le monteur n'avait jamais quitté l'écran.
+   */
+  params?: string;
 }
 
 export type EtatRapport = "aucun" | "en-attente" | "synchronise";
@@ -43,7 +53,10 @@ export function lireFinalisation(projectId: string): Finalisation | null {
     if (!brut) return null;
     const v = JSON.parse(brut) as Partial<Finalisation>;
     if (typeof v?.quand !== "number") return null;
-    return { quand: v.quand, client: !!v.client, envoye: !!v.envoye };
+    return {
+      quand: v.quand, client: !!v.client, envoye: !!v.envoye,
+      ...(typeof v.params === "string" && v.params ? { params: v.params } : {}),
+    };
   } catch {
     return null;
   }
@@ -61,13 +74,41 @@ function ecrire(projectId: string, f: Finalisation): void {
 }
 
 /** Le monteur vient de clore le rapport sur le chantier. */
-export function marquerFinalise(projectId: string, options: { client: boolean; envoye?: boolean }): void {
+export function marquerFinalise(
+  projectId: string,
+  options: { client: boolean; envoye?: boolean; params?: string },
+): void {
   const avant = lireFinalisation(projectId);
   ecrire(projectId, {
     quand: avant?.quand || Date.now(),
     client: options.client,
     envoye: !!options.envoye,
+    ...(options.params ? { params: options.params } : avant?.params ? { params: avant.params } : {}),
   });
+}
+
+/**
+ * Tous les rapports finalisés que ce téléphone connaît.
+ *
+ * C'est la brique qui manquait : l'état existait par chantier, mais rien
+ * ne pouvait répondre à « qu'est-ce qui attend encore sur cet appareil ? »
+ * sans ouvrir chaque fiche. La reprise globale des envois et la télémétrie
+ * vers le bureau partent toutes deux d'ici.
+ */
+export function lireToutesLesFinalisations(): { projectId: string; finalisation: Finalisation }[] {
+  if (typeof localStorage === "undefined") return [];
+  const out: { projectId: string; finalisation: Finalisation }[] = [];
+  const prefixe = cle("");
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(prefixe)) continue;
+      const projectId = k.slice(prefixe.length);
+      const f = lireFinalisation(projectId);
+      if (f) out.push({ projectId, finalisation: f });
+    }
+  } catch { /* stockage indisponible */ }
+  return out.sort((a, b) => a.finalisation.quand - b.finalisation.quand);
 }
 
 /** Le serveur a produit le PDF et expédié le rapport. */
