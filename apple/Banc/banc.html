@@ -29,8 +29,20 @@
 <button id="retirer" onclick="retirer()">Coffre retirer</button>
 <button id="pont" onclick="dire(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tmCoffre ? 'pont present' : 'pont absent')">Pont</button>
 <button id="camera" onclick="camera()">Camera</button>
+<button id="synchros" onclick="dire('synchros ' + (localStorage.getItem('banc-synchros') || 'aucune'))">Synchros</button>
+<button id="effacer-synchros" onclick="localStorage.removeItem('banc-synchros'); dire('synchros effacees')">Effacer synchros</button>
 <label>Photo <input id="fichier" type="file" accept="image/*" onchange="dire('fichier ' + (this.files[0] ? this.files[0].type : 'aucun'))"></label>
 <script>
+  // Témoin : l'app appelle window.tmApple.synchroniser(raison) au départ en
+  // arrière-plan, au retour, au retour du réseau. Le banc note chaque appel.
+  window.tmApple = {
+    synchroniser: async function (raison) {
+      var t = (localStorage.getItem('banc-synchros') || '').split(' ').filter(Boolean);
+      t.push(raison);
+      localStorage.setItem('banc-synchros', t.slice(-8).join(' '));
+      return { photosEnAttente: 0, photosEnEchec: 0, requetesEnAttente: 0, rapportsNonEnvoyes: 0, enLigne: true };
+    }
+  };
   function dire(t) { var r = document.getElementById('resultat'); r.textContent = t; r.setAttribute('aria-label', t); }
   var tm = function (m) { return window.webkit.messageHandlers.tmCoffre.postMessage(m); };
   // Les octets d'une « photo » de test : connus, pour vérifier l'aller-retour.

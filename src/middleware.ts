@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { comptesDesactives } from "@/lib/revocation";
 
 /* Aucune valeur de repli : avec un secret connu de tous, n'importe qui
    pourrait se fabriquer une session d'administrateur le jour où la vraie clé
@@ -60,12 +61,28 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
+  let email = "";
   try {
-    await jwtVerify(token, secret);
-    return NextResponse.next();
+    const { payload } = await jwtVerify(token, secret);
+    email = String(payload.email || "").toLowerCase();
   } catch {
     return NextResponse.redirect(new URL("/login", request.url));
   }
+
+  /* Compte désactivé : la session, pourtant bien signée, est refusée. Les
+     données restent intactes ; seul l'accès est coupé. Si la liste est
+     illisible (panne Redis), on laisse passer : les routes qui vérifient la
+     session relisent de toute façon la fiche du compte. */
+  const desactives = await comptesDesactives();
+  if (email && desactives?.has(email)) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Compte désactivé" }, { status: 401 });
+    }
+    const reponse = NextResponse.redirect(new URL("/login?desactive=1", request.url));
+    reponse.cookies.delete("auth-token");
+    return reponse;
+  }
+  return NextResponse.next();
 }
 
 export const config = {

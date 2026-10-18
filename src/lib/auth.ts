@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import crypto from "crypto";
 import { getData, getDataFresh, setData } from "./kv-store";
+import { CLE_DESACTIVES, oublierComptesDesactives } from "./revocation";
 
 export interface User {
   email: string;
@@ -14,6 +15,15 @@ export interface UserRecord {
   /** Stored as "salt:hash" (PBKDF2-SHA512, 100 000 iterations, 64-byte key) */
   password: string;
   role: "admin" | "monteur";
+  /**
+   * Compte désactivé : plus de connexion, et toute session ouverte est
+   * refusée. Rien d'autre ne change — le compte, son historique, ses heures
+   * et ses rapports restent. Réversible.
+   */
+  desactive?: boolean;
+  /** Quand et par qui (adresse), pour l'historique. */
+  desactiveLe?: string;
+  desactivePar?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,7 +98,10 @@ function versObjet(lignes: CompteRange[]): Record<string, UserRecord> {
   const out: Record<string, UserRecord> = {};
   for (const l of lignes) {
     if (!l?.email || !l?.password) continue;
-    out[l.email.toLowerCase()] = { name: l.name, password: l.password, role: l.role };
+    out[l.email.toLowerCase()] = {
+      name: l.name, password: l.password, role: l.role,
+      ...(l.desactive ? { desactive: true, desactiveLe: l.desactiveLe, desactivePar: l.desactivePar } : {}),
+    };
   }
   return out;
 }
@@ -160,14 +173,64 @@ export async function authenticate(email: string, password: string): Promise<Use
   const user = comptes[key];
   if (!user) return null;
   if (!verifyPassword(password, user.password)) return null;
+  if (user.desactive) return null; // compte désactivé : plus de connexion
   return { email: key, name: user.name, role: user.role };
 }
 
-export async function getAllUsers(): Promise<{ email: string; name: string; role: string }[]> {
+export async function getAllUsers(): Promise<{ email: string; name: string; role: string; desactive?: boolean; desactiveLe?: string }[]> {
   const comptes = await chargerComptes();
   return Object.entries(comptes).map(([email, u]) => ({
     email, name: u.name, role: u.role,
+    ...(u.desactive ? { desactive: true, desactiveLe: u.desactiveLe } : {}),
   }));
+}
+
+/** Le compte est-il désactivé ? Une adresse inconnue ne l'est pas. */
+export async function compteDesactive(email: string): Promise<boolean> {
+  if (!email) return false;
+  const comptes = await chargerComptes();
+  return !!comptes[email.toLowerCase()]?.desactive;
+}
+
+/**
+ * Désactive ou réactive un compte — sans rien effacer.
+ *
+ * Un administrateur ne peut pas être désactivé (on ne s'enferme pas dehors) ;
+ * il faut d'abord lui retirer ce rôle. Le miroir rapide lu par le middleware
+ * est mis à jour ensuite : s'il échoue, la fiche du compte fait quand même
+ * foi pour toutes les routes qui vérifient la session, et l'appelant le sait.
+ */
+export async function definirCompteActif(
+  email: string,
+  actif: boolean,
+  par: string,
+): Promise<{ ok: boolean; miroir: boolean }> {
+  const cle = email.toLowerCase();
+  const ok = await modifierComptes((c) => {
+    const compte = c[cle];
+    if (!compte) return false;
+    if (!actif && compte.role === "admin") return false;
+    if (actif) {
+      delete compte.desactive;
+      delete compte.desactiveLe;
+      delete compte.desactivePar;
+    } else {
+      compte.desactive = true;
+      compte.desactiveLe = new Date().toISOString();
+      compte.desactivePar = par;
+    }
+    return true;
+  });
+  if (!ok) return { ok: false, miroir: false };
+  let miroir = false;
+  try {
+    const { redisHSet, redisHDel } = await import("./redis-cache");
+    if (actif) await redisHDel(CLE_DESACTIVES, cle);
+    else await redisHSet(CLE_DESACTIVES, cle, new Date().toISOString());
+    miroir = true;
+  } catch { /* Redis indisponible : la fiche du compte fait foi */ }
+  oublierComptesDesactives();
+  return { ok: true, miroir };
 }
 
 export async function updateUserPassword(email: string, newPassword: string): Promise<boolean> {
@@ -262,6 +325,8 @@ export async function createToken(user: User): Promise<string> {
 export async function verifyToken(token: string): Promise<User | null> {
   try {
     const { payload } = await jwtVerify(token, cleDeSignature());
+    // Une session signée ne suffit plus : le compte ne doit pas être désactivé.
+    if (await compteDesactive(payload.email as string)) return null;
     return {
       email: payload.email as string,
       name: payload.name as string,
@@ -281,6 +346,7 @@ export async function verifyTokenWithExpiry(
 ): Promise<{ user: User | null; exp?: number }> {
   try {
     const { payload } = await jwtVerify(token, cleDeSignature());
+    if (await compteDesactive(payload.email as string)) return { user: null };
     return {
       user: {
         email: payload.email as string,

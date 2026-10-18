@@ -39,8 +39,11 @@ final class Coffre: @unchecked Sendable {
     }
 
     static func racineParDefaut() -> URL {
+        // Sous l'identifiant de l'app : hors bac à sable (essais sur Mac), le
+        // dossier « Application Support » est partagé avec les autres apps.
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("Coffre", isDirectory: true)
+        return base.appendingPathComponent(Bundle.main.bundleIdentifier ?? "TM.TM-Rapport", isDirectory: true)
+            .appendingPathComponent("Coffre", isDirectory: true)
     }
 
     var dossierPhotos: URL { racine.appendingPathComponent("photos", isDirectory: true) }

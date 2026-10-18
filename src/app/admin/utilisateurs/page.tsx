@@ -20,6 +20,8 @@ import {
   ChevronDown,
   ChevronUp,
   Pencil,
+  UserX,
+  UserCheck,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +36,9 @@ interface UserData {
   role: string;
   phone?: string;
   telegramRegistered?: boolean;
+  /** Compte désactivé : plus d'accès, rien d'effacé. */
+  desactive?: boolean;
+  desactiveLe?: string;
 }
 
 export default function UtilisateursPage() {
@@ -190,6 +195,30 @@ export default function UtilisateursPage() {
     }
   };
 
+  /* Couper ou rendre l'accès, sans rien effacer : le compte, ses heures, ses
+     rapports et son nom dans l'historique restent. Une session ouverte sur
+     un téléphone est refusée au plus tard une minute après. */
+  const handleToggleActif = async (u: UserData) => {
+    const desactiver = !u.desactive;
+    if (desactiver && !confirm(`Désactiver le compte de ${u.name} ?\n\nIl ne pourra plus se connecter, et ses sessions ouvertes seront coupées. Rien n'est effacé : son historique, ses heures et ses rapports restent, et le compte peut être réactivé.`)) return;
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: u.email, desactive: desactiver }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success(desactiver ? `Compte de ${u.name} désactivé` : `Compte de ${u.name} réactivé`);
+        loadUsers();
+      } else {
+        toast.error(data.error || "Modification impossible");
+      }
+    } catch {
+      toast.error("Erreur réseau");
+    }
+  };
+
   const handleDeleteUser = async (email: string, name: string) => {
     if (!confirm(`Supprimer l'utilisateur ${name} ?`)) return;
     try {
@@ -308,6 +337,15 @@ export default function UtilisateursPage() {
                         <Shield className="w-3 h-3" />
                         {u.role === "admin" ? "Admin" : "Monteur"}
                       </button>
+                      {u.desactive && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40"
+                          title={u.desactiveLe ? `Désactivé le ${new Date(u.desactiveLe).toLocaleDateString("fr-CH")}` : undefined}
+                        >
+                          <UserX className="w-3 h-3" />
+                          Désactivé
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
                       <Mail className="w-3 h-3" />
@@ -434,6 +472,19 @@ export default function UtilisateursPage() {
                           Statistiques
                           {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                         </button>
+                        {u.role !== "admin" && (
+                          <button
+                            onClick={() => handleToggleActif(u)}
+                            className={`text-xs flex items-center gap-1 ${
+                              u.desactive
+                                ? "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-200"
+                                : "text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200"
+                            }`}
+                          >
+                            {u.desactive ? <UserCheck className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
+                            {u.desactive ? "Réactiver" : "Désactiver"}
+                          </button>
+                        )}
                         {u.role !== "admin" && (
                           <button
                             onClick={() => handleDeleteUser(u.email, u.name)}

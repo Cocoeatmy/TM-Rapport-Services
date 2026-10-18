@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllUsers, updateUserPassword, updateUserRole, addUser, deleteUser, updateUserInfo } from "@/lib/auth";
+import { getAllUsers, updateUserPassword, updateUserRole, addUser, deleteUser, updateUserInfo, definirCompteActif, getUser } from "@/lib/auth";
 import { getUserPhones, setUserPhone, renameUserPhone, deleteUserPhone } from "@/lib/user-phones";
 import { getUserChatIds, deleteUserChatId } from "@/lib/user-chatids";
 import { aLeDroit } from "@/lib/droits-serveur";
@@ -53,9 +53,24 @@ export async function PATCH(request: NextRequest) {
   if (!(await checkAdmin())) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
-  const { email, password, role, name, newEmail, phone } = await request.json();
+  const { email, password, role, name, newEmail, phone, desactive } = await request.json();
   if (!email) {
     return NextResponse.json({ error: "Email requis" }, { status: 400 });
+  }
+  /* Désactiver / réactiver : l'accès est coupé ou rendu, rien n'est effacé. */
+  if (typeof desactive === "boolean") {
+    const moi = await getUser();
+    if (desactive && moi?.email?.toLowerCase() === String(email).toLowerCase()) {
+      return NextResponse.json({ error: "Vous ne pouvez pas désactiver votre propre compte" }, { status: 400 });
+    }
+    const r = await definirCompteActif(email, !desactive, moi?.email || "");
+    if (!r.ok) {
+      return NextResponse.json(
+        { error: desactive ? "Compte introuvable, ou administrateur (retirez d'abord ce rôle)" : "Compte introuvable" },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json({ success: true, miroir: r.miroir });
   }
   if (name || newEmail) {
     const success = await updateUserInfo(email, name, newEmail);

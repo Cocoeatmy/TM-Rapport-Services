@@ -12,7 +12,11 @@ function LoginForm() {
   const redirectTo = searchParams.get("redirect") || "/";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  /* Arrivé ici parce que le compte a été désactivé : on le dit, plutôt
+     qu'un « mot de passe incorrect » qui ferait chercher ailleurs. */
+  const [error, setError] = useState(
+    searchParams.get("desactive") === "1" ? "Ce compte a été désactivé. Contactez l'administrateur." : "",
+  );
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
