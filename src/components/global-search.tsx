@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Search, X, ArrowRight, SlidersHorizontal, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import type { Project } from "@/lib/notion";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import { savEnCours } from "@/lib/sav-etat";
@@ -231,6 +232,20 @@ export function GlobalSearch() {
   const hasQuery = query.trim().length >= 2;
   const hasFilters = activeFilterCount > 0;
 
+  /* La hauteur réellement visible : sur iPhone et iPad, le clavier en mange
+     la moitié sans que la page le sache (100vh ne bouge pas). La liste des
+     résultats s'y adapte pour rester entière au-dessus du clavier, et défile
+     au-delà. */
+  const [hauteurVisible, setHauteurVisible] = useState<number | null>(null);
+  useEffect(() => {
+    if (!open || typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const lire = () => setHauteurVisible(vv.height);
+    lire();
+    vv.addEventListener("resize", lire);
+    return () => vv.removeEventListener("resize", lire);
+  }, [open]);
+
   return (
     <>
       {/* Bouton dans le header */}
@@ -243,7 +258,12 @@ export function GlobalSearch() {
         <Search className="w-4 h-4" />
       </button>
 
-      {open && (
+      {/* La fenêtre est posée à la RACINE de la page, hors de l'en-tête. Sur
+          iPhone, la rangée de boutons de l'en-tête défile horizontalement, et
+          Safari rogne alors tout ce qui est « fixe » à l'intérieur : la
+          recherche s'ouvrait coupée à la hauteur de l'en-tête, sous la barre
+          d'onglets. Hors de l'en-tête, elle passe au-dessus de tout. */}
+      {open && typeof document !== "undefined" && createPortal(
         <>
           {/* Fond sombre */}
           <div
@@ -421,7 +441,10 @@ export function GlobalSearch() {
               )}
 
               {/* Liste des résultats */}
-              <div className="max-h-[55vh] overflow-y-auto">
+              <div
+                className="max-h-[55vh] overflow-y-auto overscroll-contain"
+                style={hauteurVisible ? { maxHeight: `min(55vh, ${Math.max(160, Math.round(hauteurVisible * 0.95 - 190))}px)` } : undefined}
+              >
                 {!hasQuery && !hasFilters && (
                   <p className="text-center text-sm text-gray-400 py-10">
                     Tapez au moins 2 caractères ou activez un filtre
@@ -454,7 +477,8 @@ export function GlobalSearch() {
               </div>
             </div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </>
   );

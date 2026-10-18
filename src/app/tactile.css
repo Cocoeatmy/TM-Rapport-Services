@@ -128,8 +128,29 @@
   button.sg-chip,
   button[data-compact],
   input[type="checkbox"],
-  input[type="radio"] {
+  input[type="radio"],
+  /* Les numéros de projet posés sur les cases de « Charge de la semaine ».
+     Écrits en `role="button"` (ils épinglent l'aperçu), ils recevaient les
+     quarante pixels de la règle générale : une plaque haute, texte collé en
+     haut, qui débordait des cases fines et chevauchait la voisine. La case
+     elle-même reste la cible du doigt (elle ouvre le chantier). */
+  .sg-seg-tm {
     min-height: 0;
+  }
+
+  /* Une case de la barre de charge sait sa propre hauteur : le numéro s'y
+     adapte au lieu de déborder. Assez haute, il s'affiche centré ; un peu
+     juste, il se resserre ; trop fine pour être lue, il s'efface — la case
+     garde sa couleur et reste un lien vers le chantier. */
+  .sg-bar-seg {
+    container-type: size;
+  }
+  @container (max-height: 21px) {
+    .sg-seg-tms { gap: 0 5px; padding: 0 2px; }
+    .sg-seg-tm { font-size: 9.5px; line-height: 1.15; padding: 0 5px; }
+  }
+  @container (max-height: 12px) {
+    .sg-seg-tms { display: none; }
   }
 
   /* La pastille garde ses 13 px dessinés et gagne une zone sensible de
