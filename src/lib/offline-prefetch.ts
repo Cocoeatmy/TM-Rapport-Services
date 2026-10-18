@@ -14,9 +14,12 @@
  */
 
 import type { Project } from "./notion";
+import { doitPreparerAutomatiquement, jourDe } from "./preparation-auto";
 
 const LS_OFFLINE_READY    = "tm-offline-ready-projects";
 const LS_LAST_PREFETCH    = "tm-offline-prefetch-ts"; // timestamp Unix (ms)
+/** Le jour où la préparation AUTOMATIQUE a déjà tourné (AAAA-MM-JJ). */
+const LS_AUTO_JOUR        = "tm-offline-auto-jour";
 
 /** Champ Notion des documents de montage — le nom attendu par /api/file-proxy. */
 const CHAMP_DOCS = "Documents pour Montage";
@@ -103,6 +106,33 @@ export async function prefetchTodaysProjects(
   const ONE_HOUR_MS = 60 * 60 * 1000;
   const lastTs = parseInt(localStorage.getItem(LS_LAST_PREFETCH) || "0", 10);
   if (!force && Date.now() - lastTs < ONE_HOUR_MS) return lireEtat().projets;
+
+  /* ── La fenêtre du matin ───────────────────────────────────────────────
+     Demandé le 18 octobre 2026 : la préparation AUTOMATIQUE n'a lieu que
+     du lundi au vendredi, entre 6 h 30 et 7 h 30. C'est l'heure du dépôt —
+     bon réseau, journée connue, et le temps de télécharger avant de
+     partir. Avant, elle se déclenchait à chaque affichage du tableau de
+     bord, donc aussi à 10 h au fond d'un sous-sol.
+
+     Le contrôle vit ICI plutôt que chez les appelants : il y en a deux
+     aujourd'hui, et celui qu'on écrira demain héritera de la règle sans
+     qu'on y pense. Le bouton « Préparer la journée » passe outre
+     (`force`) : un geste délibéré n'a pas d'heure. */
+  if (!force) {
+    const maintenant = new Date();
+    const verdict = doitPreparerAutomatiquement({
+      maintenant,
+      enLigne: navigator.onLine,
+      quandPrepare: lireEtat().quand,
+      dejaFaitLe: localStorage.getItem(LS_AUTO_JOUR),
+      projetsConnus: allProjects.length,
+    });
+    if (!verdict.preparer) return lireEtat().projets;
+    /* La marque est posée AVANT le téléchargement : s'il échoue à
+       mi-chemin, on ne le rejoue pas en boucle à chaque ouverture de la
+       minute suivante. Le bouton reste là pour une reprise à la main. */
+    try { localStorage.setItem(LS_AUTO_JOUR, jourDe(maintenant)); } catch { /* ignore */ }
+  }
 
   const moi = userName.toLowerCase();
   const aMoi = (champ: string | null | undefined) => {

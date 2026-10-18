@@ -70,7 +70,7 @@ export default defineConfig({
       name: "affichage-tactile",
       /* Le garde-fou tactile (51), le relevé (50) et les captures (59).
          Pas le garde-fou macOS (52) : il exige un pointeur fin. */
-      testMatch: /(50|51|53|59)-.*\.spec\.ts$/,
+      testMatch: /(50|51|53|54|59)-.*\.spec\.ts$/,
       use: { viewport: { width: 820, height: 1060 }, hasTouch: true, isMobile: false },
     },
     {

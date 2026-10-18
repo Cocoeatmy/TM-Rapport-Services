@@ -35,6 +35,21 @@
  * bouton dont on ne sait plus lequel est le bon. Le FONCTIONNEMENT est
  * identique dans les deux cas — même état, même panneau, même bouton
  * « Préparer la journée ».
+ *
+ * ── Et depuis le 18 octobre, il n'attend plus qu'on y pense ─────────────
+ *
+ * Le seul geste qu'on pouvait oublier était celui-ci. La préparation se
+ * lance donc toute seule, à l'ouverture de l'application, du LUNDI AU
+ * VENDREDI entre 6 H 30 ET 7 H 30 — l'heure du téléphone, donc celle du
+ * monteur. Une fois par jour, jamais le week-end, jamais en dehors de
+ * cette heure-là, et seulement si ce qui est sur l'appareil a plus de
+ * douze heures.
+ *
+ * Une application web ne tourne que lorsqu'elle est ouverte : « à 6 h 30 »
+ * veut donc dire « à la première ouverture dans cette tranche ». Si le
+ * monteur n'ouvre rien avant 8 h, rien ne se lance — il reste le bouton,
+ * qui dit alors « à rafraîchir ». La règle elle-même vit dans
+ * `preparation-auto.ts`, où elle se laisse éprouver heure par heure.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -92,11 +107,9 @@ export interface ProprietesBoutonHorsLigne {
   /** `rond` : la pastille historique de l'en-tête. `menu` : une ligne du
       menu profil, alignée sur les autres entrées. */
   variante?: "rond" | "menu";
-  /** Appelé quand le panneau s'ouvre, pour que le menu hôte se referme. */
-  onOuvrir?: () => void;
 }
 
-export function BoutonHorsLigne({ variante = "rond", onOuvrir }: ProprietesBoutonHorsLigne = {}) {
+export function BoutonHorsLigne({ variante = "rond" }: ProprietesBoutonHorsLigne = {}) {
   /* Le thème Signal seul monte ce bouton : les autres gardent l'en-tête qu'ils
      ont toujours eu. On lit l'attribut plutôt qu'un contexte — il est posé
      avant l'hydratation, et aucune donnée ne transite. */
@@ -171,7 +184,7 @@ export function BoutonHorsLigne({ variante = "rond", onOuvrir }: ProprietesBouto
     };
   }, [ouvert]);
 
-  const preparer = async () => {
+  const preparer = useCallback(async () => {
     setTravaille(true);
     try {
       await prefetchTodaysProjects(projetsEnCache(), nom, true);
@@ -179,7 +192,24 @@ export function BoutonHorsLigne({ variante = "rond", onOuvrir }: ProprietesBouto
       await relire();
       setTravaille(false);
     }
-  };
+  }, [nom, relire]);
+
+  /* ── La préparation du matin, sans qu'on la demande ───────────────────
+     `page.tsx` la déclenche déjà à l'affichage du tableau de bord. Mais un
+     monteur ouvre souvent l'application directement sur une fiche : la
+     barre du haut, elle, est partout. On appelle donc sans forcer — la
+     fenêtre du lundi au vendredi 6 h 30 – 7 h 30, le plafond d'une fois
+     par heure et la marque du jour vivent tous dans
+     `prefetchTodaysProjects`, qui refuse poliment le reste du temps. */
+  useEffect(() => {
+    if (!nom) return;
+    const t = setTimeout(() => {
+      const projets = projetsEnCache();
+      if (projets.length === 0) return;
+      prefetchTodaysProjects(projets, nom).then(relire).catch(() => {});
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [nom, relire]);
 
   if (!signal) return null;
 
