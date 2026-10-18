@@ -872,3 +872,110 @@ Une copie de composant dans `src/` n'est pas anodine : un glob d'import peut
 la ramasser, et une correction s'applique alors à un fichier que plus
 personne ne lit. Les 100 copies sont retirées (archivées hors du dépôt
 avant suppression) et le motif de `.gitignore` les couvre désormais toutes.
+
+---
+
+# Septième campagne — 18 octobre 2026 (ce qui dort sur les téléphones)
+
+Trois chantiers demandés, un fil conducteur : **le serveur doit savoir ce
+qui attend sur chaque appareil, et pouvoir le relancer.**
+
+## 1 — La préparation du matin ne chargeait rien
+
+Découvert en vérifiant la remarque « mes monteurs ouvrent l'app le matin
+mais ne cliquent pas sur les projets ». Vérifié sur la production :
+
+| Côté | Ce qui est écrit |
+|---|---|
+| Comptes (`/api/auth` → `user.name`) | « Jean-Marc Nelzi », « Jacobo Fontan Cassas », « Miguel Roberto »… |
+| Fiches Notion (`collaborateurs`, `mesuresTraiteePar`) | « Jean-Marc & Miguel », « Claudio & Jacobo », « Micael »… |
+
+Le filtre exigeait que le champ Notion **contienne le nom complet** du
+compte. « Jean-Marc & Miguel » ne contient pas « Jean-Marc Nelzi ». **Zéro
+chantier préparé, pour tout le monde, depuis la mise en service — sans la
+moindre erreur à l'écran.**
+
+Corrigé : prénom contre prénom, accents et casse neutralisés, « Team »
+désignant chacun (`champNomme`, la brique que `estSien` partage désormais).
+Le plafond de vingt chantiers saute : **tous** les chantiers attribués sur
+sept jours sont préparés — celui qui manque est toujours le vingt-et-unième.
+
+Le test de bout en bout 54 a été **renforcé** (par quelqu'un d'autre
+pendant la campagne, et c'est tant mieux) : il vérifie désormais *quels*
+chantiers sont préparés — les trois de Jacobo, et eux seuls. Il a d'abord
+échoué pour une raison de décor : le serveur de test rendait un chantier,
+le cache semé en avait six, et le tableau de bord écrasait le second par le
+premier. Le décor rend maintenant les mêmes chantiers des deux côtés.
+
+## 2 — Les rapports finalisés sans réseau envoient leur PDF, d'où qu'on soit
+
+La reprise vivait **dans la page du chantier** : elle ne partait que si le
+monteur rouvrait cette fiche, avec du réseau, la file vidée. Fermer
+l'application dans la camionnette laissait le client sans rapport, et rien
+nulle part ne le signalait.
+
+`src/lib/envois-differes.ts` balaie tous les rapports finalisés non
+envoyés de l'appareil, **depuis n'importe quelle page** — à chaque
+battement du bouton de synchro (30 s) et au retour du réseau. Garde-fous :
+
+- un rapport n'est demandé que lorsque **aucune** de ses photos ni
+  écritures n'attend plus ;
+- **cinq minutes** entre deux tentatives d'un même rapport — au-dessus de
+  l'anti-doublon serveur de trois minutes ;
+- un rapport marqué envoyé n'est **jamais** redemandé ;
+- les paramètres exacts du PDF (heures, version client) sont désormais
+  **persistés** avec la finalisation : ils vivaient dans une `ref` React
+  que fermer l'onglet effaçait.
+
+## 3 — Télémétrie d'appareil : le bureau voit, et peut relancer
+
+Toutes les trente secondes, quand l'application est ouverte et en ligne,
+chaque téléphone dépose son état **en chiffres** dans un hachage Redis :
+photos en attente, échecs définitifs, écritures en file, rapports sans PDF
+(avec leur ancienneté), chantiers préparés hors ligne, commit servi.
+**Aucune donnée de chantier n'y transite** — un test le vérifie sur le
+corps réel du battement. Aucune écriture Notion.
+
+| Où | Quoi |
+|---|---|
+| Panneau **Signaux** | « Envois en attente sur les téléphones » (somme, nombre d'appareils, échecs) et, en rouge et seulement s'il y en a, « Rapports non envoyés depuis plus de 24 h » avec les noms |
+| **/admin/appareils** | Un bloc par téléphone : dernier signe de vie, compteurs, rapports en attente avec lien vers la fiche, et le bouton **Relancer** |
+| Menu **MF** | Entrée « Appareils » |
+
+**« Relancer »** pose un signal que le téléphone lit à son prochain
+battement **et** envoie une notification push à son propriétaire. Touchée,
+elle rouvre l'application, qui bat, lit le signal, remet ses échecs en
+jeu, vide ses files et demande les PDF. Sur iOS, c'est **le seul fil qui
+atteigne une application web fermée**. La page le dit plutôt que de le
+laisser croire : ce bouton raccourcit le délai, il ne force pas un
+téléphone éteint ou sans réseau.
+
+Le signal est pris en compte **une fois** (le téléphone retient sa date) et
+le téléphone **rend compte aussitôt** après, pour que le bureau voie
+l'effet sans attendre trente secondes.
+
+## Tests
+
+| Fichier | Ce qu'il tient |
+|---|---|
+| `champ-nomme.test.ts` | « Jean-Marc & Miguel » nomme Jean-Marc Nelzi et Miguel Roberto ; Miguel ≠ Micael ; Team ; accents |
+| `envois-differes.test.ts` | retenu tant qu'une photo attend ; 5 min entre tentatives ; jamais deux fois ; hors ligne rien ; paramètres persistés ; > 24 h = bloqué |
+| `appareils-routes.test.ts` | battement sans session → 401 ; types forcés et listes bornées ; résumé et rapports bloqués ; appareil oublié après 14 j ; signal + push ; push en échec n'annule pas le signal ; bureau réservé à l'admin |
+| `telemetrie-appareil.test.ts` | identifiant stable (pas l'User-Agent) ; instantané sans rien de confidentiel ; obéit à un signal **une fois** et rend compte ; erreur serveur silencieuse |
+| `e2e/55-appareils.spec.ts` | le téléphone rend compte, en chiffres seulement ; obéit à un signal ; un monteur n'accède pas à la page ; Signaux montre 5 en attente et le rapport bloqué ; Relancer poste `{appareil, action}` |
+
+**1 287 tests unitaires · 43 Playwright · tsc et build verts.**
+
+## Observations, hors périmètre
+
+- Pendant la campagne, deux fichiers que je n'ai pas écrits sont apparus
+  dans l'arbre : une autre version de `/admin/appareils/page.tsx` (même
+  contrat d'API, conservée telle quelle, mon test s'y est aligné) et
+  `docs/AUDIT-IOS-NATIVE.md` (une étude de faisabilité iOS native, **non
+  commitée** avec ce travail). Ce document signale qu'**un compte retiré ne
+  perd jamais l'accès** — Loïc, parti, a toujours un compte « monteur » :
+  vérifié dans la liste des comptes. À traiter.
+- `npm run build` en local écrit dans Notion (pré-rendu de routes qui
+  passent par le magasin KV) et reçoit « Can't edit block that is
+  archived » : une page `[DATA]` a été archivée côté Notion. Sans
+  conséquence sur le build, mais un build ne devrait pas écrire.
