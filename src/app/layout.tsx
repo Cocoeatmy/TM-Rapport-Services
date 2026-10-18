@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
+import { BoutonHorsLigne } from "@/components/bouton-hors-ligne";
 import { UserMenu } from "@/components/user-menu";
 import { SyncButton } from "@/components/sync-button";
 import { AIChatbot } from "@/components/ai-chatbot";
@@ -136,11 +137,13 @@ export default function RootLayout({
               {/* Bouton Actualiser : visible pour TOUS (admin + employé). */}
               <RefreshButton />
               <NotificationBell />
-              {/* Le nuage descendant (« Journée hors ligne ») a déménagé dans
-                  le menu du profil le 18 octobre 2026 : huit boutons ronds se
-                  disputaient cette barre, et elle débordait sur un iPad en
-                  portrait. Il sert avant de partir en chantier, pas à chaque
-                  minute. Voir `UserMenu`. */}
+              {/* Le nuage descendant (« Journée hors ligne ») : ce qui est
+                  TÉLÉCHARGÉ sur l'appareil pour travailler sans réseau —
+                  l'inverse du nuage de synchro et de l'avion, qui font
+                  remonter. Il ne se monte ici que pour les MONTEURS, à qui
+                  il sert avant de partir ; l'administrateur l'a dans son
+                  menu de profil. Le composant tranche lui-même. */}
+              <BoutonHorsLigne />
               {/* SendPendingButton (avion) : quand il est coloré, des photos ne
                   sont pas encore uploadées → l'utilisateur relance en tapant.
                   Gardé visible pour TOUS les utilisateurs. */}

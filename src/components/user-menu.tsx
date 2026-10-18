@@ -322,10 +322,12 @@ export function UserMenu() {
                 Droits d&apos;accès
               </button>
             )}
-            {/* « Journée hors ligne » — le nuage descendant, descendu de
-                l'en-tête. Il déplie son panneau DANS le menu : une bulle
+            {/* « Journée hors ligne » — le nuage descendant. Ici pour
+                l'administrateur seulement : les monteurs le gardent dans la
+                barre du haut, à portée de pouce avant de partir. Jamais aux
+                deux endroits. Il déplie son panneau DANS le menu, une bulle
                 flottante aurait recouvert la liste dont elle sort. */}
-            <BoutonHorsLigne variante="menu" />
+            {user.role === "admin" && <BoutonHorsLigne variante="menu" />}
             {user.role === "admin" && (
               <button
                 onClick={() => { setOpen(false); router.push("/admin/sauvegardes"); }}

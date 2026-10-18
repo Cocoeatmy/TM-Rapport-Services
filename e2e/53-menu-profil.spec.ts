@@ -12,7 +12,7 @@
  *     « Signaux » y mène déjà. La PAGE doit rester accessible et intacte.
  */
 import { test, expect } from "@playwright/test";
-import { brancherFixtures, seConnecter, sansServiceWorker, ADMIN } from "./harnais";
+import { brancherFixtures, seConnecter, sansServiceWorker, ADMIN, MONTEUR } from "./harnais";
 
 const MENU = 'div.z-\\[100\\].w-56';
 
@@ -34,12 +34,12 @@ for (const theme of ["signal"]) {
       await seConnecter(context, ADMIN);
     });
 
-    test("le nuage a quitté la barre du haut", async ({ page }) => {
+    test("pour l'ADMINISTRATEUR, le nuage a quitté la barre du haut", async ({ page }) => {
       await brancherFixtures(page, { compte: ADMIN });
       await page.goto("/?mode=dashboard", { waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(1500);
       await expect(page.locator("header .sgh-off"),
-        "le bouton rond ne doit plus être dans l'en-tête").toHaveCount(0);
+        "depuis le bureau, il vit dans le menu").toHaveCount(0);
     });
 
     test("« Journée hors ligne » est dans le menu, et son panneau s'ouvre", async ({ page }) => {
@@ -92,3 +92,38 @@ for (const theme of ["signal"]) {
     });
   });
 }
+
+/* ── Et pour un MONTEUR ────────────────────────────────────────────────────
+   Lui ne passe pas par un menu avant de monter dans la camionnette : le
+   nuage reste dans la barre du haut, à portée de pouce. C'est la demande du
+   18 octobre, et ces deux tests sont là pour qu'on ne le lui reprenne pas
+   par inadvertance. */
+test.describe("le nuage hors ligne, côté monteur · signal", () => {
+  test.beforeEach(async ({ context }) => {
+    await sansServiceWorker(context);
+    await context.addInitScript(() => {
+      try { localStorage.setItem("tm-ui-mode", "signal"); } catch { /* ignore */ }
+      document.documentElement.setAttribute("data-ui", "signal");
+    });
+    await seConnecter(context, MONTEUR);
+  });
+
+  test("reste dans la barre du haut", async ({ page }) => {
+    await brancherFixtures(page, { compte: MONTEUR });
+    await page.goto("/?mode=dashboard", { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1500);
+    await expect(page.locator("header .sgh-off"),
+      "le monteur doit le garder sous le pouce").toHaveCount(1);
+  });
+
+  test("et n'apparaît PAS une seconde fois dans son menu", async ({ page }) => {
+    /* Un même bouton en double est un bouton dont on ne sait plus lequel
+       est le bon. */
+    await brancherFixtures(page, { compte: MONTEUR });
+    await page.goto("/?mode=dashboard", { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1500);
+    await page.locator('button[aria-label="Mon compte"]').click();
+    await expect(page.locator(MENU)).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(MENU).getByText("Journée hors ligne")).toHaveCount(0);
+  });
+});

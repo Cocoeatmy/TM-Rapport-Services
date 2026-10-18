@@ -19,15 +19,22 @@
  * envois en attente. Celui-ci parle de ce qui DESCEND sur l'appareil : d'où la
  * flèche vers le bas, pour que les trois ne se confondent pas.
  *
- * ── Il a déménagé dans le menu du profil (18 octobre 2026) ──────────────
+ * ── Où il se trouve, et pour qui (18 octobre 2026) ──────────────────────
  *
- * Huit boutons ronds se disputaient la barre du haut, et sur un iPad en
- * portrait ils débordaient. Celui-ci sert avant de partir en chantier, pas
- * à chaque minute : il est passé dans le menu MF, en ligne de menu comme
- * les autres entrées. Rien de son FONCTIONNEMENT n'a changé — même état,
- * même panneau, même bouton « Préparer la journée ». Seul son point
- * d'accès a bougé. La variante `rond` reste disponible pour un retour en
- * arrière d'une ligne.
+ * Il n'est pas au même endroit selon qui regarde, et c'est voulu :
+ *
+ *   — un MONTEUR le garde dans la barre du haut, à portée de pouce. C'est
+ *     le dernier geste avant de monter dans la camionnette, et il doit se
+ *     voir sans ouvrir de menu ;
+ *   — l'ADMINISTRATEUR le trouve dans le menu du profil. Depuis le bureau,
+ *     on ne prépare pas une journée de chantier ; le bouton occupait un
+ *     rond permanent dans une barre qui en comptait huit et qui débordait
+ *     sur un iPad en portrait.
+ *
+ * Jamais aux deux endroits à la fois : un même bouton en double est un
+ * bouton dont on ne sait plus lequel est le bon. Le FONCTIONNEMENT est
+ * identique dans les deux cas — même état, même panneau, même bouton
+ * « Préparer la journée ».
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -95,6 +102,7 @@ export function BoutonHorsLigne({ variante = "rond", onOuvrir }: ProprietesBouto
      avant l'hydratation, et aucune donnée ne transite. */
   const [signal, setSignal] = useState(false);
   const [nom, setNom] = useState("");
+  const [role, setRole] = useState<string | null>(null);
   const [etat, setEtat] = useState({ projets: 0, quand: 0 });
   const [enAttente, setEnAttente] = useState(0);
   const [bloques, setBloques] = useState(0);
@@ -108,7 +116,10 @@ export function BoutonHorsLigne({ variante = "rond", onOuvrir }: ProprietesBouto
     setSignal(document.documentElement.getAttribute("data-ui") === "signal");
     fetch("/api/auth")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.user?.name) setNom(String(d.user.name)); })
+      .then((d) => {
+        if (d?.user?.name) setNom(String(d.user.name));
+        if (d?.user?.role) setRole(String(d.user.role));
+      })
       .catch(() => {});
   }, []);
 
@@ -171,6 +182,12 @@ export function BoutonHorsLigne({ variante = "rond", onOuvrir }: ProprietesBouto
   };
 
   if (!signal) return null;
+
+  /* La pastille de l'en-tête n'est montée que pour ceux qui partent en
+     chantier. Tant que le compte n'est pas connu, on ne montre rien : mieux
+     vaut une barre qui se complète qu'un bouton qui disparaît sous les yeux.
+     L'administrateur, lui, l'a dans son menu — voir `UserMenu`. */
+  if (variante === "rond" && role !== "monteur") return null;
 
   /* Quatre situations, et une seule demande un geste.
      • jamais   — rien n'a été tenté : c'est le cas qui doit se voir.
