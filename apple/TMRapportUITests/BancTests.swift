@@ -8,6 +8,7 @@ import XCTest
 /// une fenêtre ouverte par le site s'ouvre et se ferme, un téléchargement
 /// aboutit, et le coffre natif garde une photo — octets intacts — à travers
 /// une fermeture complète de l'application.
+#if os(iOS)
 final class BancTests: XCTestCase {
 
     private var app: XCUIApplication!
@@ -139,3 +140,57 @@ final class BancTests: XCTestCase {
         XCTAssertTrue(resultat("fichier image/").waitForExistence(timeout: 15), "la photo choisie n'est pas arrivée dans la page")
     }
 }
+#endif
+
+#if os(macOS)
+/// Sur Mac : les mêmes boîtes de dialogue (en NSAlert) et les fenêtres
+/// ouvertes par le site, qui deviennent de vraies fenêtres.
+final class BancMacTests: XCTestCase {
+
+    private var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = ["-TMBaseURL", "http://localhost:3138/banc.html"]
+        app.launch()
+        XCTAssertTrue(resultat("pret").waitForExistence(timeout: 20), "le banc ne s'est pas chargé")
+    }
+
+    override func tearDownWithError() throws {
+        app.terminate()
+    }
+
+    private func resultat(_ debut: String) -> XCUIElement {
+        app.webViews.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@ OR value BEGINSWITH %@", debut, debut)).firstMatch
+    }
+
+    private func toucher(_ libelle: String) {
+        let b = app.webViews.buttons[libelle].firstMatch
+        XCTAssertTrue(b.waitForExistence(timeout: 10), "bouton \(libelle) introuvable")
+        b.click()
+    }
+
+    func testBoitesDeDialogueSurMac() throws {
+        toucher("Confirmer")
+        let dialogue = app.dialogs.firstMatch
+        XCTAssertTrue(dialogue.waitForExistence(timeout: 5), "la confirmation ne s'est pas affichée")
+        dialogue.buttons["OK"].click()
+        XCTAssertTrue(resultat("confirme oui").waitForExistence(timeout: 5))
+
+        toucher("Confirmer")
+        XCTAssertTrue(app.dialogs.firstMatch.waitForExistence(timeout: 5))
+        app.dialogs.firstMatch.buttons["Annuler"].click()
+        XCTAssertTrue(resultat("confirme non").waitForExistence(timeout: 5))
+    }
+
+    func testUneFenetreOuverteParLeSiteDevientUneFenetre() throws {
+        let avant = app.windows.count
+        toucher("Ouvrir fenetre")
+        let attente = expectation(for: NSPredicate(format: "count > %d", avant), evaluatedWith: app.windows)
+        wait(for: [attente], timeout: 10)
+        XCTAssertGreaterThan(app.windows.count, avant)
+    }
+}
+#endif
