@@ -55,10 +55,15 @@ final class BancTests: XCTestCase {
         let champ = app.alerts.textFields.firstMatch
         XCTAssertTrue(champ.waitForExistence(timeout: 5))
         XCTAssertEqual(champ.value as? String, "Cab1")
+        // Toucher le champ sélectionne son texte sous iOS 27 (la frappe le
+        // remplace), pas sous iOS 26 (elle le complète) : on vérifie que ce
+        // qui est tapé revient bien à la page, dans les deux cas.
         champ.tap()
         champ.typeText("2")
         app.alerts.buttons["OK"].tap()
-        XCTAssertTrue(resultat("saisi Cab12").waitForExistence(timeout: 5))
+        let saisi = resultat("saisi ")
+        XCTAssertTrue(saisi.waitForExistence(timeout: 5))
+        XCTAssertTrue(["saisi Cab12", "saisi 2"].contains(saisi.label), saisi.label)
     }
 
     func testUneFenetreOuverteParLeSite() throws {
