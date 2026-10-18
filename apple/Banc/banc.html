@@ -120,6 +120,7 @@
   }
   function capacites() {
     var c = [];
+    c.push('autonome=' + (navigator.standalone === true));
     c.push('wakeLock=' + ('wakeLock' in navigator));
     c.push('share=' + (typeof navigator.share === 'function'));
     c.push('notification=' + ('Notification' in window));

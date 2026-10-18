@@ -71,6 +71,13 @@ final class Navigateur: NSObject, ObservableObject {
         conf.applicationNameForUserAgent = Configuration.nomAgent
         conf.preferences.javaScriptCanOpenWindowsAutomatically = true
         conf.userContentController.addScriptMessageHandler(pont, contentWorld: .page, name: PontNatif.nom)
+        // Comme l'icône posée sur l'écran d'accueil (la version que les
+        // monteurs utilisent aujourd'hui) : l'app est une fenêtre AUTONOME,
+        // sans bouton « Retour » de navigateur. Le site le lit pour ouvrir
+        // les documents à côté plutôt qu'à la place du chantier.
+        conf.userContentController.addUserScript(WKUserScript(source: """
+            try { Object.defineProperty(navigator, 'standalone', { get: function () { return true; }, configurable: true }); } catch (e) {}
+            """, injectionTime: .atDocumentStart, forMainFrameOnly: false))
         #if os(iOS)
         conf.allowsInlineMediaPlayback = true
         conf.mediaTypesRequiringUserActionForPlayback = []
@@ -406,6 +413,7 @@ extension Navigateur: WKNavigationDelegate {
         // ailleurs, et l'application reste où elle était. Une fenêtre
         // secondaire restée vide (ouverte pour ce seul lien) se referme.
         ouvrirAilleurs(url)
+        journal("AILLEURS \(url.host ?? url.absoluteString)")
         if webView !== vue, webView.url == nil || webView.url?.scheme == "about" {
             webViewDidClose(webView)
         }
@@ -483,6 +491,7 @@ extension Navigateur: WKUIDelegate {
             ouvrirAilleurs(url)
             return nil
         }
+        journal("FENÊTRE \(url?.absoluteString.prefix(60) ?? "vide")")
         let secondaire = WKWebView(frame: .zero, configuration: configuration)
         secondaire.navigationDelegate = self
         secondaire.uiDelegate = self

@@ -225,7 +225,7 @@ final class BancTests: XCTestCase {
         let r = resultat("capacites")
         XCTAssertTrue(r.waitForExistence(timeout: 5))
         print("RESULTAT-CAPACITES \(r.label)")
-        XCTAssertTrue(r.label.contains("sw=true") && r.label.contains("idb=true") && r.label.contains("uuid=true"), r.label)
+        XCTAssertTrue(r.label.contains("autonome=true") && r.label.contains("sw=true") && r.label.contains("idb=true") && r.label.contains("uuid=true"), r.label)
     }
 }
 
