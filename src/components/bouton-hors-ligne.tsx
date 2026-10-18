@@ -18,6 +18,16 @@
  * Le nuage voisin et l'avion parlent de ce qui REMONTE — synchronisation,
  * envois en attente. Celui-ci parle de ce qui DESCEND sur l'appareil : d'où la
  * flèche vers le bas, pour que les trois ne se confondent pas.
+ *
+ * ── Il a déménagé dans le menu du profil (18 octobre 2026) ──────────────
+ *
+ * Huit boutons ronds se disputaient la barre du haut, et sur un iPad en
+ * portrait ils débordaient. Celui-ci sert avant de partir en chantier, pas
+ * à chaque minute : il est passé dans le menu MF, en ligne de menu comme
+ * les autres entrées. Rien de son FONCTIONNEMENT n'a changé — même état,
+ * même panneau, même bouton « Préparer la journée ». Seul son point
+ * d'accès a bougé. La variante `rond` reste disponible pour un retour en
+ * arrière d'une ligne.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -71,7 +81,15 @@ function projetsEnCache(): Project[] {
 /** Au-delà, les rendez-vous ont pu bouger et les plans changer. */
 const PEREMPTION_MS = 12 * 3600_000;
 
-export function BoutonHorsLigne() {
+export interface ProprietesBoutonHorsLigne {
+  /** `rond` : la pastille historique de l'en-tête. `menu` : une ligne du
+      menu profil, alignée sur les autres entrées. */
+  variante?: "rond" | "menu";
+  /** Appelé quand le panneau s'ouvre, pour que le menu hôte se referme. */
+  onOuvrir?: () => void;
+}
+
+export function BoutonHorsLigne({ variante = "rond", onOuvrir }: ProprietesBoutonHorsLigne = {}) {
   /* Le thème Signal seul monte ce bouton : les autres gardent l'en-tête qu'ils
      ont toujours eu. On lit l'attribut plutôt qu'un contexte — il est posé
      avant l'hydratation, et aucune donnée ne transite. */
@@ -182,27 +200,91 @@ export function BoutonHorsLigne() {
     pret: `préparé ${quandLisible(etat.quand)}`,
   }[situation];
 
+  const icone = charge && !perime
+    ? <CloudCheck className="w-4 h-4" />
+    : <CloudDownload className="w-4 h-4" />;
+
+  const basculer = () => setOuvert((o) => !o);
+
   return (
     <>
-      <button
-        ref={btnRef}
-        type="button"
-        className={`sgh-off${alerte ? " is-alerte" : ""}`}
-        aria-expanded={ouvert}
-        aria-label={`Hors réseau — ${titre}`}
-        title={`${titre} · ${detail}`}
-        onClick={() => setOuvert((o) => !o)}
-      >
-        {charge && !perime ? <CloudCheck className="w-4 h-4" /> : <CloudDownload className="w-4 h-4" />}
-        {bloques > 0 && <span className="sgh-off-point" aria-hidden="true" />}
-      </button>
+      {variante === "menu" ? (
+        /* En ligne de menu : même gabarit que « Sauvegardes » ou « Droits
+           d'accès » juste au-dessus, pour que la liste reste une liste. Le
+           sous-titre dit l'état sans qu'on ait à ouvrir le panneau. */
+        <button
+          ref={btnRef}
+          type="button"
+          aria-expanded={ouvert}
+          onClick={basculer}
+          className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+        >
+          <span className={alerte ? "text-amber-600 dark:text-amber-400" : ""}>{icone}</span>
+          <span className="flex-1 min-w-0">
+            Journée hors ligne
+            <em className="block not-italic text-[11px] text-gray-400 dark:text-gray-500 truncate">{titre}</em>
+          </span>
+          {bloques > 0 && (
+            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
+          )}
+        </button>
+      ) : (
+        <button
+          ref={btnRef}
+          type="button"
+          className={`sgh-off${alerte ? " is-alerte" : ""}`}
+          aria-expanded={ouvert}
+          aria-label={`Hors réseau — ${titre}`}
+          title={`${titre} · ${detail}`}
+          onClick={basculer}
+        >
+          {icone}
+          {bloques > 0 && <span className="sgh-off-point" aria-hidden="true" />}
+        </button>
+      )}
 
-      {ouvert && typeof document !== "undefined" && createPortal(
+      {/* ── Le panneau ───────────────────────────────────────────────────
+          En variante « rond », il flotte sous le bouton de l'en-tête, comme
+          avant. En variante « menu », il se DÉPLIE dans le menu : une bulle
+          flottante y aurait recouvert la liste dont elle sort, et surtout,
+          refermer le menu pour lui faire de la place démontait le composant
+          — le panneau ne s'ouvrait jamais. Un dépliant ne pose aucun de ces
+          deux problèmes. */}
+      {ouvert && variante === "menu" && (
+        <div className="px-3 pb-2 pt-1" role="group" aria-label="Journée prête hors ligne">
+          {enAttente > 0 && (
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1.5">
+              {enAttente} envoi{enAttente > 1 ? "s" : ""} en attente — ils partiront dès le retour du réseau.
+            </p>
+          )}
+          {bloques > 0 && (
+            <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-1.5 flex items-start gap-1">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>{bloques} envoi{bloques > 1 ? "s" : ""} qui n&apos;aboutissent pas — à vérifier.</span>
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={preparer}
+            disabled={travaille}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#1e3a5f] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            {travaille ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            {travaille ? "Préparation…" : "Préparer la journée"}
+          </button>
+          <p className="mt-1.5 text-[10px] leading-snug text-gray-400 dark:text-gray-500">
+            Télécharge vos chantiers des sept prochains jours, et les plans de
+            montage du jour et du lendemain, pour les consulter sans réseau.
+          </p>
+        </div>
+      )}
+
+      {ouvert && variante === "rond" && typeof document !== "undefined" && createPortal(
         <div ref={popRef} className="sgh-offpop" style={{ top: pos.top, right: pos.right }}
           role="dialog" aria-label="Journée prête hors ligne">
           <div className="sgh-offpop-head">
             <span className={`sgh-offpop-chip${alerte ? " is-alerte" : ""}`}>
-              {charge && !perime ? <CloudCheck className="w-4 h-4" /> : <CloudDownload className="w-4 h-4" />}
+              {icone}
             </span>
             <div className="sgh-offpop-txt">
               <b>{titre}</b>

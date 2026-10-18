@@ -8,7 +8,6 @@ import { NotificationBell } from "@/components/notifications";
 import { RefreshButton } from "@/components/refresh-button";
 import { ForceSyncButton } from "@/components/force-sync-button";
 import { SendPendingButton } from "@/components/send-pending-button";
-import { BoutonHorsLigne } from "@/components/bouton-hors-ligne";
 import { ThemeColorSync } from "@/components/theme-color-sync";
 import { CreateProjectButton } from "@/components/create-project-button";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -137,11 +136,11 @@ export default function RootLayout({
               {/* Bouton Actualiser : visible pour TOUS (admin + employé). */}
               <RefreshButton />
               <NotificationBell />
-              {/* BoutonHorsLigne (nuage descendant) : ce qui est TÉLÉCHARGÉ sur
-                  l'appareil pour travailler sans réseau — l'inverse du nuage
-                  de synchro et de l'avion, qui font remonter. Ne se monte que
-                  sous le thème Signal ; il ne rend rien ailleurs. */}
-              <BoutonHorsLigne />
+              {/* Le nuage descendant (« Journée hors ligne ») a déménagé dans
+                  le menu du profil le 18 octobre 2026 : huit boutons ronds se
+                  disputaient cette barre, et elle débordait sur un iPad en
+                  portrait. Il sert avant de partir en chantier, pas à chaque
+                  minute. Voir `UserMenu`. */}
               {/* SendPendingButton (avion) : quand il est coloré, des photos ne
                   sont pas encore uploadées → l'utilisateur relance en tapant.
                   Gardé visible pour TOUS les utilisateurs. */}

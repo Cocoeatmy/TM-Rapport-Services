@@ -39,7 +39,10 @@ test("zoom sur un bloc", async ({ page, context }) => {
   const diag = await page.evaluate(() => ({
     largeur: window.innerWidth,
     coarse: matchMedia('(pointer: coarse)').matches,
-    duo: (() => { const d = document.querySelector('.sg-duo'); return d ? getComputedStyle(d).gridTemplateColumns : 'absent'; })(),
+    boutonsEnTete: document.querySelectorAll('header button').length,
+    nuageEnTete: !!document.querySelector('header .sgh-off'),
+    piecesDansMenu: Array.from(document.querySelectorAll('button')).some((b) => /Pi.ces . D.fauts/.test(b.textContent || '')),
+    horsLigneDansMenu: Array.from(document.querySelectorAll('button')).some((b) => /Journ.e hors ligne/.test(b.textContent || '')),
   }));
   console.log('  diag :', JSON.stringify(diag));
   /* TM_CLIC : ouvrir un sous-menu avant de photographier. */

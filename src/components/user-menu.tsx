@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, Package, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins, RefreshCcw, Database
+import { BoutonHorsLigne } from "@/components/bouton-hors-ligne";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins, RefreshCcw, Database
 } from "lucide-react";
 import { viderCachesDeLecture, viderCacheServiceWorker } from "@/lib/vider-caches";
 import { getQueue } from "@/lib/offline";
@@ -321,6 +322,10 @@ export function UserMenu() {
                 Droits d&apos;accès
               </button>
             )}
+            {/* « Journée hors ligne » — le nuage descendant, descendu de
+                l'en-tête. Il déplie son panneau DANS le menu : une bulle
+                flottante aurait recouvert la liste dont elle sort. */}
+            <BoutonHorsLigne variante="menu" />
             {user.role === "admin" && (
               <button
                 onClick={() => { setOpen(false); router.push("/admin/sauvegardes"); }}
@@ -339,15 +344,11 @@ export function UserMenu() {
                 Anomalie Notion
               </button>
             )}
-            {user.role === "admin" && (
-              <button
-                onClick={() => { setOpen(false); router.push("/admin/pieces-defauts"); }}
-                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
-              >
-                <Package className="w-4 h-4" />
-                Pièces &amp; Défauts
-              </button>
-            )}
+            {/* « Pièces & Défauts » a été retiré d'ici le 18 octobre 2026 :
+                le panneau « Signaux » du tableau de bord porte déjà une ligne
+                « Pièces & défauts » qui mène à la même page, compteur en
+                prime. La page, ses données et ses droits sont intacts — seul
+                le doublon de menu a disparu. */}
             {user.role === "admin" && (
               <button
                 onClick={() => {
