@@ -71,4 +71,9 @@ enum Configuration {
     /// qu'elle voit — titre, adresse, service worker actif ou non. Sert aux
     /// essais automatiques du démarrage sans réseau. `-TMDiagnostic YES`.
     static var diagnostic: Bool { UserDefaults.standard.bool(forKey: "TMDiagnostic") }
+
+    /// L'app sert d'hôte aux tests unitaires : elle ne charge alors rien.
+    static var sousTestsUnitaires: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
 }

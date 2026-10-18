@@ -18,6 +18,18 @@ import AppKit
 @MainActor
 final class Navigateur: NSObject, ObservableObject {
 
+    /// UNE seule vue web pour toute l'application. Deux vues feraient tourner
+    /// deux fois les files d'envoi du site, chacune ignorant l'autre — et une
+    /// même photo pourrait partir deux fois. C'est aussi elle que réveille
+    /// l'envoi en arrière-plan.
+    static let principal = Navigateur()
+
+    /// Le pont vers le coffre natif (voir PontNatif).
+    let pont = PontNatif(coffre: .partage)
+    /// Ce qui attend encore d'être envoyé, selon le dernier relevé du site.
+    private(set) var resteAEnvoyer = 0
+    private var synchroEnCours: Task<[String: Any]?, Never>?
+
     enum Etat: Equatable {
         case chargement
         case pret
@@ -58,6 +70,7 @@ final class Navigateur: NSObject, ObservableObject {
         conf.limitsNavigationsToAppBoundDomains = true
         conf.applicationNameForUserAgent = Configuration.nomAgent
         conf.preferences.javaScriptCanOpenWindowsAutomatically = true
+        conf.userContentController.addScriptMessageHandler(pont, contentWorld: .page, name: PontNatif.nom)
         #if os(iOS)
         conf.allowsInlineMediaPlayback = true
         conf.mediaTypesRequiringUserActionForPlayback = []
@@ -65,6 +78,8 @@ final class Navigateur: NSObject, ObservableObject {
 
         vue = WKWebView(frame: .zero, configuration: conf)
         super.init()
+        pont.surEtat = { [weak self] e in self?.noterEtat(e) }
+        DispatchQueue.global(qos: .utility).async { Coffre.partage.entretenir() }
 
         vue.navigationDelegate = self
         vue.uiDelegate = self
@@ -104,6 +119,8 @@ final class Navigateur: NSObject, ObservableObject {
                 let revenu = ok && !self.reseauDisponible
                 self.reseauDisponible = ok
                 if revenu, case .injoignable = self.etat { self.charger() }
+                // Le réseau revient : ce qui attendait part tout de suite.
+                if revenu, self.etat == .pret { Task { await self.synchroniser(raison: "reseau") } }
             }
         }
         surveillance.start(queue: DispatchQueue(label: "tm.reseau"))
@@ -116,27 +133,123 @@ final class Navigateur: NSObject, ObservableObject {
     // MARK: - Commandes
 
     func charger() {
+        if Configuration.sousTestsUnitaires { return }
         etat = .chargement
         #if DEBUG
-        // Essais automatisés uniquement : une session de TEST posée sur le
-        // serveur LOCAL. Absent des versions installées (Release), et refusé
-        // pour toute autre adresse que cette machine.
-        if let jeton = UserDefaults.standard.string(forKey: "TMJetonTest"),
-           let hote = Configuration.adresse.host, ["localhost", "127.0.0.1"].contains(hote),
-           let biscuit = HTTPCookie(properties: [
-               .domain: hote, .path: "/", .name: "auth-token", .value: jeton,
-           ]) {
-            vue.configuration.websiteDataStore.httpCookieStore.setCookie(biscuit) { [weak self] in
-                self?.vue.load(URLRequest(url: Configuration.adresse))
-            }
+        if essaisLocaux {
+            preparerEssais { [weak self] in self?.vue.load(URLRequest(url: Configuration.adresse)) }
             return
         }
         #endif
         vue.load(URLRequest(url: Configuration.adresse))
     }
 
+    #if DEBUG
+    // MARK: - Essais automatisés (compilations Debug, serveur LOCAL seulement)
+
+    /// Les commandes d'essai ne valent que vers cette machine : absentes des
+    /// versions installées (Release), sans effet sur le site en ligne.
+    private var essaisLocaux: Bool {
+        guard let hote = Configuration.adresse.host, ["localhost", "127.0.0.1"].contains(hote) else { return false }
+        let d = UserDefaults.standard
+        return d.string(forKey: "TMJetonTest") != nil || d.bool(forKey: "TMEssais")
+            || d.bool(forKey: "TMEffacerStockageWeb") || d.string(forKey: "TMScriptEssai") != nil
+    }
+    private var scriptEssaiFait = false
+
+    /// - `-TMEffacerStockageWeb YES` : efface IndexedDB et le stockage local
+    ///   de localhost — exactement ce que fait iOS quand il fait de la place.
+    /// - `-TMEssais YES` : le site expose `window.tmApple.essais`.
+    /// - `-TMJetonTest <jeton>` : une session de test.
+    private func preparerEssais(_ suite: @escaping () -> Void) {
+        let d = UserDefaults.standard
+        let magasin = vue.configuration.websiteDataStore
+        let hote = Configuration.adresse.host ?? "localhost"
+        if d.bool(forKey: "TMEssais") {
+            vue.configuration.userContentController.addUserScript(WKUserScript(
+                source: "window.__tmEssaisApple = true;", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
+        let poserJeton = {
+            guard let jeton = d.string(forKey: "TMJetonTest"),
+                  let biscuit = HTTPCookie(properties: [.domain: hote, .path: "/", .name: "auth-token", .value: jeton])
+            else { suite(); return }
+            magasin.httpCookieStore.setCookie(biscuit) { suite() }
+        }
+        guard d.bool(forKey: "TMEffacerStockageWeb") else { poserJeton(); return }
+        let types: Set<String> = [WKWebsiteDataTypeIndexedDBDatabases, WKWebsiteDataTypeLocalStorage]
+        magasin.fetchDataRecords(ofTypes: types) { [weak self] enregistrements in
+            let locaux = enregistrements.filter { $0.displayName == "localhost" || $0.displayName == "127.0.0.1" }
+            magasin.removeData(ofTypes: types, for: locaux) {
+                self?.journal("ESSAI stockage web effacé (\(locaux.map(\.displayName)))")
+                poserJeton()
+            }
+        }
+    }
+
+    /// `-TMScriptEssai "<js>"` : exécuté une fois, quelques secondes après le
+    /// chargement ; le résultat part dans la console (`ESSAI …`).
+    private func executerScriptEssai() {
+        guard essaisLocaux, !scriptEssaiFait, let script = UserDefaults.standard.string(forKey: "TMScriptEssai") else { return }
+        scriptEssaiFait = true
+        let vue = self.vue
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            vue.callAsyncJavaScript(script, arguments: [:], in: nil, in: .page) { (r: Result<Any, Error>) in
+                Task { @MainActor in
+                    switch r {
+                    case .success(let v): self?.journal("ESSAI \(v)")
+                    case .failure(let e): self?.journal("ESSAI erreur \(e.localizedDescription)")
+                    }
+                }
+            }
+        }
+    }
+    #endif
+
     func recharger() {
         if vue.url == nil || etat != .pret { charger() } else { vue.reload() }
+    }
+
+    // MARK: - Synchronisation
+
+    /// Demande au site d'envoyer tout ce qui attend (`window.tmApple`), et
+    /// rend ce qui reste ensuite. Une seule à la fois ; `nil` si la page
+    /// n'est pas là ou ne connaît pas encore le pont.
+    @discardableResult
+    func synchroniser(raison: String, delai: TimeInterval = 25) async -> [String: Any]? {
+        if let enCours = synchroEnCours { return await enCours.value }
+        let tache = Task<[String: Any]?, Never> { @MainActor in
+            defer { self.synchroEnCours = nil }
+            // Lancée en arrière-plan, la page se charge peut-être encore.
+            let debut = Date()
+            while self.etat != .pret, Date().timeIntervalSince(debut) < 12 {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+            guard self.etat == .pret else { return nil }
+            let script = "if (!window.tmApple || !window.tmApple.synchroniser) return null; return await window.tmApple.synchroniser(raison);"
+            let resultat = await withTaskGroup(of: [String: Any]?.self) { groupe -> [String: Any]? in
+                groupe.addTask { @MainActor in
+                    let r = try? await self.vue.callAsyncJavaScript(script, arguments: ["raison": raison], contentWorld: .page)
+                    return r as? [String: Any]
+                }
+                groupe.addTask {
+                    try? await Task.sleep(nanoseconds: UInt64(delai * 1_000_000_000))
+                    return nil
+                }
+                let premier = await groupe.next() ?? nil
+                groupe.cancelAll()
+                return premier
+            }
+            if let resultat { self.noterEtat(resultat) }
+            self.journal("SYNCHRO \(raison) → \(resultat.map { "\($0)" } ?? "sans réponse")")
+            return resultat
+        }
+        synchroEnCours = tache
+        return await tache.value
+    }
+
+    private func noterEtat(_ e: [String: Any]) {
+        let n = { (cle: String) in (e[cle] as? NSNumber)?.intValue ?? 0 }
+        resteAEnvoyer = n("photosEnAttente") + n("requetesEnAttente") + n("rapportsNonEnvoyes")
     }
 
     func reculer() { if vue.canGoBack { vue.goBack() } }
@@ -317,6 +430,9 @@ extension Navigateur: WKNavigationDelegate {
         }
         journal("CHARGÉ \(webView.url?.absoluteString ?? "?")")
         diagnostiquer(webView)
+        #if DEBUG
+        if webView === vue { executerScriptEssai() }
+        #endif
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

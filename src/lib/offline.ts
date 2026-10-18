@@ -206,6 +206,18 @@ export function getCacheTimestamp(): number {
  * tout seul au prochain chargement, la saisie d'un monteur ne se reconstruit
  * pas. Entre les deux, le choix n'est pas difficile.
  */
+/**
+ * Écrit la file. Lève une exception si le stockage est plein — addToQueue
+ * s'en sert pour faire de la place. Prévient ensuite qui veut le savoir
+ * (l'app Apple en garde un double dans son coffre natif).
+ */
+function ecrireFile(json: string): void {
+  localStorage.setItem(QUEUE_KEY, json);
+  if (typeof window !== "undefined") {
+    try { window.dispatchEvent(new CustomEvent("tm-file-modifiee")); } catch { /* sans effet */ }
+  }
+}
+
 export function addToQueue(item: Omit<QueueItem, "id" | "timestamp">): boolean {
   const ligne: QueueItem = {
     ...item,
@@ -217,7 +229,7 @@ export function addToQueue(item: Omit<QueueItem, "id" | "timestamp">): boolean {
     try {
       const queue = getQueue();
       queue.push(ligne);
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+      ecrireFile(JSON.stringify(queue));
       return true;
     } catch {
       return false;
@@ -260,11 +272,11 @@ export function getQueue(): QueueItem[] {
 
 export function removeFromQueue(id: string) {
   const queue = getQueue().filter((q) => q.id !== id);
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  ecrireFile(JSON.stringify(queue));
 }
 
 export function clearQueue() {
-  localStorage.setItem(QUEUE_KEY, "[]");
+  ecrireFile("[]");
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
@@ -361,7 +373,7 @@ export function rejouerAbandon(id: string): boolean {
 /** Met à jour un item dans la queue (ex. après un retry raté). */
 function updateQueueItem(updated: QueueItem) {
   const queue = getQueue().map((q) => (q.id === updated.id ? updated : q));
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  ecrireFile(JSON.stringify(queue));
 }
 
 // Traiter la file d'attente quand le réseau revient.
@@ -399,7 +411,18 @@ export function suiteApresEchec(essaisFaits: number, statutHttp?: number): Suite
   return { action: "reessayer", dansMs: Math.min(60_000 * 2 ** (essaisFaits - 1), 30 * 60_000) };
 }
 
-export async function processQueue(): Promise<{ success: number; failed: number; skipped: number }> {
+/* Une seule passe à la fois. Le retour du réseau, le minuteur, le retour au
+   premier plan, un signal du bureau ou l'app Apple peuvent la demander au
+   même moment : deux passes simultanées enverraient deux fois la même saisie. */
+let passeEnCours: Promise<{ success: number; failed: number; skipped: number }> | null = null;
+
+export function processQueue(): Promise<{ success: number; failed: number; skipped: number }> {
+  if (passeEnCours) return passeEnCours.then((r) => ({ success: 0, failed: 0, skipped: r.skipped }));
+  passeEnCours = passeDeFile().finally(() => { passeEnCours = null; });
+  return passeEnCours;
+}
+
+async function passeDeFile(): Promise<{ success: number; failed: number; skipped: number }> {
   const queue = getQueue();
   let success = 0;
   let failed = 0;

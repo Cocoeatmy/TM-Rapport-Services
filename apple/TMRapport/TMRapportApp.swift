@@ -4,22 +4,32 @@ import SwiftUI
 ///
 /// Les trois plateformes partagent tout ce fichier et tous les autres : seuls
 /// quelques blocs `#if os(macOS)` adaptent ce qui diffère réellement — une
-/// fenêtre unique et des raccourcis clavier sur Mac, des feuilles sur iPhone.
+/// fenêtre et des raccourcis clavier sur Mac, des feuilles sur iPhone.
 @main
 struct TMRapportApp: App {
 
-    #if os(macOS)
-    /// Sur Mac, une seule fenêtre principale : TM Rapport est une
-    /// application, pas un navigateur à onglets. Les pages que le site ouvre
-    /// à part ont leurs propres fenêtres.
-    @StateObject private var navigateur = Navigateur()
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(DelegueApp.self) private var delegue
+    #else
+    @NSApplicationDelegateAdaptor(DelegueApp.self) private var delegue
+    #endif
+    @Environment(\.scenePhase) private var phase
 
+    /// La seule vue web de l'application (voir Navigateur.principal).
+    @StateObject private var navigateur = Navigateur.principal
+
+    #if os(macOS)
     var body: some Scene {
+        // Une seule fenêtre principale : TM Rapport est une application, pas
+        // un navigateur à onglets. Les pages que le site ouvre à part ont
+        // leurs propres fenêtres. Fermer la fenêtre ne quitte pas l'app : les
+        // envois continuent, et un clic sur l'icône du Dock la rouvre.
         Window("TM Rapport", id: "principale") {
             Ecran(navigateur: navigateur)
                 .frame(minWidth: 820, minHeight: 600)
         }
         .defaultSize(width: 1440, height: 900)
+        .onChange(of: phase) { _, p in if p == .active { ArrierePlan.auRetour() } }
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandMenu("Navigation") {
@@ -32,24 +42,50 @@ struct TMRapportApp: App {
                 Divider()
                 Button("Accueil") { navigateur.charger() }
                     .keyboardShortcut("h", modifiers: [.command, .shift])
+                Divider()
+                Button("Envoyer ce qui attend") { ArrierePlan.auRetour() }
+                    .keyboardShortcut("s", modifiers: [.command, .shift])
             }
         }
     }
     #else
     var body: some Scene {
+        // Une seule fenêtre (UIApplicationSupportsMultipleScenes = NO) : deux
+        // fenêtres feraient tourner deux fois les envois du site.
         WindowGroup {
-            // Chaque fenêtre (Split View, Stage Manager sur iPad) a sa propre
-            // vue web : une vue web ne peut vivre qu'à un seul endroit. Elles
-            // partagent la même session et les mêmes données hors ligne.
-            EcranAutonome()
+            Ecran(navigateur: navigateur)
+        }
+        .onChange(of: phase) { _, p in
+            switch p {
+            case .background: ArrierePlan.auDepart()
+            case .active: ArrierePlan.auRetour()
+            default: break
+            }
         }
     }
     #endif
 }
 
 #if os(iOS)
-struct EcranAutonome: View {
-    @StateObject private var navigateur = Navigateur()
-    var body: some View { Ecran(navigateur: navigateur) }
+final class DelegueApp: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // Les réveils en arrière-plan doivent être connus d'iOS avant la fin
+        // du lancement — y compris quand iOS lance l'app pour un envoi.
+        MainActor.assumeIsolated {
+            ArrierePlan.enregistrer()
+            _ = Navigateur.principal
+        }
+        return true
+    }
+}
+#else
+final class DelegueApp: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        MainActor.assumeIsolated {
+            ArrierePlan.avantDeQuitter { ok in sender.reply(toApplicationShouldTerminate: ok) }
+        }
+        return .terminateLater
+    }
 }
 #endif

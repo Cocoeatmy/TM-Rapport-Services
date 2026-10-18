@@ -19,5 +19,25 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!--
+	Une seule fenêtre sur iPad : deux fenêtres feraient tourner deux fois les
+	files d'envoi du site, et une même photo pourrait partir deux fois.
+	-->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<!-- Envois en arrière-plan : iOS réveille l'app quand il le juge bon. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>TM.TM-Rapport.envoi</string>
+		<string>TM.TM-Rapport.reveil</string>
+	</array>
 </dict>
 </plist>

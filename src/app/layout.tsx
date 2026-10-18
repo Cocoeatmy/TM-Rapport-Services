@@ -17,6 +17,7 @@ import { GlobalSearch } from "@/components/global-search";
 import { BackButton } from "@/components/back-button";
 import { HomeButton } from "@/components/home-button";
 import { MajAuto } from "@/components/maj-auto";
+import { PontApple } from "@/components/pont-apple";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -163,6 +164,8 @@ export default function RootLayout({
         {/* Assistant IA : bouton flottant fixe (bas à droite), masqué sur la
             page projet. Rendu au niveau page (positionnement fixed). */}
         <MajAuto />
+        {/* App Apple seulement : coffre natif et envois en arrière-plan. */}
+        <PontApple />
         <AIChatbot />
         <Toaster position="top-center" richColors />
         <script

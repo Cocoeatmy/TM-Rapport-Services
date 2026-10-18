@@ -35,6 +35,7 @@
  */
 
 import { uploadToCloudinary, attachPhotos, attacherChampTexte, UploadError } from "@/lib/cloudinary-upload";
+import { coffreDeposerPhoto, coffreRetirerPhoto } from "@/lib/pont-apple";
 
 const DB_NAME = "tm-rapport-uploads";
 const DB_VERSION = 2; // bumped : ajout du champ `status`
@@ -149,16 +150,42 @@ export async function addPendingUpload(
     retryCount: 0,
     status: "pending",
   };
-  return new Promise<string>((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.objectStore(STORE).put(item);
-    tx.oncomplete = () => {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("tm-pending-upload-added", { detail: { id } }));
-      }
-      resolve(id);
-    };
+    tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+  });
+  /* Dans l'app Apple seulement : un double au coffre natif, hors de WebKit.
+     La photo est déjà en sûreté dans la file ci-dessus ; un échec ici ne
+     change donc rien au parcours du monteur. Dans un navigateur : rien. */
+  try { await coffreDeposerPhoto(item); } catch { /* le double est un bonus */ }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("tm-pending-upload-added", { detail: { id } }));
+  }
+  return id;
+}
+
+/**
+ * Remet dans la file une photo rendue par le coffre de l'app Apple, AVEC son
+ * identifiant d'origine. N'écrase jamais : si l'identifiant est déjà dans la
+ * file, rien n'est fait et la réponse est `false`.
+ */
+export async function remettrePendingUpload(item: PendingUpload): Promise<boolean> {
+  const db = await openDB();
+  return new Promise<boolean>((resolve) => {
+    const tx = db.transaction(STORE, "readwrite");
+    let doublon = false;
+    const req = tx.objectStore(STORE).add(item); // add : refuse un doublon
+    req.onerror = (e) => { doublon = true; e.preventDefault(); };
+    tx.oncomplete = () => {
+      if (!doublon && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("tm-pending-upload-added", { detail: { id: item.id } }));
+      }
+      resolve(!doublon);
+    };
+    tx.onerror = () => resolve(false);
+    tx.onabort = () => resolve(false);
   });
 }
 
@@ -206,7 +233,10 @@ export async function countPermanentlyFailed(): Promise<number> {
   }
 }
 
-export async function removePendingUpload(id: string): Promise<void> {
+export async function removePendingUpload(id: string, motif = "retire"): Promise<void> {
+  /* Le coffre de l'app Apple d'abord : s'il gardait une photo que la file a
+     oubliée, il la rendrait plus tard et elle repartirait. */
+  try { await coffreRetirerPhoto(id, motif); } catch { /* noté pour être rejoué */ }
   const db = await openDB();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
@@ -361,7 +391,7 @@ async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOu
 
   // ── Succès complet ───────────────────────────────────────────────────────
   if (done) {
-    await removePendingUpload(item.id);
+    await removePendingUpload(item.id, "confirme");
     if (typeof window !== "undefined") {
       try {
         const { invalidateApiCache } = await import("@/lib/api-helpers");

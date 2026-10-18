@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Banc TM Rapport</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 16px; background: #f1f5f9; color: #0f172a; }
+  button, a.bouton { display: block; width: 100%; margin: 6px 0; padding: 10px; font-size: 16px; border-radius: 10px;
+                     border: 1px solid #cbd5e1; background: white; color: #0f172a; text-align: center; text-decoration: none; }
+  #resultat { margin-top: 12px; padding: 10px; background: #1e3a5f; color: white; border-radius: 10px; min-height: 22px; }
+</style>
+</head>
+<body>
+<!--
+  Banc d'essai de l'application Apple. Il n'est PAS le site : il actionne,
+  dans la vraie vue web de l'app, ce que le site utilise et qu'une vue web
+  ne fait pas d'elle-même — boîtes de dialogue, fenêtres, téléchargements —
+  et le coffre natif. Servi en local pendant les tests d'interface.
+-->
+<p id="resultat" aria-label="resultat">pret</p>
+<button id="alerte" onclick="alert('Bonjour du banc'); dire('alerte vue')">Alerte</button>
+<button id="confirmer" onclick="dire(confirm('Supprimer cette photo ?') ? 'confirme oui' : 'confirme non')">Confirmer</button>
+<button id="saisir" onclick="dire('saisi ' + prompt('Nom du lot ?', 'Cab1'))">Saisir</button>
+<button id="fenetre" onclick="window.open('/document.pdf', '_blank')">Ouvrir fenetre</button>
+<a class="bouton" id="telecharger" href="/document.pdf" download="banc.pdf">Telecharger</a>
+<button id="deposer" onclick="deposer()">Coffre deposer</button>
+<button id="inventaire" onclick="inventaire()">Coffre inventaire</button>
+<button id="retirer" onclick="retirer()">Coffre retirer</button>
+<button id="pont" onclick="dire(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tmCoffre ? 'pont present' : 'pont absent')">Pont</button>
+<button id="camera" onclick="camera()">Camera</button>
+<label>Photo <input id="fichier" type="file" accept="image/*" onchange="dire('fichier ' + (this.files[0] ? this.files[0].type : 'aucun'))"></label>
+<script>
+  function dire(t) { var r = document.getElementById('resultat'); r.textContent = t; r.setAttribute('aria-label', t); }
+  var tm = function (m) { return window.webkit.messageHandlers.tmCoffre.postMessage(m); };
+  // Les octets d'une « photo » de test : connus, pour vérifier l'aller-retour.
+  var OCTETS = 'AQID/9j/4AAQ';
+  async function deposer() {
+    try {
+      var r = await tm({ action: 'deposerPhoto', id: 'banc-photo-1', meta: JSON.stringify({ id: 'banc-photo-1', projectId: 'banc' }),
+                         fichiers: [{ nom: 'banc.jpg', type: 'image/jpeg', base64: OCTETS }] });
+      dire('depot ' + (r.ok ? 'ok' : 'non') + (r.nouveau ? ' nouveau' : ' deja'));
+    } catch (e) { dire('depot erreur ' + e); }
+  }
+  async function inventaire() {
+    try {
+      var inv = await tm({ action: 'inventaire' });
+      var ids = inv.photos.map(function (p) { return p.id; });
+      var octets = '';
+      if (ids.indexOf('banc-photo-1') >= 0) {
+        var p = await tm({ action: 'photo', id: 'banc-photo-1' });
+        octets = p.fichiers[0].base64 === OCTETS ? ' octets intacts' : ' octets alteres';
+      }
+      dire('inventaire ' + ids.length + octets);
+    } catch (e) { dire('inventaire erreur ' + e); }
+  }
+  async function retirer() {
+    try { var r = await tm({ action: 'retirerPhoto', id: 'banc-photo-1', motif: 'banc' }); dire('retrait ' + (r.ok ? 'ok' : 'non')); }
+    catch (e) { dire('retrait erreur ' + e); }
+  }
+  async function camera() {
+    try {
+      var flux = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      flux.getTracks().forEach(function (t) { t.stop(); });
+      dire('camera ok');
+    } catch (e) { dire('camera ' + (e && e.name ? e.name : e)); }
+  }
+</script>
+</body>
+</html>
