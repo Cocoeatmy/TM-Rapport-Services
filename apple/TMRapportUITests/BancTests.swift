@@ -146,7 +146,89 @@ final class BancTests: XCTestCase {
         }
         XCTAssertTrue(resultat("fichier image/").waitForExistence(timeout: 15), "la photo choisie n'est pas arrivée dans la page")
     }
+    // MARK: - Fonctions du navigateur utilisées par le site
+
+    /// Accepte les demandes d'autorisation (iOS et vue web), comme le ferait
+    /// un monteur au premier usage.
+    private func accepterAutorisations(pendant secondes: Double = 6) {
+        let libelles = ["Autoriser", "Allow", "OK", "Autoriser une fois", "Allow Once",
+                        "Lorsque l’app est active", "Allow While Using App", "Autoriser lorsque l’app est active"]
+        let sb = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let fin = Date().addingTimeInterval(secondes)
+        while Date() < fin {
+            var touche = false
+            for source in [sb.alerts, app.alerts] where source.firstMatch.exists {
+                for l in libelles where source.buttons[l].firstMatch.exists {
+                    source.buttons[l].firstMatch.tap(); touche = true; break
+                }
+            }
+            if !touche { usleep(400_000) }
+        }
+    }
+
+    func testUnExportFabriqueParLaPageEstEnregistreEtNonAffiche() throws {
+        toucher("Exporter blob")
+        let feuille = app.otherElements["ActivityListView"].firstMatch
+        let ok = feuille.waitForExistence(timeout: 10) || app.collectionViews.cells.firstMatch.waitForExistence(timeout: 2)
+        XCTAssertTrue(ok, "le fichier exporté n'est pas arrivé à la feuille de partage")
+    }
+
+    func testUnPdfFabriqueParLaPageSOuvreDansLApp() throws {
+        toucher("PDF blob fenetre")
+        XCTAssertTrue(app.buttons["Fermer"].waitForExistence(timeout: 10), "le PDF ne s'est pas ouvert dans une fenêtre de l'app")
+        app.buttons["Fermer"].tap()
+        XCTAssertTrue(app.webViews.buttons["Alerte"].waitForExistence(timeout: 5))
+    }
+
+    func testUnLienExterneOuvreSafariSansQuitterLaPage() throws {
+        let lien = app.webViews.links["Lien externe"].firstMatch
+        XCTAssertTrue(lien.waitForExistence(timeout: 10))
+        lien.tap()
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        XCTAssertTrue(safari.wait(for: .runningForeground, timeout: 15), "Safari ne s'est pas ouvert")
+        app.activate()
+        XCTAssertTrue(app.webViews.buttons["Alerte"].waitForExistence(timeout: 10), "la page de l'app a été remplacée")
+    }
+
+    func testUneFenetreEnvoyeeVersLExterieurNeLaissePasDeFenetreVide() throws {
+        toucher("Fenetre externe")
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        XCTAssertTrue(safari.wait(for: .runningForeground, timeout: 15), "Safari ne s'est pas ouvert")
+        app.activate()
+        XCTAssertTrue(app.webViews.buttons["Alerte"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Fermer"].exists, "une fenêtre vide est restée ouverte")
+    }
+
+    func testLePressePapiers() throws {
+        toucher("Copier")
+        accepterAutorisations(pendant: 2)
+        XCTAssertTrue(resultat("copie ok").waitForExistence(timeout: 8))
+    }
+
+    func testLaPosition() throws {
+        toucher("Position")
+        accepterAutorisations(pendant: 8)
+        XCTAssertTrue(resultat("position ok").waitForExistence(timeout: 15), "position non obtenue")
+    }
+
+    func testLeMicroEtLEnregistreur() throws {
+        toucher("Micro")
+        accepterAutorisations(pendant: 8)
+        let r = resultat("micro")
+        XCTAssertTrue(r.waitForExistence(timeout: 15))
+        print("RESULTAT-MICRO \(r.label)")
+        XCTAssertTrue(r.label.hasPrefix("micro ok enregistreur"), r.label)
+    }
+
+    func testLesCapacitesDeLaVueWeb() throws {
+        toucher("Capacites")
+        let r = resultat("capacites")
+        XCTAssertTrue(r.waitForExistence(timeout: 5))
+        print("RESULTAT-CAPACITES \(r.label)")
+        XCTAssertTrue(r.label.contains("sw=true") && r.label.contains("idb=true") && r.label.contains("uuid=true"), r.label)
+    }
 }
+
 #endif
 
 #if os(macOS)

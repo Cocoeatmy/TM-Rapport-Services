@@ -392,16 +392,23 @@ extension Navigateur: WKNavigationDelegate {
             ouvrirAilleurs(url)
             return .cancel
         }
-        if ["about", "blob", "data", "javascript"].contains(schema) { return .allow }
+        // Un lien « télécharger » d'abord — y compris vers un fichier fabriqué
+        // par la page (blob:, data:) : un export ou un PDF d'heures. Sans cet
+        // ordre, le fichier s'affichait À LA PLACE de l'application.
         if navigationAction.shouldPerformDownload { return .download }
+        if ["about", "blob", "data", "javascript"].contains(schema) { return .allow }
         if Configuration.estInterne(url) { return .allow }
 
         // Un sous-cadre (carte intégrée, aperçu) : on le laisse à la page.
         if let cadre = navigationAction.targetFrame, !cadre.isMainFrame { return .allow }
 
         // Le cadre principal voudrait quitter TM Rapport : on ouvre le lien
-        // ailleurs, et l'application reste où elle était.
+        // ailleurs, et l'application reste où elle était. Une fenêtre
+        // secondaire restée vide (ouverte pour ce seul lien) se referme.
         ouvrirAilleurs(url)
+        if webView !== vue, webView.url == nil || webView.url?.scheme == "about" {
+            webViewDidClose(webView)
+        }
         return .cancel
     }
 
@@ -468,7 +475,11 @@ extension Navigateur: WKUIDelegate {
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         let url = navigationAction.request.url
-        if let url, !url.absoluteString.isEmpty, url.scheme != "about", !Configuration.estInterne(url) {
+        // Un fichier fabriqué par la page (PDF de statistiques : blob:) n'existe
+        // que dans cette vue web : il s'ouvre dans une fenêtre de l'app, pas
+        // dans Safari, qui ne saurait pas le lire.
+        let local = ["about", "blob", "data"].contains(url?.scheme?.lowercased() ?? "")
+        if let url, !url.absoluteString.isEmpty, !local, !Configuration.estInterne(url) {
             ouvrirAilleurs(url)
             return nil
         }

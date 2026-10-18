@@ -31,6 +31,14 @@
 <button id="camera" onclick="camera()">Camera</button>
 <button id="synchros" onclick="dire('synchros ' + (localStorage.getItem('banc-synchros') || 'aucune'))">Synchros</button>
 <button id="effacer-synchros" onclick="localStorage.removeItem('banc-synchros'); dire('synchros effacees')">Effacer synchros</button>
+<button id="export-blob" onclick="exporterBlob()">Exporter blob</button>
+<button id="pdf-blob" onclick="ouvrirPdfBlob()">PDF blob fenetre</button>
+<a class="bouton" id="lien-externe" href="https://example.com/">Lien externe</a>
+<button id="fenetre-externe" onclick="fenetreExterne()">Fenetre externe</button>
+<button id="copier" onclick="copier()">Copier</button>
+<button id="position" onclick="position()">Position</button>
+<button id="micro" onclick="micro()">Micro</button>
+<button id="capacites" onclick="capacites()">Capacites</button>
 <label>Photo <input id="fichier" type="file" accept="image/*" onchange="dire('fichier ' + (this.files[0] ? this.files[0].type : 'aucun'))"></label>
 <script>
   // Témoin : l'app appelle window.tmApple.synchroniser(raison) au départ en
@@ -69,6 +77,58 @@
   async function retirer() {
     try { var r = await tm({ action: 'retirerPhoto', id: 'banc-photo-1', motif: 'banc' }); dire('retrait ' + (r.ok ? 'ok' : 'non')); }
     catch (e) { dire('retrait erreur ' + e); }
+  }
+  async function pdfBlob() { return await (await fetch('/document.pdf')).blob(); }
+  // Comme l'export des heures : un fichier fabriqué par la page, téléchargé.
+  async function exporterBlob() {
+    var url = URL.createObjectURL(await pdfBlob());
+    var a = document.createElement('a'); a.href = url; a.download = 'export-banc.pdf';
+    document.body.appendChild(a); a.click(); a.remove();
+    dire('export lance');
+  }
+  // Comme les PDF de statistiques : fabriqué après un appel, ouvert à part.
+  async function ouvrirPdfBlob() {
+    var url = URL.createObjectURL(await pdfBlob());
+    window.open(url, '_blank');
+    dire('pdf blob ouvert');
+  }
+  // Une fenêtre ouverte vide, puis envoyée vers un site extérieur.
+  function fenetreExterne() {
+    var w = window.open('', '_blank');
+    if (w) w.location.href = 'https://example.com/';
+    dire('fenetre externe demandee');
+  }
+  async function copier() {
+    try { await navigator.clipboard.writeText('TM-2600825'); dire('copie ok'); }
+    catch (e) { dire('copie ' + (e && e.name ? e.name : e)); }
+  }
+  function position() {
+    if (!navigator.geolocation) { dire('position absente'); return; }
+    navigator.geolocation.getCurrentPosition(
+      function (p) { dire('position ok ' + p.coords.latitude.toFixed(2)); },
+      function (e) { dire('position erreur ' + e.code); }, { timeout: 15000 });
+  }
+  async function micro() {
+    try {
+      var flux = await navigator.mediaDevices.getUserMedia({ audio: true });
+      var ok = typeof MediaRecorder !== 'undefined';
+      var type = '';
+      if (ok) { var r = new MediaRecorder(flux); type = r.mimeType || 'defaut'; r.start(); await new Promise(function (f) { setTimeout(f, 500); }); r.stop(); }
+      flux.getTracks().forEach(function (t) { t.stop(); });
+      dire('micro ok ' + (ok ? 'enregistreur ' + type : 'sans enregistreur'));
+    } catch (e) { dire('micro ' + (e && e.name ? e.name : e)); }
+  }
+  function capacites() {
+    var c = [];
+    c.push('wakeLock=' + ('wakeLock' in navigator));
+    c.push('share=' + (typeof navigator.share === 'function'));
+    c.push('notification=' + ('Notification' in window));
+    c.push('sw=' + ('serviceWorker' in navigator));
+    c.push('idb=' + ('indexedDB' in window));
+    c.push('recorder=' + (typeof MediaRecorder !== 'undefined'));
+    c.push('uuid=' + (!!(window.crypto && crypto.randomUUID)));
+    c.push('beacon=' + (typeof navigator.sendBeacon === 'function'));
+    dire('capacites ' + c.join(' '));
   }
   async function camera() {
     try {
