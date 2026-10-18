@@ -10,8 +10,9 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { saveToCache, getCacheTimestamp, getQueue, processQueue, isOnline, relancerEchecs } from "@/lib/offline";
-import { processPendingUploads, countPendingUploads, retryAllFailedUploads, resetBackoffForAll, countPermanentlyFailed } from "@/lib/idb-uploads";
+import { saveToCache, getCacheTimestamp, getQueue, processQueue, isOnline, relancerEchecs, prochainEssaiSaisies } from "@/lib/offline";
+import { processPendingUploads, countPendingUploads, retryAllFailedUploads, resetBackoffForAll, countPermanentlyFailed, prochainEssaiPhotos } from "@/lib/idb-uploads";
+import { abandonnerEnvoisEnVol } from "@/lib/cloudinary-upload";
 import { acquireWakeLock, releaseWakeLock, reacquireWakeLockIfWanted } from "@/lib/wake-lock";
 import { toast } from "sonner";
 import { intervalleVisible } from "@/lib/timers";
@@ -98,6 +99,11 @@ export function SyncButton() {
         battre(buildCourant()).catch(() => {});
       }, 1500);
       setOnline(true);
+      /* Un envoi lancé pendant la coupure attend encore son délai (jusqu'à
+         une minute) et bloque la passe : on l'abandonne, il repart aussitôt
+         avec le reste. Sans danger : la photo reste en file jusqu'à
+         confirmation, et le serveur écarte les doublons. */
+      abandonnerEnvoisEnVol();
       // Réinitialiser les backoffs ET remettre en jeu tout ce qui a été mis de
       // côté (photos ET écritures) : rien ne doit attendre un clic manuel.
       relancerEchecs();
@@ -231,39 +237,67 @@ export function SyncButton() {
   }, []);
 
   const autoSyncingRef = useRef(false);
+  /** Une demande arrivée pendant une passe : une nouvelle passe suivra. */
+  const relanceRef = useRef(false);
+  const prochainEssaiRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /* Après une passe qui laisse des envois en attente d'un délai (échec
+     passager), le prochain essai est programmé à l'échéance exacte — au lieu
+     d'attendre la vérification des trente secondes. Au-delà d'une minute,
+     cette vérification suffit : on n'entretient pas de minuterie inutile. */
+  const programmerProchainEssai = async () => {
+    if (prochainEssaiRef.current) { clearTimeout(prochainEssaiRef.current); prochainEssaiRef.current = null; }
+    if (!isOnline()) return;
+    const dates = [await prochainEssaiPhotos(), prochainEssaiSaisies()].filter((d): d is number => d !== null);
+    if (!dates.length) return;
+    const dans = Math.max(1_000, Math.min(...dates) - Date.now() + 50);
+    if (dans > 60_000) return;
+    prochainEssaiRef.current = setTimeout(() => { prochainEssaiRef.current = null; void autoSync(); }, dans);
+  };
+
   const autoSync = async () => {
     // Guard : une seule synchro auto à la fois.
     // Sans ça, l'event `online` + le poll 30 s peuvent déclencher deux
     // autoSync simultanés → deux processPendingUploads en parallèle →
     // race condition sur l'écriture Notion → perte d'une photo.
-    if (autoSyncingRef.current) return;
+    // La demande n'est pas perdue pour autant : une passe suivra celle-ci.
+    if (autoSyncingRef.current) { relanceRef.current = true; return; }
     autoSyncingRef.current = true;
     /* Le verrou est TOUJOURS relâché, même si un envoi lève une erreur :
        sinon plus aucune synchronisation automatique ne repartait avant un
        rechargement de la page (constaté dans WebKit, scénario « journée
-       hors ligne »). Chaque file est traitée même si l'autre a échoué. */
+       hors ligne »). */
     try {
-      const jsonQueue = getQueue();
-      const uploadCount = await countPendingUploads();
-      if (jsonQueue.length === 0 && uploadCount === 0) return;
+      do {
+        relanceRef.current = false;
+        const jsonQueue = getQueue();
+        const uploadCount = await countPendingUploads();
+        if (jsonQueue.length === 0 && uploadCount === 0) break;
 
-      let totalSuccess = 0;
-      if (jsonQueue.length > 0) {
-        try { totalSuccess += (await processQueue()).success; }
-        catch (e) { console.warn("[sync] file des saisies", e); }
-      }
-      if (uploadCount > 0) {
-        try { totalSuccess += (await processPendingUploads()).success; }
-        catch (e) { console.warn("[sync] file des photos", e); }
-      }
-      if (totalSuccess > 0) {
-        toast.success(`${totalSuccess} opération(s) synchronisée(s)`);
-        setQueueCount(getQueue().length + (await countPendingUploads()));
-        setLastSync(Date.now());
-        markSynced(); // nuage vert ≥ 3 min → preuve visuelle que l'envoi est parti
-      }
+        /* Les saisies (petites) et les photos (longues) partent EN MÊME
+           TEMPS : elles touchent des champs différents. Avant, les photos
+           attendaient la fin de toutes les saisies — 17 saisies, et la
+           première photo ne partait qu'au bout de 9 secondes. Chaque file
+           garde son propre ordre et sa propre protection contre les doublons. */
+        const [rq, ru] = await Promise.all([
+          jsonQueue.length > 0
+            ? processQueue().catch((e) => { console.warn("[sync] file des saisies", e); return null; })
+            : Promise.resolve(null),
+          uploadCount > 0
+            ? processPendingUploads().catch((e) => { console.warn("[sync] file des photos", e); return null; })
+            : Promise.resolve(null),
+        ]);
+        const totalSuccess = (rq?.success ?? 0) + (ru?.success ?? 0);
+        if (totalSuccess > 0) {
+          toast.success(`${totalSuccess} opération(s) synchronisée(s)`, { id: "tm-sync-ok" });
+          setQueueCount(getQueue().length + (await countPendingUploads()));
+          setLastSync(Date.now());
+          markSynced(); // nuage vert ≥ 3 min → preuve visuelle que l'envoi est parti
+        }
+      } while (relanceRef.current);
     } finally {
       autoSyncingRef.current = false;
+      void programmerProchainEssai();
     }
   };
 

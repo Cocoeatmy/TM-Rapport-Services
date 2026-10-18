@@ -831,11 +831,19 @@ test.describe.serial("une journée de monteur sans réseau, puis la synchronisat
     // La reprise après réponse perdue n'a pas renvoyé les octets : même URL.
     const rattachements = banc.journal.filter((p) => p.chemin === "/api/photos/attach" &&
                                                      (p.issue === "acceptee" || p.issue === "reponse-perdue"));
-    expect(rattachements, "8 rattachements + 1 rejeu de la réponse perdue").toHaveLength(9);
+    /* Depuis le 18.10.2026, les photos prêtes d'un même champ partent en UN
+       rattachement groupé : moins d'appels que de photos. */
+    expect(rattachements.length, "rattachements groupés : moins d'appels que de photos").toBeLessThan(8 + 1);
+    // La réponse perdue est rejouée avec EXACTEMENT les mêmes photos et URLs
+    // (les octets ne sont pas renvoyés) ; le serveur écarte le doublon.
     const perdu = rattachements.find((p) => p.issue === "reponse-perdue")!;
-    const memePhotos = (p: Passage) => JSON.stringify((p.corps as { photos?: unknown }).photos);
-    expect(rattachements.filter((p) => p !== perdu && memePhotos(p) === memePhotos(perdu)),
-           "le rejeu porte exactement la même photo et la même URL").toHaveLength(1);
+    expect(perdu, "une réponse de rattachement a bien été perdue").toBeDefined();
+    const photosDe = (p: Passage) => ((p.corps as { photos?: { name: string; url: string }[] }).photos ?? []);
+    const rejoues = rattachements.filter((p) => p !== perdu && p.n > perdu.n).flatMap(photosDe);
+    for (const ph of photosDe(perdu)) {
+      expect(rejoues.some((r) => r.name === ph.name && r.url === ph.url),
+             `« ${ph.name} » rejouée avec la même URL`).toBe(true);
+    }
 
     // Le défaut saisi hors ligne : créé une seule fois, avec sa photo.
     expect(attenduDefaut, "le test 1 a laissé un défaut en file").toHaveLength(1);

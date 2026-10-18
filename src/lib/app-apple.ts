@@ -166,6 +166,11 @@ let synchroEnCours: Promise<EtatPourApp> | null = null;
 export function synchroniser(raison = "app"): Promise<EtatPourApp> {
   if (synchroEnCours) return synchroEnCours;
   synchroEnCours = (async () => {
+    /* Le réseau revient (signalé par l'app) : un envoi suspendu pendant la
+       coupure est abandonné, il repart aussitôt avec le reste. */
+    if (raison === "reseau") {
+      try { (await import("./cloudinary-upload")).abandonnerEnvoisEnVol(); } catch { /* sans effet */ }
+    }
     try { await toutRelancer(); } catch (e) { console.warn("[app-apple] synchro", raison, e); }
     try { await doublerMaintenant(); } catch { /* le double suivant rattrapera */ }
     return etatPourApp();

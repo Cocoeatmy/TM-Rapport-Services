@@ -361,17 +361,6 @@ export async function resetBackoffForAll(): Promise<number> {
  */
 let _processingUploads = false;
 
-/** Résultat du traitement d'un seul item. */
-interface ItemOutcome { success: number; failed: number; permanentlyFailed: number; }
-
-/**
- * Traite UN item en 2 étapes DÉCOUPLÉES :
- *   1. Upload des octets DIRECTEMENT vers Cloudinary (robuste, hors Vercel).
- *      L'URL obtenue est persistée → un re-essai ne re-uploade jamais les octets.
- *   2. Rattachement des URLs au champ Notion (petit JSON, réessayable).
- * Ne lève jamais — renvoie un décompte et met à jour l'IDB (retrait / backoff /
- * échec permanent après MAX_RETRIES).
- */
 /** Une entrée de la file, relue à l'instant (références d'octets fraîches). */
 async function lireEntree(id: string): Promise<PendingUpload | undefined> {
   const db = await openDB();
@@ -406,117 +395,115 @@ async function octetsPourEnvoi(id: string, index: number, secours: PendingUpload
   return null;
 }
 
-async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOutcome> {
+/** Résultat du traitement d'un seul item. */
+interface ItemOutcome { success: number; failed: number; permanentlyFailed: number; }
+
+/* ── Progression, pour l'écran ───────────────────────────────────────────
+   Chaque entrée annonce où elle en est : l'écran affiche « en cours
+   d'envoi », « synchronisée », « échec — nouvel essai prévu », et un
+   pourcentage pour les gros fichiers. */
+export type EtatEnvoi = "en-cours" | "octets-envoyes" | "envoyee" | "echec";
+function annoncer(id: string, etat: EtatEnvoi, extra: { pct?: number; reason?: string; nouvelEssai?: number; entree?: unknown } = {}): void {
+  if (typeof window === "undefined") return;
+  try { window.dispatchEvent(new CustomEvent("tm-envoi-progression", { detail: { id, etat, ...extra } })); } catch { /* sans effet */ }
+}
+
+/** Les octets d'une entrée partent ensemble ; trois entrées au plus à la fois. */
+const ENVOIS_SIMULTANES = 3;
+/** Au plus tant de photos par rattachement groupé (une requête raisonnable). */
+const PHOTOS_PAR_RATTACHEMENT = 20;
+
+interface Avancement {
+  item: PendingUpload;
+  files: PendingUploadFile[];
+  networkError: boolean;
+  permanent: boolean;
+  reasonMsg: string;
+}
+
+/**
+ * Étape 1 d'une entrée : ses octets vers Cloudinary (ceux qui n'y sont pas
+ * déjà). L'URL obtenue est notée aussitôt : un nouvel essai ne renvoie
+ * jamais les octets.
+ */
+async function _envoyerOctets(item: PendingUpload): Promise<Avancement | null> {
   /* L'entrée a pu changer, ou être envoyée, depuis la lecture de la liste. */
   try {
     const frais = await lireEntree(item.id);
-    if (!frais) return { success: 0, failed: 0, permanentlyFailed: 0 };
+    if (!frais) return null;
     item = { ...frais, status: frais.status ?? "pending" };
   } catch { /* lecture impossible : on garde la version de la liste */ }
-  const files = item.files.map((f) => ({ ...f })); // copie mutable (uploadedUrl)
-  let networkError = false;
-  let permanent = false;
-  let reasonMsg = "";
-
-  // ── Étape 1 : Cloudinary pour chaque fichier pas encore uploadé ──────────
-  for (const [index, f] of files.entries()) {
+  const av: Avancement = { item, files: item.files.map((f) => ({ ...f })), networkError: false, permanent: false, reasonMsg: "" };
+  if (av.files.some((f) => !f.uploadedUrl)) annoncer(item.id, "en-cours");
+  for (const [index, f] of av.files.entries()) {
     if (f.uploadedUrl) continue;
     const octets = await octetsPourEnvoi(item.id, index, f);
     if (!octets) {
-      reasonMsg = "octets illisibles pour l'instant";
-      networkError = true; // passager : la photo reste, on réessaiera
+      av.reasonMsg = "octets illisibles pour l'instant";
+      av.networkError = true; // passager : la photo reste, on réessaiera
       break;
     }
     try {
       // Les photos d'un défaut saisi hors ligne se rangent avec celles des
       // défauts envoyés en ligne (dossier « defauts »).
       const dossier = item.signalement ? "defauts" : item.category;
-      f.uploadedUrl = await uploadToCloudinary(octets, f.name, item.projectId, dossier);
+      f.uploadedUrl = await uploadToCloudinary(octets, f.name, item.projectId, dossier,
+        (pct) => annoncer(item.id, "en-cours", { pct }));
       // Persiste immédiatement : si la suite échoue, ce fichier ne sera pas
       // re-uploadé (octets déjà sûrs sur Cloudinary). Si cette écriture-là
       // échoue, on continue quand même avec l'URL en mémoire : le rattachement
       // peut aboutir, et au pire un nouvel essai renverra les octets — le
       // serveur écarte le doublon par son nom.
-      try { await updatePendingUpload({ ...item, files }); }
+      try { await updatePendingUpload({ ...item, files: av.files }); }
       catch (e) { console.warn("[idb-uploads] URL Cloudinary non notée", item.id, e); }
     } catch (e) {
       const ue = e as UploadError;
-      reasonMsg = ue?.message || "upload échoué";
-      if (ue?.permanent) permanent = true; else networkError = true;
+      av.reasonMsg = ue?.message || "upload échoué";
+      if (ue?.permanent) av.permanent = true; else av.networkError = true;
       break;
     }
   }
+  if (!av.networkError && !av.permanent) annoncer(item.id, "octets-envoyes");
+  return av;
+}
 
-  // ── Étape 2 : rattachement Notion (si tout est sur Cloudinary) ───────────
-  let done = false;
-  if (!networkError && !permanent && files.every((f) => f.uploadedUrl)) {
-    if (item.signalement) {
-      try {
-        await envoyerSignalement({ ...item.signalement, photoUrls: files.map((f) => f.uploadedUrl as string) });
-        done = true;
-      } catch (e) {
-        const ue = e as UploadError;
-        reasonMsg = ue?.message || "signalement non enregistré";
-        if (ue?.permanent) permanent = true; else networkError = true;
-      }
-    } else if (item.champTexte) {
-      try {
-        await attacherChampTexte(item.projectId, item.champTexte, files[0].uploadedUrl as string);
-        done = true;
-      } catch (e) {
-        const ue = e as UploadError;
-        reasonMsg = ue?.message || "enregistrement du champ échoué";
-        if (ue?.permanent) permanent = true; else networkError = true;
-      }
-    } else if (item.notionField) {
-      try {
-        await attachPhotos(
-          item.projectId,
-          item.notionField,
-          files.map((f) => ({ name: f.name, url: f.uploadedUrl as string })),
-        );
-        done = true;
-      } catch (e) {
-        const ue = e as UploadError;
-        reasonMsg = ue?.message || "rattachement échoué";
-        if (ue?.permanent) permanent = true; else networkError = true;
-      }
-    } else {
-      done = true; // pas de champ Notion → rien à rattacher
-    }
-  }
+/** Une entrée est arrivée : retirée de la file, l'écran prévenu. */
+async function _confirmer(av: Avancement): Promise<void> {
+  const { item, files } = av;
+  await removePendingUpload(item.id, "confirme");
+  annoncer(item.id, "envoyee", { entree: {
+    projectId: item.projectId, category: item.category, notionField: item.notionField,
+    champTexte: item.champTexte, signalement: item.signalement, files: files.map((f) => ({ name: f.name })),
+  } });
+  if (typeof window === "undefined") return;
+  try {
+    const { invalidateApiCache } = await import("@/lib/api-helpers");
+    invalidateApiCache();
+  } catch {}
+  /* L'écran qui a pris ces photos veut le savoir : c'est maintenant
+     qu'elles existent côté serveur, avec leurs URLs. Il les ajoute à sa
+     liste sans attendre une relecture du projet — sinon le compteur
+     d'une planche retomberait d'un cran le temps d'un aller-retour. */
+  window.dispatchEvent(new CustomEvent("tm-upload-attached", {
+    detail: {
+      projectId: item.projectId,
+      category: item.category,
+      notionField: item.notionField,
+      champTexte: item.champTexte,
+      files: files.map((f) => ({ name: f.name, url: f.uploadedUrl as string })),
+    },
+  }));
+}
 
-  // ── Succès complet ───────────────────────────────────────────────────────
-  if (done) {
-    await removePendingUpload(item.id, "confirme");
-    if (typeof window !== "undefined") {
-      try {
-        const { invalidateApiCache } = await import("@/lib/api-helpers");
-        invalidateApiCache();
-      } catch {}
-      /* L'écran qui a pris ces photos veut le savoir : c'est maintenant
-         qu'elles existent côté serveur, avec leurs URLs. Il les ajoute à sa
-         liste sans attendre une relecture du projet — sinon le compteur
-         d'une planche retomberait d'un cran le temps d'un aller-retour. */
-      window.dispatchEvent(new CustomEvent("tm-upload-attached", {
-        detail: {
-          projectId: item.projectId,
-          category: item.category,
-          notionField: item.notionField,
-          champTexte: item.champTexte,
-          files: files.map((f) => ({ name: f.name, url: f.uploadedUrl as string })),
-        },
-      }));
-    }
-    return { success: 1, failed: 0, permanentlyFailed: 0 };
-  }
-
-  // ── Échec ────────────────────────────────────────────────────────────────
+/** Échec : délai de reprise, ou mise de côté — jamais d'effacement. */
+async function _noterEchec(av: Avancement, now: number): Promise<ItemOutcome> {
+  const { item, files, permanent, reasonMsg } = av;
   const reason = `${permanent ? "Erreur" : "Réseau"}${reasonMsg ? " : " + reasonMsg : ""}`;
   if (permanent) {
     console.warn("[idb-uploads] échec permanent", item.id, reason);
     try { await _markPermanentlyFailed({ ...item, files }, reason); }
     catch (e) { console.warn("[idb-uploads] statut non noté", item.id, e); }
+    annoncer(item.id, "echec", { reason });
     return { success: 0, failed: 1, permanentlyFailed: 1 };
   }
   const retries = (item.retryCount || 0) + 1;
@@ -524,12 +511,68 @@ async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOu
     console.error("[idb-uploads] MAX_RETRIES atteint — permanently-failed", item.id, reason);
     try { await _markPermanentlyFailed({ ...item, files }, reason); }
     catch (e) { console.warn("[idb-uploads] statut non noté", item.id, e); }
+    annoncer(item.id, "echec", { reason });
     return { success: 0, failed: 1, permanentlyFailed: 1 };
   }
-  const delayMs = Math.min(3_000 * 2 ** (retries - 1), 30_000);
+  /* Le premier nouvel essai arrive vite (1,5 s) : sur un réseau instable,
+     la coupure est souvent brève. Puis le délai double, jusqu'à 30 s. */
+  const delayMs = Math.min(1_500 * 2 ** (retries - 1), 30_000);
   try { await updatePendingUpload({ ...item, files, retryCount: retries, nextAttemptAt: now + delayMs, reason }); }
   catch (e) { console.warn("[idb-uploads] délai non noté", item.id, e); }
+  annoncer(item.id, "echec", { reason, nouvelEssai: now + delayMs });
   return { success: 0, failed: 1, permanentlyFailed: 0 };
+}
+
+/**
+ * Étape 2 : le rattachement, pour un GROUPE d'entrées visant le même champ
+ * du même projet, une écriture à la fois (lecture-écriture côté serveur :
+ * deux à la fois pourraient effacer une photo). Les photos prêtes d'un même
+ * champ partent en UN seul rattachement : une écriture Notion au lieu d'une
+ * par photo.
+ */
+async function _rattacherGroupe(avs: Avancement[], now: number): Promise<ItemOutcome> {
+  const t: ItemOutcome = { success: 0, failed: 0, permanentlyFailed: 0 };
+  const ajouter = (r: ItemOutcome) => { t.success += r.success; t.failed += r.failed; t.permanentlyFailed += r.permanentlyFailed; };
+  const echec = (av: Avancement, e: unknown, motif: string) => {
+    const ue = e as UploadError;
+    av.reasonMsg = ue?.message || motif;
+    if (ue?.permanent) av.permanent = true; else av.networkError = true;
+  };
+  const prets: Avancement[] = [];
+  for (const av of avs) {
+    if (av.networkError || av.permanent || !av.files.every((f) => f.uploadedUrl)) { ajouter(await _noterEchec(av, now)); continue; }
+    prets.push(av);
+  }
+  // Champs « fichiers » : par lots, une écriture par lot.
+  const enGalerie = prets.filter((av) => !av.item.signalement && !av.item.champTexte && av.item.notionField);
+  for (let i = 0; i < enGalerie.length; i += PHOTOS_PAR_RATTACHEMENT) {
+    const lot = enGalerie.slice(i, i + PHOTOS_PAR_RATTACHEMENT);
+    const { projectId, notionField } = lot[0].item;
+    try {
+      await attachPhotos(projectId, notionField as string,
+        lot.flatMap((av) => av.files.map((f) => ({ name: f.name, url: f.uploadedUrl as string }))));
+      for (const av of lot) { await _confirmer(av); t.success++; }
+    } catch (e) {
+      for (const av of lot) { echec(av, e, "rattachement échoué"); ajouter(await _noterEchec(av, now)); }
+    }
+  }
+  // Signatures, signalements, entrées sans champ : une par une, dans l'ordre.
+  for (const av of prets.filter((x) => !enGalerie.includes(x))) {
+    const { item, files } = av;
+    try {
+      if (item.signalement) {
+        await envoyerSignalement({ ...item.signalement, photoUrls: files.map((f) => f.uploadedUrl as string) });
+      } else if (item.champTexte) {
+        await attacherChampTexte(item.projectId, item.champTexte, files[0].uploadedUrl as string);
+      } // pas de champ Notion → rien à rattacher
+      await _confirmer(av);
+      t.success++;
+    } catch (e) {
+      echec(av, e, item.signalement ? "signalement non enregistré" : "enregistrement du champ échoué");
+      ajouter(await _noterEchec(av, now));
+    }
+  }
+  return t;
 }
 
 /**
@@ -537,14 +580,20 @@ async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOu
  * les items qui ont déjà raté. Passe en "permanently-failed" après
  * MAX_RETRIES — ne supprime JAMAIS les données (zéro perte photo).
  *
- * Parallélisation SÛRE : on regroupe par champ Notion (projet + champ).
- * Les uploads vers un MÊME champ restent SÉQUENTIELS — le verrou serveur
- * est par-conteneur, donc deux envois parallèles sur le même champ peuvent
- * atterrir sur deux conteneurs Vercel et s'écraser (read-modify-write) →
- * perte de photo. Mais des champs DIFFÉRENTS (montage, après-intervention…)
- * s'envoient EN PARALLÈLE sans risque → la file se vide bien plus vite en 5G.
+ * Deux phases :
+ *  1. les OCTETS, trois entrées à la fois, tous champs confondus — c'est le
+ *     transfert long, et il ne touche à aucune donnée du serveur ;
+ *  2. le RATTACHEMENT, groupé par champ (projet + champ) : une seule écriture
+ *     à la fois sur un même champ — le verrou serveur est par conteneur, deux
+ *     écritures parallèles sur le même champ pourraient s'écraser — mais des
+ *     champs différents en parallèle, et toutes les photos prêtes d'un champ
+ *     en une seule écriture.
+ *
+ * Une demande qui arrive pendant une passe n'est pas perdue : une nouvelle
+ * passe suit aussitôt la première.
  */
 const GROUP_CONCURRENCY = 4;
+let _relanceDemandee = false;
 
 export async function processPendingUploads(): Promise<{
   success: number;
@@ -552,59 +601,78 @@ export async function processPendingUploads(): Promise<{
   total: number;
   permanentlyFailed: number;
 }> {
-  // Guard : si une synchro est déjà en cours, on abandonne immédiatement.
+  // Guard : une seule passe à la fois ; la demande est notée pour la suite.
   if (_processingUploads) {
+    _relanceDemandee = true;
     return { success: 0, failed: 0, total: 0, permanentlyFailed: 0 };
   }
   _processingUploads = true;
-
-  let all: PendingUpload[];
-  try {
-    all = await getPendingUploads({ status: "pending" });
-  } catch {
-    _processingUploads = false;
-    return { success: 0, failed: 0, total: 0, permanentlyFailed: 0 };
-  }
   const totals = { success: 0, failed: 0, permanentlyFailed: 0 };
-  const now = Date.now();
-
+  let total = 0;
   try { // try global pour libérer _processingUploads même sur erreur inattendue
-    // Regroupement par champ (sérialisation intra-groupe, parallélisme inter-groupe).
-    const groups = new Map<string, PendingUpload[]>();
-    for (const item of all) {
-      const key = `${item.projectId}::${item.champTexte ?? item.notionField ?? item.category ?? ""}`;
-      const arr = groups.get(key);
-      if (arr) arr.push(item);
-      else groups.set(key, [item]);
-    }
-
-    const processGroup = async (items: PendingUpload[]) => {
-      for (const item of items) {
-        if (item.nextAttemptAt && item.nextAttemptAt > now) continue;
-        const r = await _processOneItem(item, now);
-        totals.success += r.success;
-        totals.failed += r.failed;
-        totals.permanentlyFailed += r.permanentlyFailed;
+    do {
+      _relanceDemandee = false;
+      let all: PendingUpload[];
+      try {
+        all = await getPendingUploads({ status: "pending" });
+      } catch {
+        break;
       }
-    };
+      total += all.length;
+      const now = Date.now();
+      const dus = all
+        .filter((item) => !(item.nextAttemptAt && item.nextAttemptAt > now))
+        .sort((a, b) => a.createdAt - b.createdAt);
 
-    // Pool de workers : au plus GROUP_CONCURRENCY champs traités en parallèle.
-    const groupArrays = [...groups.values()];
-    let next = 0;
-    const workers = Array.from(
-      { length: Math.min(GROUP_CONCURRENCY, groupArrays.length) },
-      async () => {
-        while (next < groupArrays.length) {
-          const mine = groupArrays[next++];
-          await processGroup(mine);
+      // ── Phase 1 : les octets, ENVOIS_SIMULTANES à la fois ────────────────
+      const avancements: Avancement[] = [];
+      let suivant = 0;
+      await Promise.all(Array.from({ length: Math.min(ENVOIS_SIMULTANES, dus.length) }, async () => {
+        while (suivant < dus.length) {
+          const item = dus[suivant++];
+          try {
+            const av = await _envoyerOctets(item);
+            if (av) avancements.push(av);
+          } catch (e) {
+            console.warn("[idb-uploads] envoi inattendu", item.id, e);
+          }
         }
-      },
-    );
-    await Promise.all(workers);
+      }));
+
+      // ── Phase 2 : le rattachement, par champ ─────────────────────────────
+      const groupes = new Map<string, Avancement[]>();
+      for (const av of avancements.sort((a, b) => a.item.createdAt - b.item.createdAt)) {
+        const { item } = av;
+        const key = `${item.projectId}::${item.champTexte ?? item.notionField ?? item.category ?? ""}`;
+        const arr = groupes.get(key);
+        if (arr) arr.push(av); else groupes.set(key, [av]);
+      }
+      const listes = [...groupes.values()];
+      let prochain = 0;
+      await Promise.all(Array.from({ length: Math.min(GROUP_CONCURRENCY, listes.length) }, async () => {
+        while (prochain < listes.length) {
+          const r = await _rattacherGroupe(listes[prochain++], now);
+          totals.success += r.success;
+          totals.failed += r.failed;
+          totals.permanentlyFailed += r.permanentlyFailed;
+        }
+      }));
+    } while (_relanceDemandee);
   } finally {
     _processingUploads = false;
   }
-  return { ...totals, total: all.length };
+  return { ...totals, total };
+}
+
+/** Le prochain essai prévu d'une photo en attente (ms epoch), ou null. */
+export async function prochainEssaiPhotos(): Promise<number | null> {
+  try {
+    const items = await getPendingUploads({ status: "pending" });
+    const dates = items.map((i) => i.nextAttemptAt || 0);
+    return dates.length ? Math.min(...dates) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

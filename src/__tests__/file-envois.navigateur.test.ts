@@ -296,11 +296,17 @@ describe("Scénario D — réseau instable", () => {
         files: [{ name: `p${i}.jpg`, type: "image/jpeg", blob: image() }],
       });
     }
-    /* Le garde-fou `_processingUploads` doit faire renoncer le second appel. */
+    /* Le garde-fou `_processingUploads` fait renoncer le second appel (qui
+       demande une passe de plus, sans rien renvoyer). Les trois photos du
+       même champ partent en UN rattachement groupé (depuis le 18.10.2026) :
+       un seul appel, chaque photo une seule fois. */
     const [a, b] = await Promise.all([processPendingUploads(), processPendingUploads()]);
     const total = a.success + b.success;
     expect(total).toBe(3);
-    expect(appels.attachPhotos).toBe(3); // pas 6
+    expect(appels.attachPhotos).toBe(1); // un rattachement groupé — ni 3, ni 6
+    const noms = recuPhotos.flatMap((r) => r.urls);
+    expect(noms).toHaveLength(3);
+    expect(new Set(noms).size).toBe(3); // aucune photo deux fois
     expect(await countPendingUploads()).toBe(0);
   });
 });

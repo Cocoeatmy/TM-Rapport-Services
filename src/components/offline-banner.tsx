@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { reseauDegrade } from "@/lib/reseau";
 import { WifiOff, CloudUpload, RefreshCw, AlertTriangle, ChevronDown, X } from "lucide-react";
 import { isOnline, getQueue, removeFromQueue, warmOfflineCache, getLastCacheWarmTs, getAbandons, clearAbandons, rejouerAbandon } from "@/lib/offline";
@@ -14,6 +14,10 @@ import {
   getPendingUploads,
 } from "@/lib/idb-uploads";
 import type { PendingUpload } from "@/lib/idb-uploads";
+import {
+  projetsConnus, referenceProjet, natureDePhoto, natureDeSaisie, projetDeSaisie,
+  lireHistorique, noterDansHistorique, type LigneHistorique, type EntreePhoto, type EntreeSaisie,
+} from "@/lib/libelles-synchro";
 
 /**
  * Bannière globale qui prévient l'utilisateur quand l'app est hors
@@ -34,36 +38,38 @@ import type { PendingUpload } from "@/lib/idb-uploads";
  * l'événement custom `tm-offline-queued` envoyé par offlineFetch.
  */
 
-/** Génère un libellé lisible depuis un QueueItem. */
+/** « TM-2600825 — Heures d'intervention » : le projet d'abord, puis ce qui part. */
 function describeQueueItem(item: QueueItem): string {
-  const body = typeof item.body === "string" ? (() => { try { return JSON.parse(item.body); } catch { return {}; } })() : (item.body || {});
-  const projectId = item.url.match(/\/api\/projects\/([^/?]+)/)?.[1] ?? "";
-  const ref = projectId ? ` · ${projectId}` : ` · ${item.url.replace("/api/", "")}`;
-
-  if (item.url.includes("cabine-attribution")) return `Attribution monteurs${ref}`;
-  if (body.rapportMonteur !== undefined && body.heureArrivee !== undefined) return `Rapport + heures${ref}`;
-  if (body.rapportMonteur !== undefined) return `Rapport monteur${ref}`;
-  if (body.heureArrivee !== undefined && body.heureDepart !== undefined) return `Heures d'intervention${ref}`;
-  if (body.heureArrivee !== undefined) return `Heure d'arrivée${ref}`;
-  if (body.heureDepart !== undefined) return `Heure de départ${ref}`;
-  if (body.commentairesMontages !== undefined) return `Commentaires${ref}`;
-  if (body.dateMontage !== undefined || body.dateMesures !== undefined) return `Mise à jour date${ref}`;
-  if (item.url.includes("pdf")) return `Génération PDF${ref}`;
-  if (item.url.includes("logs")) return `Historique${ref}`;
-  if (item.url.includes("notify")) return `Notification${ref}`;
-  if (item.type === "upload") return `Upload photo${ref}`;
-  const keys = Object.keys(body);
-  if (keys.length > 0) return `Mise à jour ${keys.slice(0, 2).join(", ")}${ref}`;
-  return `Mise à jour${ref}`;
+  const projets = projetsConnus();
+  const e: EntreeSaisie = { url: item.url, method: item.method, body: item.body, type: item.type };
+  const ref = referenceProjet(projetDeSaisie(e), projets);
+  return ref ? `${ref} — ${natureDeSaisie(e)}` : natureDeSaisie(e);
 }
 
-/** Génère un libellé lisible depuis un PendingUpload (IDB). */
+/** « TM-2600825 — Photo montage gauche 2 · lot 1 ». */
 function describePendingUpload(up: PendingUpload): string {
-  const nbFiles = up.files?.length ?? 0;
-  const label = up.notionField || up.category || "photo";
-  const suffix = up.retryCount > 0 ? ` (essai ${up.retryCount})` : "";
-  const why = up.reason ? ` ⚠ ${up.reason}` : "";
-  return `${nbFiles} photo${nbFiles > 1 ? "s" : ""} — ${label} · ${up.projectId}${suffix}${why}`;
+  const ref = referenceProjet(up.projectId, projetsConnus());
+  return `${ref} — ${natureDePhoto(up as unknown as EntreePhoto)}`;
+}
+
+/** L'état d'une opération, tel que l'annonce la file. */
+type EtatOperation = { etat: "en-cours" | "octets-envoyes" | "envoyee" | "echec"; pct?: number; nouvelEssai?: number; reason?: string };
+
+function texteEtat(e: EtatOperation | undefined, nextAttemptAt: number | undefined, reason: string | undefined, enLigne = true): { texte: string; ton: string } {
+  /* Sans réseau, rien n'a « échoué » : tout attend, en sûreté sur l'appareil. */
+  if (!enLigne && e?.etat !== "envoyee") return { texte: "En attente du réseau — gardée sur l'appareil", ton: "text-gray-500 dark:text-gray-400" };
+  const prevu = e?.etat === "echec" ? e.nouvelEssai : (nextAttemptAt && nextAttemptAt > Date.now() ? nextAttemptAt : undefined);
+  if (e?.etat === "en-cours") return { texte: `Envoi en cours${typeof e.pct === "number" ? ` · ${e.pct} %` : ""}`, ton: "text-blue-600 dark:text-blue-300" };
+  if (e?.etat === "octets-envoyes") return { texte: "Envoyée · enregistrement dans le projet…", ton: "text-blue-600 dark:text-blue-300" };
+  if (e?.etat === "envoyee") return { texte: "Synchronisée", ton: "text-emerald-600 dark:text-emerald-400" };
+  if (prevu) {
+    /* Une coupure se dit « nouvel essai » ; le motif n'est montré que pour
+       une vraie erreur (refus du serveur, fichier illisible…). */
+    const brut = e?.reason || reason || "";
+    const motif = /^Réseau/i.test(brut) ? "" : brut;
+    return { texte: `Échec — nouvel essai à ${new Date(prevu).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}${motif ? ` (${motif})` : ""}`, ton: "text-amber-600 dark:text-amber-400" };
+  }
+  return { texte: "En attente", ton: "text-gray-500 dark:text-gray-400" };
 }
 
 /** Formate un timestamp en heure lisible. */
@@ -90,6 +96,16 @@ export function OfflineBanner() {
   /* Réseau présent mais qui ne passe pas : l'état le plus courant sur un
      chantier, et le seul qui n'était signalé nulle part. */
   const [faible, setFaible]               = useState(false);
+  /* Où en est chaque opération (annoncé par les files), combien de photos
+     sont arrivées pendant cette synchronisation, et ce qui est parti. */
+  const [etats, setEtats]                 = useState<Record<string, EtatOperation>>({});
+  const [envoyeesSession, setEnvoyeesSession] = useState(0);
+  const [historique, setHistorique]       = useState<LigneHistorique[]>([]);
+  const [ouverte, setOuverte]             = useState<string | null>(null);
+  const [voirHistorique, setVoirHistorique] = useState(false);
+  /** Instant où la file s'est vidée en ligne : un « tout est synchronisé » visible. */
+  const [toutEnvoyeA, setToutEnvoyeA]     = useState(0);
+  const precedentRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +118,13 @@ export function OfflineBanner() {
       setOnline(isOnline());
       setFaible(reseauDegrade());
       setQueueCount(items.length + upCount);
+      const restant = items.length + upCount;
+      if (restant === 0 && precedentRef.current > 0 && isOnline()) {
+        setToutEnvoyeA(Date.now());
+        setTimeout(() => { if (!cancelled) setToutEnvoyeA(0); }, 12_000);
+      }
+      precedentRef.current = restant;
+      if (restant === 0) { setEnvoyeesSession(0); setEtats({}); }
       setQueueItems(items);
       setPendingUps(uploads);
       setLastWarm(getLastCacheWarmTs());
@@ -138,6 +161,32 @@ export function OfflineBanner() {
        tout seul — le monteur doit le voir et agir. */
     const surStockagePlein = () => setStockagePlein(true);
 
+    setHistorique(lireHistorique());
+    const surPhoto = (ev: Event) => {
+      const d = (ev as CustomEvent).detail as EtatOperation & { id: string; entree?: EntreePhoto };
+      if (!d?.id) return;
+      setEtats((prev) => ({ ...prev, [d.id]: { etat: d.etat, pct: d.pct, nouvelEssai: d.nouvelEssai, reason: d.reason } }));
+      if (d.etat === "envoyee") {
+        setEnvoyeesSession((n) => n + Math.max(1, d.entree?.files?.length ?? 1));
+        if (d.entree) {
+          noterDansHistorique({ libelle: `${referenceProjet(d.entree.projectId, projetsConnus())} — ${natureDePhoto(d.entree)}`, quand: Date.now(), genre: "photo" });
+          setHistorique(lireHistorique());
+        }
+      }
+    };
+    const surSaisie = (ev: Event) => {
+      const d = (ev as CustomEvent).detail as { id: string; etat: EtatOperation["etat"]; nouvelEssai?: number; entree?: EntreeSaisie };
+      if (!d?.id) return;
+      setEtats((prev) => ({ ...prev, [d.id]: { etat: d.etat, nouvelEssai: d.nouvelEssai } }));
+      if (d.etat === "envoyee" && d.entree) {
+        const ref = referenceProjet(projetDeSaisie(d.entree), projetsConnus());
+        noterDansHistorique({ libelle: `${ref ? `${ref} — ` : ""}${natureDeSaisie(d.entree)}`, quand: Date.now(), genre: "saisie" });
+        setHistorique(lireHistorique());
+        refresh();
+      }
+    };
+    window.addEventListener("tm-envoi-progression", surPhoto);
+    window.addEventListener("tm-saisie-progression", surSaisie);
     window.addEventListener("tm-reseau", refresh);
     window.addEventListener("online",  handleOnline);
     window.addEventListener("offline", refresh);
@@ -159,6 +208,8 @@ export function OfflineBanner() {
 
     return () => {
       cancelled = true;
+      window.removeEventListener("tm-envoi-progression", surPhoto);
+      window.removeEventListener("tm-saisie-progression", surSaisie);
       window.removeEventListener("tm-reseau", refresh);
       window.removeEventListener("online",  handleOnline);
       window.removeEventListener("offline", refresh);
@@ -304,9 +355,30 @@ export function OfflineBanner() {
     );
   }
 
-  // En ligne, réseau correct, queue vide, aucun échec : rien à afficher.
+  // En ligne, réseau correct, queue vide, aucun échec : rien à afficher —
+  // sauf, quelques secondes, la confirmation que tout est arrivé.
   if (online && !faible && queueCount === 0) {
-    return null;
+    if (!toutEnvoyeA) return null;
+    return (
+      <div className="w-full shadow-md bg-emerald-600 text-white">
+        <button type="button" role="status" aria-live="polite" onClick={() => setVoirHistorique((v) => !v)}
+          className="w-full px-3 py-1.5 text-xs flex items-center justify-center gap-2">
+          <CloudUpload className="w-3.5 h-3.5 shrink-0" aria-hidden />
+          <span className="text-center leading-tight">Tout est synchronisé — voir ce qui est parti</span>
+          <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${voirHistorique ? "rotate-180" : ""}`} aria-hidden />
+        </button>
+        {voirHistorique && (
+          <div className="bg-white dark:bg-slate-900 px-4 py-2 max-h-[50vh] overflow-y-auto">
+            {historique.slice(0, 20).map((h, i) => (
+              <p key={`${h.quand}-${i}`} className="py-0.5 text-[11px] text-gray-600 dark:text-gray-300 break-words leading-snug">
+                <span className="text-emerald-600 dark:text-emerald-400">✓</span> {h.libelle}
+                <span className="text-gray-400"> · {formatTime(h.quand)}</span>
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   let cls = "";
@@ -337,10 +409,14 @@ export function OfflineBanner() {
     Icon = CloudUpload;
     const nbPhotos = pendingUps.reduce((s, u) => s + (u.files?.length || 0), 0);
     const nbData = queueItems.length;
+    const totalPhotos = nbPhotos + envoyeesSession;
+    const photos = totalPhotos > 0
+      ? `${envoyeesSession} photo${envoyeesSession > 1 ? "s" : ""} sur ${totalPhotos} envoyée${envoyeesSession > 1 ? "s" : ""}`
+      : "";
     if (nbPhotos > 0 && nbData > 0) {
-      label = `Synchronisation… ${nbPhotos} photo${nbPhotos > 1 ? "s" : ""} + ${nbData} mise${nbData > 1 ? "s" : ""} à jour — garde l'app ouverte`;
+      label = `Synchronisation — ${photos} · ${nbData} mise${nbData > 1 ? "s" : ""} à jour — garde l'app ouverte`;
     } else if (nbPhotos > 0) {
-      label = `Envoi de ${nbPhotos} photo${nbPhotos > 1 ? "s" : ""}… garde l'app ouverte jusqu'à la fin`;
+      label = `Synchronisation — ${photos} — garde l'app ouverte jusqu'à la fin`;
     } else {
       label = `Synchronisation de ${nbData} mise${nbData > 1 ? "s" : ""} à jour…`;
     }
@@ -368,70 +444,104 @@ export function OfflineBanner() {
         )}
       </button>
 
-      {/* Panneau de détail (au clic ou survol) */}
+      {/* Panneau de détail : le projet et la nature de chaque opération, son
+          état ; les identifiants techniques au toucher. */}
       {showDetails && hasDetails && (
-        <div className="bg-white dark:bg-slate-900 border-t border-blue-200 dark:border-slate-700 px-4 py-3 space-y-1.5 max-h-64 overflow-y-auto shadow-lg">
+        <div className="bg-white dark:bg-slate-900 border-t border-blue-200 dark:border-slate-700 px-4 py-3 max-h-[60vh] overflow-y-auto overscroll-contain shadow-lg">
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
             Opérations en attente
           </p>
 
-          {/* Opérations API (localStorage queue) */}
-          {queueItems.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center justify-between gap-3 py-1 border-b border-gray-50 dark:border-slate-800 last:border-0"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide ${
-                  item.type === "upload"
-                    ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
-                    : item.type === "pdf"
-                    ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
-                    : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                }`}>
-                  {item.type === "upload" ? "photo" : item.type === "pdf" ? "pdf" : "sync"}
-                </span>
-                <span className="text-xs text-gray-700 dark:text-gray-200 truncate">
-                  {describeQueueItem(item)}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[10px] text-gray-400">
-                  {formatTime(item.timestamp)}
-                </span>
-                {item.type !== "upload" && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); handleRemoveItem(item.id); }}
-                    title="Abandonner cette opération coincée"
-                    className="w-5 h-5 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+          {/* Photos d'abord : ce sont elles qui permettent de finaliser. */}
+          {pendingUps.map((up) => {
+            const et = texteEtat(etats[up.id], up.nextAttemptAt, up.reason, online);
+            const ouverteIci = ouverte === up.id;
+            return (
+              <div key={up.id} className="py-1.5 border-b border-gray-100 dark:border-slate-800 last:border-0">
+                <button type="button" onClick={() => setOuverte(ouverteIci ? null : up.id)} className="w-full flex items-start gap-2 text-left">
+                  <span className="shrink-0 mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                    photo
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-medium text-gray-800 dark:text-gray-100 break-words leading-snug">
+                      {describePendingUpload(up)}
+                    </span>
+                    <span className={`block text-[10px] leading-snug ${et.ton}`}>
+                      {et.texte} · prise à {formatTime(up.createdAt)}
+                    </span>
+                  </span>
+                </button>
+                {ouverteIci && (
+                  <p className="mt-1 ml-12 text-[10px] text-gray-400 break-all leading-snug">
+                    {up.files.map((f) => f.name).join(", ")} · {up.notionField || up.champTexte || up.category} · projet {up.projectId} · {up.id}
+                    {up.retryCount > 0 ? ` · ${up.retryCount} essai(s)` : ""}
+                  </p>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
-          {/* Photos en attente (IndexedDB) */}
-          {pendingUps.map((up) => (
-            <div
-              key={up.id}
-              className="flex items-center justify-between gap-3 py-1 border-b border-gray-50 dark:border-slate-800 last:border-0"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                  photo
-                </span>
-                <span className="text-xs text-gray-700 dark:text-gray-200 truncate">
-                  {describePendingUpload(up)}
-                </span>
+          {/* Saisies (heures, rapport, champs) */}
+          {queueItems.map((item) => {
+            const et = texteEtat(etats[item.id], item.nextAttemptAt, undefined, online);
+            const ouverteIci = ouverte === item.id;
+            return (
+              <div key={item.id} className="py-1.5 border-b border-gray-100 dark:border-slate-800 last:border-0">
+                <div className="flex items-start gap-2">
+                  <button type="button" onClick={() => setOuverte(ouverteIci ? null : item.id)} className="min-w-0 flex-1 flex items-start gap-2 text-left">
+                    <span className={`shrink-0 mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide ${
+                      item.type === "pdf"
+                        ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                        : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                    }`}>
+                      {item.type === "pdf" ? "pdf" : "saisie"}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-medium text-gray-800 dark:text-gray-100 break-words leading-snug">
+                        {describeQueueItem(item)}
+                      </span>
+                      <span className={`block text-[10px] leading-snug ${item.statut === "echec" ? "text-red-600 dark:text-red-400" : et.ton}`}>
+                        {item.statut === "echec" ? "Mise de côté — sera relancée" : et.texte} · saisie à {formatTime(item.timestamp)}
+                      </span>
+                    </span>
+                  </button>
+                  {item.type !== "upload" && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleRemoveItem(item.id); }}
+                      title="Abandonner cette opération coincée"
+                      className="w-5 h-5 shrink-0 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {ouverteIci && (
+                  <p className="mt-1 ml-14 text-[10px] text-gray-400 break-all leading-snug">
+                    {item.method} {item.url} · {Object.keys((item.body as Record<string, unknown>) || {}).join(", ") || "sans contenu"} · {item.id}
+                    {item.retryCount ? ` · ${item.retryCount} essai(s)` : ""}
+                  </p>
+                )}
               </div>
-              <span className="text-[10px] text-gray-400 shrink-0">
-                {formatTime(up.createdAt)}
-              </span>
+            );
+          })}
+
+          {/* Ce qui est parti : sorti de la liste, mais traçable. */}
+          {historique.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-slate-800">
+              <button type="button" onClick={() => setVoirHistorique((v) => !v)}
+                className="w-full flex items-center justify-between text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                Envoyées récemment ({historique.length})
+                <ChevronDown className={`w-3 h-3 transition-transform ${voirHistorique ? "rotate-180" : ""}`} aria-hidden />
+              </button>
+              {voirHistorique && historique.slice(0, 20).map((h, i) => (
+                <p key={`${h.quand}-${i}`} className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 break-words leading-snug">
+                  <span className="text-emerald-600 dark:text-emerald-400">✓</span> {h.libelle}
+                  <span className="text-gray-400"> · {formatTime(h.quand)}</span>
+                </p>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

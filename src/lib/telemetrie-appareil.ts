@@ -109,8 +109,12 @@ export async function toutRelancer(): Promise<void> {
   if (!isOnline()) return;
   try { await resetBackoffForAll(); } catch { /* ignore */ }
   try { await retryAllFailedUploads(); } catch { /* ignore */ }
-  try { await processQueue(); } catch { /* ignore */ }
-  try { await processPendingUploads(); } catch { /* ignore */ }
+  /* Saisies et photos en même temps : elles touchent des champs différents,
+     et chaque file garde son ordre et sa protection contre les doublons. */
+  await Promise.all([
+    processQueue().catch(() => { /* ignore */ }),
+    processPendingUploads().catch(() => { /* ignore */ }),
+  ]);
   try { await relancerEnvoisDifferes(); } catch { /* ignore */ }
 }
 

@@ -422,6 +422,16 @@ export function processQueue(): Promise<{ success: number; failed: number; skipp
   return passeEnCours;
 }
 
+/** Où en est une saisie, pour l'écran (« en cours », « envoyée », « échec »). */
+function annoncerSaisie(item: QueueItem, etat: "en-cours" | "envoyee" | "echec", nouvelEssai?: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new CustomEvent("tm-saisie-progression", {
+      detail: { id: item.id, etat, nouvelEssai, entree: { url: item.url, method: item.method, body: item.body, type: item.type } },
+    }));
+  } catch { /* sans effet */ }
+}
+
 async function passeDeFile(): Promise<{ success: number; failed: number; skipped: number }> {
   const queue = getQueue();
   let success = 0;
@@ -477,9 +487,11 @@ async function passeDeFile(): Promise<{ success: number; failed: number; skipped
       };
 
       // Même garde-fou : un rejeu ne doit pas bloquer la file une minute.
+      annoncerSaisie(item, "en-cours");
       const res = await fetchAvecDelai(item.url, options, DELAI_MUTATION_MS);
       if (res.ok) {
         removeFromQueue(item.id);
+        annoncerSaisie(item, "envoyee");
         success++;
       } else {
         /* Réessayer à l'identique un refus du serveur ne servira à rien, mais
@@ -494,6 +506,7 @@ async function passeDeFile(): Promise<{ success: number; failed: number; skipped
         } else {
           updateQueueItem({ ...item, retryCount: retries, nextAttemptAt: now + suite.dansMs });
           enAttente.add(cle(item));
+          annoncerSaisie(item, "echec", now + suite.dansMs);
         }
         failed++;
       }
@@ -509,6 +522,7 @@ async function passeDeFile(): Promise<{ success: number; failed: number; skipped
       } else {
         updateQueueItem({ ...item, retryCount: retries, nextAttemptAt: now + suite.dansMs });
         enAttente.add(cle(item));
+        annoncerSaisie(item, "echec", now + suite.dansMs);
       }
       failed++;
     }
@@ -539,6 +553,12 @@ export function leverLesDelais(): number {
   });
   if (n > 0) ecrireFile(JSON.stringify(maj));
   return n;
+}
+
+/** Le prochain essai prévu d'une saisie en attente (ms epoch), ou null. */
+export function prochainEssaiSaisies(): number | null {
+  const dates = getQueue().filter((q) => q.statut !== "echec").map((q) => q.nextAttemptAt || 0);
+  return dates.length ? Math.min(...dates) : null;
 }
 
 export function relancerEchecs(): number {

@@ -87,6 +87,13 @@ export default defineConfig({
        refuse les `Blob` dans IndexedDB — un profil sur disque les accepte,
        comme Safari et les WKWebView des apps (vérifié le 18.10.2026). */
     {
+      /* Banc de MESURE de la synchronisation (e2e/61) : WebKit, gabarit
+         iPhone, latences simulées fixes. Long : lancé à la demande. */
+      name: "vitesse-webkit",
+      testMatch: /61-.*\.spec\.ts$/,
+      use: { ...devices["iPhone 13"] },
+    },
+    {
       name: "journee-webkit",
       testMatch: /60-.*\.spec\.ts$/,
       use: { ...devices["iPhone 13"] },
