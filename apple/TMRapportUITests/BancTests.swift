@@ -133,10 +133,17 @@ final class BancTests: XCTestCase {
         // Le sélecteur de photos d'iOS tourne dans un autre processus, hors
         // de portée du test : on touche la première vignette par sa position.
         sleep(4)
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.18, dy: 0.46)).tap()
-        // L'aperçu de la photo s'ouvre ; on valide (coche en haut à droite).
-        sleep(2)
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.90, dy: 0.125)).tap()
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            // Sur iPad, le sélecteur est une fenêtre centrée, barre latérale à gauche.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.437, dy: 0.465)).tap()
+            sleep(2)
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.807, dy: 0.26)).tap()
+        } else {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.18, dy: 0.46)).tap()
+            // L'aperçu de la photo s'ouvre ; on valide (coche en haut à droite).
+            sleep(2)
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.90, dy: 0.125)).tap()
+        }
         XCTAssertTrue(resultat("fichier image/").waitForExistence(timeout: 15), "la photo choisie n'est pas arrivée dans la page")
     }
 }
