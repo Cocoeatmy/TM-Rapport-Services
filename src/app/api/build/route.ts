@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { COQUE_APPLE_MINIMUM } from "@/lib/coque-apple";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,8 @@ export async function GET() {
     process.env.VERCEL_DEPLOYMENT_ID ||
     "dev";
   return NextResponse.json(
-    { build },
+    // La version minimale des apps Apple : voir src/lib/coque-apple.ts.
+    { build, coqueAppleMinimum: COQUE_APPLE_MINIMUM },
     { headers: { "Cache-Control": "no-store, max-age=0" } },
   );
 }

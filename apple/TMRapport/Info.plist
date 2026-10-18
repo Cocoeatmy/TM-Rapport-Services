@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	Les domaines « app-bound ». C'est la condition posée par Apple pour qu'une
+	vue web d'application ait le droit d'utiliser un service worker — donc pour
+	que TM Rapport s'ouvre SANS RÉSEAU. « localhost » ne sert qu'aux essais
+	automatiques du démarrage hors ligne ; il n'ouvre rien d'autre.
+	-->
+	<key>WKAppBoundDomains</key>
+	<array>
+		<string>tm-rapport-services.vercel.app</string>
+		<string>localhost</string>
+	</array>
+	<!-- Essais locaux uniquement (http://localhost). Aucun effet sur Internet. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>
