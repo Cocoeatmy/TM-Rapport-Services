@@ -199,6 +199,20 @@ final class BancTests: XCTestCase {
         XCTAssertFalse(app.buttons["Fermer"].exists, "une fenêtre vide est restée ouverte")
     }
 
+    /// Appeler un client, lui écrire : le lien part vers Téléphone ou Mail
+    /// (absents du simulateur), et la page du chantier reste en place.
+    func testAppelerEtEcrireNeQuittentPasLaPage() throws {
+        for libelle in ["Appeler", "Ecrire"] {
+            let lien = app.webViews.links[libelle].firstMatch
+            XCTAssertTrue(lien.waitForExistence(timeout: 10))
+            lien.tap()
+            sleep(2)
+            accepterAutorisations(pendant: 1)
+            if app.state != .runningForeground { app.activate() }
+            XCTAssertTrue(app.webViews.buttons["Alerte"].waitForExistence(timeout: 10), "la page a été remplacée après \(libelle)")
+        }
+    }
+
     func testLePressePapiers() throws {
         toucher("Copier")
         accepterAutorisations(pendant: 2)
