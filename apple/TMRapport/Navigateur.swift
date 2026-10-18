@@ -42,6 +42,14 @@ final class Navigateur: NSObject, ObservableObject {
     @Published private(set) var couleurTheme: Color?
     /// La couleur du fond de page, pour le bas de l'écran sous la barre d'accueil.
     @Published private(set) var couleurFond: Color?
+    /// La couleur RÉELLEMENT affichée tout en haut de la page — l'en-tête du
+    /// thème, le bandeau hors ligne, le voile d'une fenêtre ouverte. C'est
+    /// elle qui passe derrière l'heure et la batterie, pour que la barre
+    /// système et l'en-tête ne fassent qu'un.
+    @Published private(set) var couleurHaut: Color?
+    #if os(iOS)
+    private var minuterieHaut: Timer?
+    #endif
     /// Une fenêtre ouverte par le site (`window.open`, `target=_blank`).
     @Published var fenetreSecondaire: FenetreSecondaire?
     /// Un document à partager (iOS) une fois téléchargé.
@@ -50,6 +58,8 @@ final class Navigateur: NSObject, ObservableObject {
     /// ancienne : une partie native dont le site a désormais besoin manque.
     @Published var miseAJourRequise: String?
     private var dernierControle: Date?
+    /// Les derniers arrêts du moteur de la page (voir plus bas).
+    private var arretsDuMoteur: [Date] = []
 
     let vue: WKWebView
     private var observations: [NSKeyValueObservation] = []
@@ -86,6 +96,16 @@ final class Navigateur: NSObject, ObservableObject {
         vue = WKWebView(frame: .zero, configuration: conf)
         super.init()
         pont.surEtat = { [weak self] e in self?.noterEtat(e) }
+        #if os(iOS)
+        // Relevée toutes les secondes et demie : le thème, le mode sombre ou
+        // le bandeau hors ligne peuvent changer sans que la page se recharge.
+        // Quatre pixels : un coût négligeable.
+        if !UserDefaults.standard.bool(forKey: "TMSansReleveCouleur") {
+        minuterieHaut = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.releverCouleurHaut() }
+        }
+        }
+        #endif
         DispatchQueue.global(qos: .utility).async { Coffre.partage.entretenir() }
 
         vue.navigationDelegate = self
@@ -161,6 +181,7 @@ final class Navigateur: NSObject, ObservableObject {
         let d = UserDefaults.standard
         return d.string(forKey: "TMJetonTest") != nil || d.bool(forKey: "TMEssais")
             || d.bool(forKey: "TMEffacerStockageWeb") || d.string(forKey: "TMScriptEssai") != nil
+            || d.string(forKey: "TMThemeEssai") != nil
     }
     private var scriptEssaiFait = false
 
@@ -172,6 +193,12 @@ final class Navigateur: NSObject, ObservableObject {
         let d = UserDefaults.standard
         let magasin = vue.configuration.websiteDataStore
         let hote = Configuration.adresse.host ?? "localhost"
+        if let theme = d.string(forKey: "TMThemeEssai"), theme.allSatisfy({ $0.isLetter }) {
+            // `-TMThemeEssai signal` : le thème posé avant tout script de la page.
+            vue.configuration.userContentController.addUserScript(WKUserScript(
+                source: "try { localStorage.setItem('tm-ui-mode', '\(theme)'); document.documentElement.setAttribute('data-ui', '\(theme)'); } catch (e) {}",
+                injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
         if d.bool(forKey: "TMEssais") {
             vue.configuration.userContentController.addUserScript(WKUserScript(
                 source: "window.__tmEssaisApple = true;", injectionTime: .atDocumentStart, forMainFrameOnly: true))
@@ -374,6 +401,40 @@ final class Navigateur: NSObject, ObservableObject {
         }
     }
 
+    #if os(iOS)
+    /// Relève la couleur affichée en haut de la page, dans la marge gauche de
+    /// l'en-tête (avant le premier bouton), et la reprend derrière la barre
+    /// système. Sans effet tant que la vue n'est pas à l'écran.
+    func releverCouleurHaut() {
+        guard etat == .pret, vue.window != nil, vue.bounds.width > 20,
+              UIApplication.shared.applicationState == .active else { return }
+        let conf = WKSnapshotConfiguration()
+        conf.rect = CGRect(x: 2, y: 1, width: 3, height: 3)
+        conf.snapshotWidth = 3
+        vue.takeSnapshot(with: conf) { [weak self] image, _ in
+            guard let cg = image?.cgImage, let couleur = Navigateur.couleurMoyenne(cg) else { return }
+            Task { @MainActor in
+                guard let self else { return }
+                if self.couleurHaut != couleur { self.couleurHaut = couleur }
+            }
+        }
+    }
+
+    /// La couleur moyenne d'une petite image.
+    nonisolated static func couleurMoyenne(_ image: CGImage) -> Color? {
+        var pixel = [UInt8](repeating: 0, count: 4)
+        guard let ctx = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        ctx.interpolationQuality = .medium
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        let a = Double(pixel[3]) / 255
+        guard a > 0.5 else { return nil } // transparent : rien de fiable à reprendre
+        return Color(.sRGB, red: Double(pixel[0]) / 255 / a, green: Double(pixel[1]) / 255 / a,
+                     blue: Double(pixel[2]) / 255 / a, opacity: 1)
+    }
+    #endif
+
     private static let erreursReseau: Set<Int> = [
         NSURLErrorNotConnectedToInternet, NSURLErrorCannotConnectToHost,
         NSURLErrorCannotFindHost, NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost,
@@ -442,6 +503,11 @@ extension Navigateur: WKNavigationDelegate {
         if webView === vue {
             etat = .pret
             controlerCompatibilite()
+            #if os(iOS)
+            for delai in [0.3, 1.0] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delai) { [weak self] in self?.releverCouleurHaut() }
+            }
+            #endif
         }
         journal("CHARGÉ \(webView.url?.absoluteString ?? "?")")
         diagnostiquer(webView)
@@ -466,9 +532,26 @@ extension Navigateur: WKNavigationDelegate {
 
     /// iOS tue le processus de la vue web quand l'app dort longtemps en
     /// arrière-plan. Sans ceci, on revient sur une page blanche.
+    /// Le moteur de la page s'est arrêté (mémoire, défaut de WebKit). Les
+    /// saisies ne risquent rien — elles sont dans les files du site et dans le
+    /// coffre — mais l'écran est blanc : on relance. D'abord la même page ;
+    /// si l'arrêt se répète, un chargement complet ; au-delà de trois arrêts
+    /// en une minute, on le dit au lieu de relancer en boucle.
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        journal("PROCESSUS WEB TERMINÉ — rechargement")
-        if webView === vue { recharger() } else { webView.reload() }
+        guard webView === vue else { webView.reload(); return }
+        let maintenant = Date()
+        arretsDuMoteur = arretsDuMoteur.filter { maintenant.timeIntervalSince($0) < 60 } + [maintenant]
+        journal("PROCESSUS WEB TERMINÉ (\(arretsDuMoteur.count) en une minute) — relance")
+        if arretsDuMoteur.count > 3 {
+            etat = .injoignable("La page s'est arrêtée plusieurs fois. Vos saisies sont conservées sur l'appareil.")
+            return
+        }
+        let complet = arretsDuMoteur.count > 1 || vue.url == nil
+        etat = .chargement
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            guard let self else { return }
+            if complet { self.charger() } else { self.vue.reload() }
+        }
     }
 }
 

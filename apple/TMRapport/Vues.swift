@@ -40,7 +40,7 @@ struct Ecran: View {
             // page. Le site lui-même reste dans la zone sûre, comme dans
             // Safari : il n'a pas été écrit pour passer sous l'encoche.
             VStack(spacing: 0) {
-                (navigateur.couleurTheme ?? Ecran.bleuTM)
+                (navigateur.couleurHaut ?? navigateur.couleurTheme ?? Ecran.bleuTM)
                 (navigateur.couleurFond ?? navigateur.couleurTheme ?? Ecran.bleuTM)
             }
             .ignoresSafeArea()

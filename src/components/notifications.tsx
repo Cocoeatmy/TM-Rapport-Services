@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { Bell, MessageCircle, Package, Calendar, AlertTriangle } from "lucide-react";
 
 interface Notification {
@@ -166,11 +167,25 @@ export function NotificationBell() {
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const bellRef = useRef<HTMLDivElement>(null);
 
+  /* Sur téléphone, la liste s'affiche à la racine de la page : dans la rangée
+     de l'en-tête, qui défile horizontalement, Safari la rognait. */
+  const panneauRef = useRef<HTMLDivElement>(null);
+  const [estTelephone, setEstTelephone] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 639px)");
+    const lire = () => setEstTelephone(mq.matches);
+    lire();
+    mq.addEventListener?.("change", lire);
+    return () => mq.removeEventListener?.("change", lire);
+  }, []);
+
   // Fermeture au tap/clic en dehors du panneau (iOS-compatible via pointerdown)
   useEffect(() => {
     if (!open) return;
     const handler = (e: PointerEvent) => {
-      if (!bellRef.current?.contains(e.target as Node)) setOpen(false);
+      const cible = e.target as Node;
+      if (!bellRef.current?.contains(cible) && !panneauRef.current?.contains(cible)) setOpen(false);
     };
     document.addEventListener("pointerdown", handler);
     return () => document.removeEventListener("pointerdown", handler);
@@ -258,8 +273,9 @@ export function NotificationBell() {
         )}
       </button>
 
-      {open && (
-          <div className="fixed left-2 right-2 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-72 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+      {open && (() => {
+        const panneau = (
+          <div ref={panneauRef} className={`fixed left-2 right-2 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-72 ${estTelephone ? "z-[9990]" : "z-50"} bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden`}>
             <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-700">
               <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Notifications</span>
               {notifs.length > 0 && (
@@ -306,7 +322,9 @@ export function NotificationBell() {
               )}
             </div>
           </div>
-      )}
+        );
+        return estTelephone && typeof document !== "undefined" ? createPortal(panneau, document.body) : panneau;
+      })()}
     </div>
   );
 }
