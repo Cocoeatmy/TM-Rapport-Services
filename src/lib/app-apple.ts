@@ -21,7 +21,7 @@
  *     retour du réseau. C'est exactement le geste « tout renvoyer » du site.
  */
 import { dansAppApple, demanderAuPont, depuisBase64, rejouerRetraits, versBase64 } from "./pont-apple";
-import { addPendingUpload, getPendingUploads, remettrePendingUpload, type PendingUpload } from "./idb-uploads";
+import { addPendingUpload, getPendingUploads, remettrePendingUpload, removePendingUpload, type PendingUpload } from "./idb-uploads";
 import { estPreservee } from "./vider-caches";
 import { instantane, toutRelancer } from "./telemetrie-appareil";
 
@@ -66,9 +66,17 @@ export function saisiesLocales(): Record<string, string> {
 let dernierDouble = "";
 let minuterieDouble: ReturnType<typeof setTimeout> | undefined;
 
+/** La clé qui, dans le double, dit de quel site il vient. */
+const CLE_ORIGINE = "__origine__";
+
+/** Un vrai projet Notion : un identifiant de 32 chiffres hexadécimaux. */
+export function estIdentifiantProjet(id: unknown): boolean {
+  return typeof id === "string" && /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(id);
+}
+
 /** Envoie le double au coffre, s'il a changé depuis le dernier. */
 export async function doublerMaintenant(): Promise<boolean> {
-  const json = JSON.stringify(saisiesLocales());
+  const json = JSON.stringify({ ...saisiesLocales(), [CLE_ORIGINE]: location.origin });
   if (json === dernierDouble) return true;
   const r = await demanderAuPont<{ ok?: boolean }>({ action: "local", json });
   if (r?.ok) dernierDouble = json;
@@ -103,8 +111,15 @@ export async function restaurerDepuisCoffre(): Promise<{ photos: number; cles: n
   try {
     if (localStorage.getItem(SENTINELLE) === null && inv.local) {
       const double = JSON.parse(inv.local) as Record<string, unknown>;
-      for (const [cle, valeur] of Object.entries(double)) {
+      /* Un double venu d'un AUTRE site (essais sur un serveur local, par
+         exemple) n'est jamais rendu ici. Un double sans origine date d'avant
+         cette règle : il n'est rendu qu'aux clés qui ne visent pas un projet
+         d'essai. */
+      const origine = double[CLE_ORIGINE];
+      const etranger = typeof origine === "string" && origine !== location.origin;
+      for (const [cle, valeur] of etranger ? [] : Object.entries(double)) {
         if (typeof valeur !== "string" || !estPreservee(cle)) continue;
+        if (typeof origine !== "string" && /essai/i.test(cle)) continue;
         if (localStorage.getItem(cle) !== null) continue; // jamais par-dessus
         localStorage.setItem(cle, valeur);
         cles++;
@@ -125,14 +140,23 @@ export async function restaurerDepuisCoffre(): Promise<{ photos: number; cles: n
   }
   for (const p of inv.photos) {
     if (presents.has(p.id) || enSouffrance.has(p.id)) continue;
+    /* Seulement ce que CE site a déposé, et pour un vrai projet : jamais une
+       photo d'essai d'un serveur local, ni un double sans origine qui ne
+       viserait pas un projet réel. */
+    try {
+      const m = JSON.parse(p.meta) as { __origine?: string; projectId?: unknown };
+      if (m.__origine ? m.__origine !== location.origin : !estIdentifiantProjet(m.projectId)) continue;
+    } catch { continue; }
     const complet = await demanderAuPont<PhotoDuCoffre>({ action: "photo", id: p.id }, 20_000);
     if (!complet) continue;
     try {
       const meta = JSON.parse(complet.meta) as PendingUpload & {
         files?: { name: string; type: string; uploadedUrl?: string }[];
       };
+      const { __origine: _origine, ...metaSansOrigine } = meta as typeof meta & { __origine?: string };
+      void _origine;
       const item: PendingUpload = {
-        ...meta,
+        ...metaSansOrigine,
         id: p.id,
         files: complet.fichiers.map((f, i) => ({
           name: f.nom,
@@ -157,6 +181,29 @@ export async function restaurerDepuisCoffre(): Promise<{ photos: number; cles: n
     } catch { /* sans effet */ }
   }
   return { photos, cles };
+}
+
+/* ── Les traces des essais automatisés ─────────────────────────────────
+   Les essais de l'app créent des photos sur un projet fictif (« essai-apple »)
+   et des heures « tm-pointages-essai… ». Sur un Mac où ces essais ont tourné,
+   le coffre les a rendues une fois au site en ligne, avant que les sites ne
+   soient séparés (19.10.2026). Elles sont retirées ici — par leurs marqueurs
+   d'essai, que rien de réel ne porte ; la photo passe par l'archive du coffre. */
+export const PROJET_ESSAI = "essai-apple";
+
+export async function retirerTracesEssais(): Promise<number> {
+  let n = 0;
+  try {
+    for (const u of await getPendingUploads({ status: "all" })) {
+      if (u.projectId === PROJET_ESSAI) { await removePendingUpload(u.id, "essai"); n++; }
+    }
+  } catch { /* file illisible : rien à faire */ }
+  try {
+    for (const cle of Object.keys(localStorage)) {
+      if (/^tm-pointages-essai(-[a-z]+)?$/.test(cle)) { localStorage.removeItem(cle); n++; }
+    }
+  } catch { /* stockage illisible */ }
+  return n;
 }
 
 /* ── 3. La synchronisation demandée par l'app ─────────────────────────── */
@@ -214,7 +261,7 @@ export function installerAppApple(): void {
   if (window.__tmEssaisApple === true && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     window.tmApple.essais = {
       ajouterPhoto: async (base64: string, nom: string) => addPendingUpload({
-        projectId: "essai-apple",
+        projectId: PROJET_ESSAI,
         category: "essai",
         files: [{ name: nom, type: "image/jpeg", blob: depuisBase64(base64, "image/jpeg") }],
       }),
@@ -231,7 +278,10 @@ export function installerAppApple(): void {
     };
   }
 
-  void restaurerDepuisCoffre()
+  /* Sur le site en ligne seulement : les essais, eux, tournent en local. */
+  const enLigneOfficiel = !/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  void (enLigneOfficiel ? retirerTracesEssais() : Promise.resolve(0))
+    .then(() => restaurerDepuisCoffre())
     .catch((e) => console.warn("[app-apple] restauration", e))
     .finally(() => {
       void doublerMaintenant();

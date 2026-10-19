@@ -96,9 +96,12 @@ export async function coffreDeposerPhoto(item: FichePhoto): Promise<boolean> {
       type: f.type || f.blob.type || "application/octet-stream",
       base64: await versBase64(f.blob),
     })));
+    /* Le site d'origine est retenu : le coffre est commun à l'application,
+       et un double ne doit être rendu qu'au site qui l'a déposé. */
     const meta = JSON.stringify({
       ...item,
       files: item.files.map((f) => ({ name: f.name, type: f.type, uploadedUrl: f.uploadedUrl })),
+      __origine: typeof location !== "undefined" ? location.origin : "",
     });
     const r = await demanderAuPont<{ ok?: boolean }>(
       { action: "deposerPhoto", id: item.id, meta, fichiers },

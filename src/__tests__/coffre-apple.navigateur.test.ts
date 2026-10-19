@@ -236,7 +236,8 @@ describe("Dans l'app Apple — les saisies locales", () => {
     localStorage.setItem("tm-projects-cache", "copie jetable");
     expect(await app.doublerMaintenant()).toBe(true);
     const double = JSON.parse(coffre.local!);
-    expect(Object.keys(double).sort()).toEqual(["tm-pointages-projet", "tm-rapport-queue"]);
+    expect(Object.keys(double).sort()).toEqual(["__origine__", "tm-pointages-projet", "tm-rapport-queue"]);
+    expect(double.__origine__).toBe(location.origin);
 
     // Stockage intact : rien n'est remis, même si une saisie a changé depuis.
     localStorage.setItem("tm-pointages-projet", "{\"arrivee\":\"08:00\"}");
@@ -259,6 +260,61 @@ describe("Dans l'app Apple — les saisies locales", () => {
     addToQueue({ type: "update", url: "/api/projects/x", method: "PATCH", body: { a: 1 } });
     window.removeEventListener("tm-file-modifiee", vu);
     expect(vu).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Dans l'app Apple — le coffre est commun, les sites restent séparés", () => {
+  beforeEach(() => installerPont());
+
+  it("ne rend jamais au site une photo déposée par un autre site (essais locaux)", async () => {
+    coffre.photos.set("up-autre-site", {
+      meta: JSON.stringify({ id: "up-autre-site", projectId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", category: "montage",
+        notionField: "Photos montage terminé", files: [{ name: "a.jpg", type: "image/jpeg" }], __origine: "http://localhost:3137" }),
+      fichiers: [{ nom: "a.jpg", type: "image/jpeg", base64: "AQID" }],
+    });
+    expect((await app.restaurerDepuisCoffre()).photos).toBe(0);
+    expect(await fileContient("up-autre-site")).toBe(false);
+  });
+
+  it("un ancien double sans origine n'est rendu que pour un vrai projet", async () => {
+    coffre.photos.set("up-essai", {
+      meta: JSON.stringify({ id: "up-essai", projectId: "essai-apple", category: "essai", files: [{ name: "e.jpg", type: "image/jpeg" }] }),
+      fichiers: [{ nom: "e.jpg", type: "image/jpeg", base64: "AQID" }],
+    });
+    coffre.photos.set("up-reel", {
+      meta: JSON.stringify({ id: "up-reel", projectId: "3f91895b-9179-80f7-b6f7-cfe62982303a", category: "montage",
+        notionField: "Photos montage terminé", files: [{ name: "r.jpg", type: "image/jpeg" }] }),
+      fichiers: [{ nom: "r.jpg", type: "image/jpeg", base64: "AQID" }],
+    });
+    expect((await app.restaurerDepuisCoffre()).photos).toBe(1);
+    expect(await fileContient("up-reel")).toBe(true);
+    expect(await fileContient("up-essai")).toBe(false);
+  });
+
+  it("n'applique jamais les saisies d'un double venu d'un autre site", async () => {
+    coffre.local = JSON.stringify({ "tm-pointages-x": "7h", __origine__: "http://localhost:3137" });
+    expect((await app.restaurerDepuisCoffre()).cles).toBe(0);
+    expect(localStorage.getItem("tm-pointages-x")).toBeNull();
+    expect(localStorage.getItem(app.SENTINELLE)).not.toBeNull();
+  });
+});
+
+describe("Dans l'app Apple — les traces des essais", () => {
+  beforeEach(() => installerPont());
+
+  it("retire les photos du projet d'essai et les heures d'essai, rien d'autre", async () => {
+    const essai = await idb.addPendingUpload({ ...photo("essai.jpg"), projectId: app.PROJET_ESSAI });
+    const vraie = await idb.addPendingUpload(photo("vraie.jpg"));
+    localStorage.setItem("tm-pointages-essai-mac", "x");
+    localStorage.setItem("tm-pointages-3f91895b-9179-80f7-b6f7-cfe62982303a", "7h30");
+    localStorage.setItem("tm-pointages-projet", "garde");
+    expect(await app.retirerTracesEssais()).toBe(2);
+    expect(await fileContient(essai)).toBe(false);
+    expect(await fileContient(vraie)).toBe(true);
+    expect(coffre.archive.map((a) => a.motif)).toEqual(["essai"]);
+    expect(localStorage.getItem("tm-pointages-essai-mac")).toBeNull();
+    expect(localStorage.getItem("tm-pointages-3f91895b-9179-80f7-b6f7-cfe62982303a")).toBe("7h30");
+    expect(localStorage.getItem("tm-pointages-projet")).toBe("garde");
   });
 });
 
