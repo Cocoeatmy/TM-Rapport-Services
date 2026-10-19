@@ -89,4 +89,64 @@ test.describe("thème Signal pour tous", () => {
     await expect(page.getByText("Charge de la semaine").first()).toBeVisible();
     await expect(page.locator(".sg-mes-interventions")).toHaveCount(0);
   });
+
+  test.describe("chacun ses interventions", () => {
+    const CLAUDIO = { email: "claudio@test.local", name: "Claudio Test", role: "monteur" as const };
+    const jour = demain();
+    const chantiers = [
+      projetFictif({ id: "aaaaaaaa-0000-0000-0000-000000000001", projet: "Binome Jacobo Claudio", ofrTM: "TM-9000001", collaborateurs: "Jacobo & Claudio", dateMontage: `${jour}T08:00:00.000+02:00`, etatCMD: "RDV - fixé", nbCabines: 3 }),
+      projetFictif({ id: "aaaaaaaa-0000-0000-0000-000000000002", projet: "Chantier de Miguel", ofrTM: "TM-9000002", collaborateurs: "Miguel", dateMontage: `${jour}T10:00:00.000+02:00`, etatCMD: "RDV - fixé", nbCabines: 4 }),
+      projetFictif({ id: "aaaaaaaa-0000-0000-0000-000000000003", projet: "Mesure de Jacobo", ofrTM: "TM-9000003", collaborateurs: "", dateMontage: null, mesuresTraiteePar: "Jacobo", dateMesures: `${jour}T13:30:00.000+02:00`, etatCMD: "En attente de mesures", etatMesures: "RDV - Fixé", nbCabines: 2 }),
+    ];
+
+    async function ouvrirAvec(page: Page, context: BrowserContext, compte: typeof ADMIN) {
+      await sansServiceWorker(context);
+      await seConnecter(context, compte);
+      await context.addInitScript(() => { try { localStorage.setItem("tm-ui-mode", "signal"); } catch { /* ignore */ } });
+      await brancherFixtures(page, { compte });
+      await page.route(/\/api\/projects(\/[a-z-]+)?(\?.*)?$/, async (route) => {
+        const chemin = new URL(route.request().url()).pathname;
+        const corps = chemin === "/api/projects" ? chantiers.slice(0, 2)
+          : chemin === "/api/projects/mesures" ? chantiers.slice(2)
+          : chemin === "/api/projects/periode" || chemin === "/api/projects/all-active" ? chantiers
+          : [];
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify(corps) });
+      });
+      if (compte.role !== "admin") {
+        await page.route("**/api/droits/moi", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({
+          email: compte.email, nom: compte.name, profil: "collaborateur", perimetre: "tous",
+          droits: Object.fromEntries(TOUS_LES_DROITS.map((id) => [id, REFUSES_AU_COLLABORATEUR.has(id) ? "non" : "oui"])) }) }));
+      }
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await expect(page.locator(".sg-agenda")).toBeVisible({ timeout: 30_000 });
+    }
+    const ligneDemain = (page: Page, metier: string) =>
+      page.locator(".sg-agenda .sg-card", { has: page.locator(".sg-card-title", { hasText: /^Demain$/ }) }).locator(".sg-row", { hasText: metier }).locator(".sg-row-unit");
+
+    test("Jacobo : son binôme et sa mesure, pas le chantier de Miguel", async ({ page, context }) => {
+      await ouvrirAvec(page, context, MONTEUR);
+      await expect(ligneDemain(page, "Montages")).toHaveText("1 projet");
+      await expect(ligneDemain(page, "Mesures")).toHaveText("1 projet");
+      const mes = page.locator(".sg-mes-interventions");
+      await expect(mes).toContainText("Binome Jacobo Claudio");
+      await expect(mes).toContainText("Mesure de Jacobo");
+      await expect(mes).not.toContainText("Chantier de Miguel");
+    });
+
+    test("Claudio : le même chantier en binôme, ni la mesure de Jacobo ni le chantier de Miguel", async ({ page, context }) => {
+      await ouvrirAvec(page, context, CLAUDIO);
+      await expect(ligneDemain(page, "Montages")).toHaveText("1 projet");
+      await expect(ligneDemain(page, "Mesures")).toHaveText("—");
+      const mes = page.locator(".sg-mes-interventions");
+      await expect(mes).toContainText("Binome Jacobo Claudio");
+      await expect(mes).not.toContainText("Mesure de Jacobo");
+      await expect(mes).not.toContainText("Chantier de Miguel");
+    });
+
+    test("administrateur : toute l'activité", async ({ page, context }) => {
+      await ouvrirAvec(page, context, ADMIN);
+      await expect(ligneDemain(page, "Montages")).toHaveText("2 projets");
+      await expect(ligneDemain(page, "Mesures")).toHaveText("1 projet");
+    });
+  });
 });

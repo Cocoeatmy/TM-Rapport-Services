@@ -46,6 +46,7 @@ import { EtatSavRapide } from "@/components/etat-sav-rapide";
 import { PersonalStats } from "@/components/personal-stats";
 import { useIsSignalTheme } from "@/lib/use-signal-theme";
 import { useDroits } from "@/lib/use-droits";
+import { champNomme, prenomDe } from "@/lib/perimetre-projets";
 
 // ─── Citations motivantes quotidiennes (365) ────────────────────────────────
 const DAILY_QUOTES: string[] = [
@@ -1668,6 +1669,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const voitEquipe = autorise("tableau.activite");
   /** Signaux (bexio, appareils, relances, pages d'administration) : administrateur. */
   const voitSignaux = !restreint;
+  /* Les interventions du compte, et elles seules : prénom contre prénom,
+     binômes et « Team » compris — la règle même de la préparation hors ligne
+     (`champNomme`). Chaque métier a son champ d'attribution. Pour
+     l'administrateur, tout reste visible. */
+  const moi = (champ: unknown) => !restreint || champNomme(champ, userName);
+  const monMontage = (p: Project) => moi(p.collaborateurs);
+  const maMesure = (p: Project) => moi(p.mesuresTraiteePar);
+  const monSav = (p: Project) => moi(p.collaborateursSAV || p.collaborateurs);
   const tuileAutorisee = (id: string) =>
     id === "a-facturer" ? autorise("argent.voir")
     : id === "mesures-sans-commande" ? autorise("argent.relances")
@@ -2009,17 +2018,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     const jourDeMesure = (p: Project) => (p.dateMesures || "").split("T")[0] === dateStr;
     const day = projetsConnus.filter((p) => projectSpansDate(p, dateStr) || jourDeMesure(p));
     const cab = (arr: Project[]) => arr.reduce((s, p) => s + (p.nbCabines || 0), 0);
-    const montages = day.filter((p) => jourDeMontage(p) && !isServices(p));
+    const montages = day.filter((p) => jourDeMontage(p) && !isServices(p) && monMontage(p));
     /* Charge du jour, et non taille du chantier. Un montage de sept cabines
        étalé sur trois semaines n'en occupe pas sept chaque jour : la carte
        annonçait douze cabines pour un vendredi où il en restait cinq, pendant
        que la charge de la semaine, juste en dessous, en affichait cinq. Même
        règle désormais pour les deux. */
     const cabMontages = montages.reduce((s, p) => s + cabinesDuJour(p, dateStr), 0);
-    const mesures = day.filter(jourDeMesure);
-    const services = day.filter((p) => jourDeMontage(p) && isServices(p));
-    const garanties = day.filter((p) => jourDeMontage(p) && isGarantie(p));
-    const sav = projetsConnus.filter((p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === dateStr);
+    const mesures = day.filter((p) => jourDeMesure(p) && maMesure(p));
+    const services = day.filter((p) => jourDeMontage(p) && isServices(p) && monMontage(p));
+    const garanties = day.filter((p) => jourDeMontage(p) && isGarantie(p) && monMontage(p));
+    const sav = projetsConnus.filter((p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === dateStr && monSav(p));
     /* Cabines déjà posées parmi celles du jour : l'avancement réel des
        équipes, et non ce qui était prévu. Bornée au total du chantier — une
        saisie trop haute ferait un compteur qui dépasse son propre maximum. */
@@ -2646,7 +2655,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const thisWeekEndStr = getThisWeekEndStr();
 
   // Build per-collaborator data
-  const collabData = COLLABORATEURS_LIST.map((name) => {
+  /* Compte collaborateur : lui seul — les totaux du jour et de la semaine
+     qui en dérivent sont alors les siens. */
+  const collabData = (restreint ? [prenomDe(userName)] : COLLABORATEURS_LIST).map((name) => {
     const colors = getCollaboratorColor(name);
     const myProjects = getProjectsForCollaborator(projects, name);
     const getD = (p: Project) => p.dateMontage || p.dateMesures || "";
@@ -2682,6 +2693,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     const isAmpCollab = collab.includes("&");
     const isTeamLabel = collab.toLowerCase().includes("team");
     if (!isAmpCollab && !isTeamLabel) return;
+    if (!moi(collab)) return; // collaborateur : seulement ses binômes
     // Check if project is active within next 2 weeks
     if (!projectActiveDuringRange(p, todayStr, weekEndStr)) return;
     if (!binomeMap[collab]) binomeMap[collab] = [];
@@ -2755,7 +2767,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"))
   );
   const tomorrowSavProjects = projects.filter(
-    (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === tomorrowStr,
+    (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === tomorrowStr && monSav(p),
   );
   const tomorrowGarantiesList = uniqueTomorrowProjects.filter((p) =>
     (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"))
@@ -2785,7 +2797,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"))
   );
   const afterSavProjects = projects.filter(
-    (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === afterStr,
+    (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === afterStr && monSav(p),
   );
   const afterGarantiesList = uniqueAfterProjects.filter((p) =>
     (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"))
@@ -2959,7 +2971,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   }, [allProjectsForStats, thisWeekBounds, prevWeekBounds, nextWeekBounds]);
 
   // Mesures aujourd'hui
-  const mesuresTodayProjects = projects.filter((p) => (p as any)._source === "mesures" && (p.dateMesures || "").split("T")[0] === todayStr);
+  const mesuresTodayProjects = projects.filter((p) => (p as any)._source === "mesures" && (p.dateMesures || "").split("T")[0] === todayStr && maMesure(p));
   const mesuresTodayCount = mesuresTodayProjects.length;
   const mesuresTodayCabines = mesuresTodayProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
 
@@ -2967,7 +2979,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // être dédupliqué en "montage" si son État-CMD est actif, même s'il est aussi un service.
   const servicesTodayProjects = projects.filter((p) =>
     (p.typeServices || []).some((t) => t === "Services" || t.includes("Services")) &&
-    (p.dateMontage || "").split("T")[0] === todayStr
+    (p.dateMontage || "").split("T")[0] === todayStr && monMontage(p)
   );
   const servicesTodayCount = servicesTodayProjects.length;
   const servicesTodayCabines = servicesTodayProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
@@ -2975,7 +2987,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // SAV aujourd'hui : etatSAV = "RDV fixé" ET dateRDVSAV = aujourd'hui
   // On ne filtre pas par _source (dédupliqué), on se base sur les champs métier directement.
   const savTodayProjects = projects.filter(
-    (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === todayStr
+    (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === todayStr && monSav(p)
   );
   const savTodayCount = savTodayProjects.length;
   const savTodayCab = sumCab(savTodayProjects);
@@ -3339,7 +3351,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
      colonne : s'en tenir à « État - CMD » laissait les SAV datés hors du
      compte, alors qu'ils occupent une journée comme les autres. */
   const rdvFixeProjects = projects.filter(
-    (p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé" || p.etatSAV === "RDV fixé",
+    (p) => (p.etatCMD === "RDV - fixé" && monMontage(p)) || (p.etatMesures === "RDV - Fixé" && maMesure(p)) || (p.etatSAV === "RDV fixé" && monSav(p)),
   );
 
   /* ── LES RENDEZ-VOUS DÉJÀ CALÉS, PAR MÉTIER ────────────────────────────
@@ -3356,15 +3368,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const triDate = (champ: (p: Project) => string | null | undefined) =>
     (a: Project, b: Project) => ((champ(a) || "").split("T")[0]).localeCompare((champ(b) || "").split("T")[0]);
 
-  const rdvMontageFixeProjects = projects.filter(rdvMontageFixe).sort(triDate((p) => p.dateMontage));
-  const rdvMesuresFixeProjects = projects.filter(rdvMesuresFixe).sort(triDate((p) => p.dateMesures));
-  const rdvServicesFixeProjects = projects.filter(rdvServicesFixe).sort(triDate((p) => p.dateMontage));
+  const rdvMontageFixeProjects = projects.filter((p) => rdvMontageFixe(p) && monMontage(p)).sort(triDate((p) => p.dateMontage));
+  const rdvMesuresFixeProjects = projects.filter((p) => rdvMesuresFixe(p) && maMesure(p)).sort(triDate((p) => p.dateMesures));
+  const rdvServicesFixeProjects = projects.filter((p) => rdvServicesFixe(p) && monMontage(p)).sort(triDate((p) => p.dateMontage));
   /* Le SAV ne se lit pas sur une case d'état — presque aucun projet ne la
      renseigne — mais sur les lots : une cabine dont l'intervention est
      datée est un rendez-vous pris. Même source que « RDV SAV à fixer »,
      donc les deux listes ne peuvent pas se contredire. */
   const rdvSavFixeProjects = tousProjetsSav
-    .filter((p) => comptesSav(p).planifies > 0)
+    .filter((p) => comptesSav(p).planifies > 0 && monSav(p))
     .sort(triDate((p) => prochaineDateSavPlanifiee(p as unknown as SourceSavCabines)));
 
   // ── renderCard : rendu d'un bouton dashboard par son ID ───────────────────
@@ -3609,10 +3621,26 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               ligne Signal que l'agenda ; un appui ouvre l'aperçu du chantier. */}
           {restreint && (() => {
             const aujourdhui = getTodayStr();
-            const prochaines = getProjectsForCollaborator(projects, firstName)
-              .filter((p) => projectActiveDuringRange(p, aujourdhui, getWeekEndStr()))
-              .sort((x, y) => ((getProjectSource(x) === "mesures" ? x.dateMesures : x.dateMontage) || "")
-                .localeCompare((getProjectSource(y) === "mesures" ? y.dateMesures : y.dateMontage) || ""));
+            const fin = getWeekEndStr();
+            const dansFenetre = (debut?: string | null, finRdv?: string | null) => {
+              const d = (debut || "").slice(0, 10);
+              const f = (finRdv || debut || "").slice(0, 10);
+              return !!d && d <= fin && f >= aujourdhui;
+            };
+            /* Une ligne par intervention qui lui est confiée : un chantier
+               mesuré par lui et monté par un autre n'apparaît que pour sa
+               mesure. Même règle d'attribution que l'agenda. */
+            const lignes: { p: Project; source: string; brut: string }[] = [];
+            for (const p of projetsConnus) {
+              const estService = (p.typeServices || []).some((t: string) => t.includes("Services"));
+              if (dansFenetre(p.dateMontage, p.dateMontageEnd) && monMontage(p)) lignes.push({ p, source: estService ? "services" : "montage", brut: p.dateMontage || "" });
+              if (dansFenetre(p.dateMesures) && maMesure(p)) lignes.push({ p, source: "mesures", brut: p.dateMesures || "" });
+              if (p.etatSAV === "RDV fixé" && dansFenetre(p.dateRDVSAV) && monSav(p)) lignes.push({ p, source: "sav", brut: p.dateRDVSAV || "" });
+            }
+            const vues = new Set<string>();
+            const prochaines = lignes
+              .filter((l) => { const k = `${l.source}-${l.p.id}`; if (vues.has(k)) return false; vues.add(k); return true; })
+              .sort((x, y) => x.brut.localeCompare(y.brut));
             const COULEURS: Record<string, string> = { montage: "#1b63ff", mesures: "#0e7490", services: "#6d28d9", sav: "#b45309" };
             const MODES: Record<string, string> = { montage: "cmd", mesures: "mesures", services: "services", sav: "sav" };
             return (
@@ -3625,9 +3653,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   {prochaines.length === 0 && (
                     <div className="sg-row sg-row-static"><span className="sg-row-label">Aucune intervention prévue d&apos;ici la fin de la semaine prochaine</span></div>
                   )}
-                  {prochaines.map((p) => {
-                    const source = getProjectSource(p);
-                    const brut = (source === "mesures" ? p.dateMesures : p.dateMontage) || "";
+                  {prochaines.map(({ p, source, brut }) => {
                     const quand = brut ? new Date(brut.includes("T") ? brut : brut + "T12:00:00") : null;
                     const jour = quand ? quand.toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" }) : "";
                     const heure = quand && brut.includes("T") ? quand.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" }) : "";
