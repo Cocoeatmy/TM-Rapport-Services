@@ -32,7 +32,7 @@ import {
   BUCKET_ORDER,
   defaultBucketForField,
   detectBucket,
-  extractCabine,
+  lotDeLaPhoto,
 } from "@/lib/photo-buckets";
 
 interface PieceRequest {
@@ -1356,7 +1356,8 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
             if (!p.url || seenPdfUrls.has(p.url)) continue;
             seenPdfUrls.add(p.url);
             const bucket = detectBucket(p.name, fallback);
-            const cab = extractCabine(p.name) ?? 0;
+            // Plusieurs lots : une ancienne photo sans marque va au lot 1 (voir lotDeLaPhoto).
+            const cab = lotDeLaPhoto(p.name, isMultiCabine) ?? 0;
             if (!groups[cab]) groups[cab] = {};
             if (!groups[cab][bucket]) groups[cab][bucket] = [];
             groups[cab][bucket]!.push(p);

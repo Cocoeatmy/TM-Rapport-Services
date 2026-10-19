@@ -166,6 +166,37 @@ export function extractCabine(filename: string | undefined | null): number | nul
   return m ? parseInt(m[1], 10) : null;
 }
 
+/**
+ * Le lot d'une photo, compatibilité ascendante comprise.
+ *
+ * Une photo marquée « .CabN. » appartient au lot N. Une photo SANS marque
+ * appartient, sur un chantier à plusieurs lots, au lot 1 : c'est une photo
+ * prise quand le chantier n'en avait qu'un, avant qu'on lui ajoute des lots
+ * (constaté sur TEST 5 le 19.10.2026 — ses photos du lot 1 n'étaient plus
+ * comptées, et la finalisation restait bloquée). Rien n'est réécrit : ni le
+ * nom du fichier, ni son rattachement dans Notion ; la règle vaut à la lecture.
+ *
+ * L'application ne produit jamais de photo sans marque sur un chantier à
+ * plusieurs lots (vérifié sur les 369 chantiers concernés : aucune hors
+ * TEST 5) — la règle ne capte donc que les anciennes.
+ */
+export function lotDeLaPhoto(filename: string | undefined | null, plusieursLots: boolean): number | null {
+  const cab = extractCabine(filename);
+  if (cab !== null) return cab;
+  return plusieursLots ? 1 : null;
+}
+
+/**
+ * La photo appartient-elle à ce lot ? `cabineIdx` ≥ 1 : un lot d'un chantier
+ * à plusieurs lots ; 0 : la partie commune. UNE règle pour afficher, compter
+ * ET réécrire la liste d'un lot — une suppression qui jugerait autrement que
+ * l'affichage réécrirait les anciennes photos en double.
+ */
+export function appartientAuLot(filename: string | undefined | null, cabineIdx: number): boolean {
+  if (cabineIdx >= 1) return lotDeLaPhoto(filename, true) === cabineIdx;
+  return extractCabine(filename) === null;
+}
+
 /** Préfixe à passer à PhotoUpload pour cibler un bucket (avec cabine optionnelle). */
 export function bucketFilePrefix(bucket: PhotoBucketKey, cabineIdx?: number): string {
   const base = BUCKET_PREFIX[bucket];
@@ -183,11 +214,7 @@ export function filterByBucket<T extends { name: string }>(
   if (!files) return [];
   return files.filter((f) => {
     if (detectBucket(f.name, fallbackBucket) !== bucket) return false;
-    if (cabineIdx !== undefined) {
-      const cab = extractCabine(f.name);
-      if (cabineIdx >= 1) return cab === cabineIdx;
-      return cab === null; // 0 = global
-    }
+    if (cabineIdx !== undefined) return appartientAuLot(f.name, cabineIdx); // 0 = global
     return true;
   });
 }

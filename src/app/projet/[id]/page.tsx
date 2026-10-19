@@ -162,7 +162,8 @@ import {
   minimumRequis,
   comptePhotosGroupe,
   type RequiredPhotoShortfall,
-  extractCabine,
+  appartientAuLot,
+  lotDeLaPhoto,
 } from "@/lib/photo-buckets";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS, COLLABORATEURS_LIST as COLLABORATEURS_ACTIFS, RAPPORT_OPTIONS_SINGLE } from "@/lib/constants";
 import { SUGGESTIONS_NOM_CABINE, nomDeLotParDefaut, nomContientMot, basculerMotDuNom } from "@/lib/nom-lot";
@@ -520,9 +521,8 @@ function BucketPhotoUpload({
       const sameBucket = detectBucket(f.name, fieldDefault) === bucket;
       if (!sameBucket) return true;
       if (cabineIdx === undefined) return false;
-      const cab = /\.Cab(\d+)\./.exec(f.name);
-      const cabNum = cab ? parseInt(cab[1], 10) : null;
-      return cabineIdx >= 1 ? cabNum !== cabineIdx : cabNum !== null;
+      // Même règle que l'affichage (photos anciennes sans marque = lot 1).
+      return !appartientAuLot(f.name, cabineIdx);
     });
     return [...kept, ...newBucketFiles];
   };
@@ -702,10 +702,7 @@ function CombinedMontageUpload({
     const kept = current.filter((f) => {
       const bkt = detectBucket(f.name, fieldDefault);
       if (!MONTAGE_BUCKETS.includes(bkt)) return true;
-      if (cabineIdx !== undefined) {
-        const cab = extractCabine(f.name);
-        return cabineIdx >= 1 ? cab !== cabineIdx : cab !== null;
-      }
+      if (cabineIdx !== undefined) return !appartientAuLot(f.name, cabineIdx);
       return false;
     });
     const nextFullList = [...kept, ...survivingPhotos];
@@ -8523,7 +8520,8 @@ function ProjectPageContent({ id }: { id: string }) {
   // On se base sur project.photosMontage qui contient les buckets MONTAGE_* et APRES_INTERVENTION.
   const installedCabineIndices = new Set<number>(
     (project.photosMontage || [])
-      .map((f) => { const m = f.name.match(/\.Cab(\d+)\./); return m ? parseInt(m[1], 10) - 1 : null; })
+      // Même règle que partout : une ancienne photo sans marque compte pour le lot 1.
+      .map((f) => { const lot = lotDeLaPhoto(f.name, cabines.length > 1); return lot ? lot - 1 : null; })
       // Cappé aux cabines réellement affichées : un lot retiré (Nb. Cabines
       // réduit dans Notion) ne doit plus compter comme « installé ».
       .filter((n): n is number => n !== null && n < cabines.length)
@@ -11687,7 +11685,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               etatMontageBadgeClass(parseSousTraitance(project?.etatMontage || "")[idx + 1])
                               || (installedCabineIndices.has(idx)
                                 ? "bg-green-600"
-                                : (!!cabine.arrivee || (project?.photosAvant || []).some(f => new RegExp(`\\.Cab${idx + 1}\\.`).test(f.name || "")))
+                                : (!!cabine.arrivee || (project?.photosAvant || []).some(f => appartientAuLot(f.name, idx + 1)))
                                 ? "bg-orange-500"
                                 : "bg-[#1e3a5f]")
                             }`}>
