@@ -37,6 +37,65 @@ const FRESH_TIMEOUT_MS = 2500;
 /** Requêtes de revalidation (?rv / ?fresh) : tâche de fond, jamais bloquante. */
 const RV_TIMEOUT_MS = 8000;
 
+/**
+ * Les fragments de code chargés À LA DEMANDE, gardés eux aussi.
+ *
+ * Le pré-cache envoyé par la page ne liste que les fichiers déjà chargés. Un
+ * écran ouvert pour la première fois sans réseau — l'étape « photos » de
+ * l'assistant d'un lot, par exemple — réclamait un fragment jamais vu : page
+ * en erreur (« ChunkLoadError »), constaté en production sur TEST 5 le
+ * 19.10.2026. La liste injectée au build (PRECACHE_MANIFEST) ne sauve rien :
+ * sur Vercel elle reste celle d'un ancien build, et ses adresses rendent 404.
+ *
+ * Ici, on lit le code et les pages déjà gardés et on suit les fragments
+ * qu'ils citent (« static/immutable/chunks/xxx.js »), de proche en proche. Ces fichiers
+ * portent leur empreinte dans leur nom : un fichier gardé ne change jamais.
+ */
+const RE_FRAGMENT = /["'](?:\/_next\/)?(static\/(?:immutable\/)?(?:chunks|media|css)\/[A-Za-z0-9_.~\-\/]+\.(?:js|css|woff2))["']/g;
+const FRAGMENTS_MAX = 400;
+
+async function completerLesFragments(depart) {
+  const origine = self.location.origin;
+  const aSuivre = [];
+  for (const u of depart || []) {
+    try {
+      const x = new URL(u, origine);
+      if (x.origin === origine && x.pathname.startsWith("/_next/static/")) aSuivre.push(x.href);
+    } catch { /* adresse illisible : ignorée */ }
+  }
+  const cache = await caches.open(CACHE_NAME);
+  /* Les pages gardées (tableau de bord, fiches préparées pour la journée)
+     citent dans leur HTML le code qui leur est propre : on le suit aussi. */
+  const citer = (texte) => {
+    for (const m of texte.matchAll(RE_FRAGMENT)) aSuivre.push(origine + "/_next/" + m[1]);
+  };
+  for (const req of await cache.keys()) {
+    try {
+      const x = new URL(req.url);
+      if (x.origin !== origine || x.pathname.startsWith("/_next/") || x.pathname.startsWith("/api/")) continue;
+      const rep = await cache.match(req);
+      if (rep && (rep.headers.get("content-type") || "").includes("text/html")) citer(await rep.text());
+    } catch { /* une page illisible n'arrête pas les autres */ }
+  }
+  const vus = new Set();
+  while (aSuivre.length && vus.size < FRAGMENTS_MAX) {
+    const url = aSuivre.shift();
+    if (vus.has(url)) continue;
+    vus.add(url);
+    try {
+      let rep = await caches.match(url);
+      if (!rep) {
+        const r = await fetch(url, { credentials: "same-origin" });
+        if (!r || !r.ok) continue;
+        await cache.put(url, r.clone());
+        rep = r;
+      }
+      if (!url.endsWith(".js")) continue;
+      citer(await rep.text());
+    } catch { /* hors ligne ou fichier absent : on continue avec les autres */ }
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     Promise.all([
@@ -457,10 +516,12 @@ self.addEventListener("message", (event) => {
             // Silencieux : pas de réseau ou URL invalide
           }
         })
-      ).then(() => {
-        // Notifie le client que le pré-cache est terminé
-        event.source?.postMessage({ type: "PRECACHE_DONE" });
-      })
+      )
+        .then(() => completerLesFragments(urls))
+        .then(() => {
+          // Notifie le client que le pré-cache est terminé
+          event.source?.postMessage({ type: "PRECACHE_DONE" });
+        })
     );
   }
 });
