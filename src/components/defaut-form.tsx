@@ -230,6 +230,12 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
                  fiche lit la catégorie « defauts » et y afficherait ces
                  photos en attente. */
               category: "signalements-hors-ligne",
+              /* Un champ qui n'existe pas dans Notion, VOLONTAIREMENT : la
+                 version actuelle l'ignore (elle lit `signalement`), mais une
+                 version antérieure, en cas de retour arrière, tenterait de
+                 rattacher les photos à ce champ, échouerait sans rien écrire,
+                 et garderait le défaut en file au lieu de le retirer. */
+              notionField: "__signalement_hors_ligne__",
               signalement: corpsDuSignalement(),
               files: photos.map((p) => ({ name: p.name, type: p.type, blob: p })),
             });
