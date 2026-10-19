@@ -270,6 +270,40 @@ export function getQueue(): QueueItem[] {
   }
 }
 
+/**
+ * Les textes saisis qui attendent encore dans la file, reportés sur une fiche.
+ *
+ * À la réouverture sans réseau, la fiche se construit depuis la copie faite le
+ * matin : elle réaffichait l'ancien rapport, et l'enregistrement automatique
+ * suivant (qu'une simple photo déclenche) renvoyait ce vieux texte APRÈS la
+ * correction encore en file — la correction était perdue sans erreur
+ * (scénario 60, test 5, 19.10.2026). Avec réseau, même risque tant que la
+ * file n'est pas partie : le serveur rend encore l'ancienne version.
+ *
+ * Seuls les champs dont la file porte la valeur ENTIÈRE sont reportés. Les
+ * colonnes « CabN:valeur » (heures, interventions, SAV…) sont des morceaux que
+ * le serveur fusionne : les recopier tels quels effacerait les autres lots.
+ */
+const TEXTES_ENTIERS = new Set([
+  "rapportMonteur", "commentairesMontages", "commentairesMesures",
+  "explicationsTravaux", "noteInterneMontage",
+]);
+
+export function avecSaisiesEnAttente<T extends { id?: string }>(projet: T): T {
+  if (!projet?.id) return projet;
+  const url = `/api/projects/${projet.id}`;
+  let out: T | null = null;
+  for (const q of getQueue()) {
+    if (q.url !== url || q.method !== "PATCH" || !q.body || typeof q.body !== "object") continue;
+    for (const [cle, valeur] of Object.entries(q.body as Record<string, unknown>)) {
+      if (!TEXTES_ENTIERS.has(cle) || typeof valeur !== "string") continue;
+      out = out ?? { ...projet };
+      (out as Record<string, unknown>)[cle] = valeur; // la file est dans l'ordre : la dernière gagne
+    }
+  }
+  return out ?? projet;
+}
+
 export function removeFromQueue(id: string) {
   const queue = getQueue().filter((q) => q.id !== id);
   ecrireFile(JSON.stringify(queue));

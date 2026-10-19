@@ -34,7 +34,7 @@
  * des écritures, la compression des photos, le pavé de signature, les
  * reprises et leurs délais.
  *
- * ── Les quatre tests ───────────────────────────────────────────────────
+ * ── Les cinq tests ─────────────────────────────────────────────────────
  *
  *   1. La journée sans réseau, chantier A puis chantier B : tout est gardé
  *      sur le téléphone, l'écran dit « en attente », rien ne part.
@@ -45,12 +45,17 @@
  *      voir le test 1 — avec sa réponse perdue : créé une seule fois.
  *   4. Deux versions du rapport écrites hors ligne : la correction doit
  *      l'emporter. ÉCHEC ATTENDU — voir DEFAUT_ORDRE_DES_ECRITURES.
+ *   5. Par l'interface de la fiche : heures, commentaire écrit puis corrigé,
+ *      photos, sur A puis B sans réseau ; l'app fermée sans réseau et
+ *      rouverte, puis fermée en pleine synchronisation : tout arrive, une
+ *      fois, la correction gagne. (Défaut trouvé puis corrigé le 19.10.2026 —
+ *      voir DEFAUT_COMMENTAIRE_PERIME_APRES_REOUVERTURE.)
  *
  * Les tests 1 et 2 se suivent sur le même téléphone (même profil).
  */
 import { test, expect, devices, type BrowserContext, type Page, type Route, type Request } from "@playwright/test";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { brancherFixtures, projetFictif, sansServiceWorker, seConnecter, PROJET_ID } from "./harnais";
@@ -1011,6 +1016,347 @@ test("4 — une correction du rapport faite hors ligne n'est pas écrasée par l
       .toContain(V2);
   } finally {
     await ctx.close().catch(() => {});
+    rmSync(profil, { recursive: true, force: true });
+  }
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   5. Deux chantiers sans réseau, l'application fermée deux fois
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** La date du jour telle que la fiche la calcule (`toISOString`, UTC). */
+const AUJOURDHUI = new Date().toISOString().slice(0, 10);
+
+async function ongletInfos(page: Page) {
+  await page.getByRole("button", { name: "Infos", exact: true }).click();
+  await expect(page.getByText("Intervention 1", { exact: true })).toBeVisible();
+}
+
+/** Le champ d'heure « Arrivée » ou « Départ » de la 1re intervention. */
+function champHeure(page: Page, libelle: "Arrivée" | "Départ") {
+  return page.locator(`xpath=//label[normalize-space()="${libelle}"]/following-sibling::input[@type="time"]`).first();
+}
+
+/** La dernière valeur d'un champ que la file enverra pour un projet. */
+function derniereValeurEnFile(file: EcritureEnFile[], projet: string, champ: string): string | undefined {
+  const e = [...file].reverse().find((x) => x.url === `/api/projects/${projet}` && typeof x.body?.[champ] === "string");
+  return e ? String(e.body![champ]) : undefined;
+}
+
+/**
+ * Le scénario par l'interface réelle de la fiche : heures, commentaire du
+ * rapport écrit PUIS corrigé, photos, sur deux chantiers, sans réseau ; puis
+ * l'application fermée sans réseau, rouverte, et fermée encore en pleine
+ * synchronisation.
+ *
+ * Ce que ce banc ne peut pas faire, et comment le test le compense :
+ *   - « Fermer l'application » = fermer le contexte WebKit persistant, puis
+ *     en rouvrir un sur le MÊME dossier de profil. C'est un arrêt franc du
+ *     moteur (pas une mise en arrière-plan iOS) : les minuteurs en cours
+ *     — dont l'enregistrement automatique, différé de 2 s — sont perdus.
+ *     Le test attend donc que chaque saisie soit DANS la file avant de
+ *     fermer, comme un monteur qui laisse l'écran une seconde.
+ *   - Le réseau coupé ne change pas `navigator.onLine` (voir l'en-tête du
+ *     fichier) : l'événement `online` est émis à la main au retour du réseau
+ *     de l'étape 5. À la réouverture finale, rien n'est émis : c'est
+ *     l'application qui doit repartir d'elle-même.
+ *   - « Au moins un envoi parti mais pas tous » : le banc RETIENT en vol la
+ *     première écriture de données qui suit un envoi déjà accepté, et ferme
+ *     l'application à ce moment précis. La coupure tombe ainsi toujours au
+ *     milieu, jamais avant le premier envoi ni après le dernier.
+ */
+/**
+ * DÉFAUT CONSTATÉ LE 19 OCTOBRE 2026 — après une fermeture de l'application
+ * sans réseau, la fiche affiche l'ANCIEN commentaire, et le premier geste
+ * suivant le renvoie au serveur par-dessus la correction.
+ *
+ * À la réouverture hors ligne, la fiche se construit depuis la copie des
+ * listes gardée le matin (`tm-projects-cache`, src/app/projet/[id]/page.tsx,
+ * effet de chargement) : la correction en attente dans `tm-rapport-queue`
+ * n'y est pas reportée. Les heures, elles, s'affichent justes : elles ont
+ * leur propre sauvegarde locale (`tm-pointages-<id>`). Le commentaire n'en a
+ * pas.
+ *
+ * Ce n'est pas qu'un affichage. L'enregistrement automatique
+ * (`scheduleAutoSave`) renvoie à chaque fois TOUT le rapport depuis l'état
+ * de l'écran — et chaque photo le déclenche (`handleAutoFill`). Preuve,
+ * relevée dans ce banc (WebKit, profil persistant) : correction V2 écrite
+ * hors ligne → fermeture → réouverture hors ligne → UNE photo, sans toucher
+ * au texte. La file contient alors [V2, « Pose effectuée sans
+ * difficulté. »] ; au retour du réseau le serveur reçoit V2 puis l'ancien
+ * texte, et garde l'ancien. La correction du monteur est perdue, sans
+ * erreur ni abandon.
+ *
+ * Le test 5 vérifie le comportement ATTENDU (le commentaire corrigé à
+ * l'écran après réouverture). La vérification est « souple » : tout le
+ * reste du scénario s'exécute et doit passer — au 19.10.2026, c'est la
+ * SEULE vérification en échec. Le jour où ce défaut est corrigé, Playwright
+ * signalera que le test passe : il suffira alors de mettre cette constante à
+ * `false`.
+ */
+const DEFAUT_COMMENTAIRE_PERIME_APRES_REOUVERTURE = false; // corrigé le 19.10.2026 : `avecSaisiesEnAttente`
+
+test("5 — deux chantiers sans réseau, fermeture complète, puis fermeture en pleine synchronisation : tout arrive, la dernière version gagne", async ({ playwright }, testInfo) => {
+  test.fail(DEFAUT_COMMENTAIRE_PERIME_APRES_REOUVERTURE,
+            "défaut du 19.10.2026 : après réouverture hors ligne, la fiche montre l'ancien commentaire (voir DEFAUT_COMMENTAIRE_PERIME_APRES_REOUVERTURE)");
+  test.setTimeout(8 * 60_000);
+  const banc = new Banc([
+    /* Le montage est daté d'aujourd'hui, sans heures : la fiche laisse un
+       monteur les saisir (un passage d'un jour écoulé est figé). Le rapport
+       est déjà entamé, pour que la fiche montre ses onglets et non
+       l'assistant pas à pas. */
+    projetFictif({ id: A, projet: NOM_A, ofrTM: "TM-6000051", dateMontage: AUJOURDHUI, heureArrivee: "", heureDepart: "" }),
+    projetFictif({ id: B, projet: NOM_B, ofrTM: "TM-6000052", dateMontage: AUJOURDHUI, heureArrivee: "", heureDepart: "",
+                   adresseChantier: "Chemin du Lac 4, 1007 Lausanne" }),
+  ]);
+  const RAPPORT_INITIAL = String(banc.projets[A].rapportMonteur);
+  const V1 = "Commentaire : joint de seuil à reprendre, silicone pas encore sec.";
+  const V2 = "Commentaire corrigé : joint de seuil repris, essai d'eau concluant.";
+  const profil = mkdtempSync(join(tmpdir(), "tm-e2e-fermetures-"));
+  const contextes: BrowserContext[] = [];
+  const ouvrir = async () => {
+    const c = await lancerIphone(playwright as never, profil, testInfo.project.use as Record<string, unknown>);
+    contextes.push(c);
+    const p = c.pages()[0] ?? (await c.newPage());
+    await banc.brancher(p);
+    return { c, p };
+  };
+
+  try {
+    /* ── 1. Avec réseau : A et B ouverts, donc gardés sur le téléphone ───── */
+    let { c: ctx, p: page } = await ouvrir();
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect
+      .poll(() => page.evaluate((ids) => ids.every((id) => (localStorage.getItem("tm-projects-cache") || "").includes(id)), [A, B]),
+            { timeout: 40_000, message: "l'accueil doit garder A et B sur le téléphone" })
+      .toBe(true);
+    await ouvrirLeChantier(page, A, NOM_A);
+    await ouvrirLeChantier(page, B, NOM_B);
+    const jpegs = await fabriquerJpegs(page, 3);
+    expect(banc.acceptees((p) => p.donnees), "le matin, rien n'est encore écrit").toHaveLength(0);
+
+    /* ── 2. Sans réseau, chantier A ──────────────────────────────────────── */
+    banc.reseau = "coupe";
+    await ouvrirLeChantier(page, A, NOM_A);
+
+    // 2a. Les heures, aux champs de la fiche.
+    await ongletInfos(page);
+    await champHeure(page, "Arrivée").fill("07:15");
+    await expect(champHeure(page, "Arrivée")).toHaveValue("07:15");
+    await champHeure(page, "Départ").fill("16:45");
+    await expect(champHeure(page, "Départ")).toHaveValue("16:45");
+    await expect
+      .poll(async () => {
+        const f = await fileEcritures(page);
+        return [derniereValeurEnFile(f, A, "heureArrivee") ?? "", derniereValeurEnFile(f, A, "heureDepart") ?? ""];
+      }, { timeout: 15_000, message: "les heures de A doivent entrer dans la file" })
+      .toEqual([expect.stringMatching(new RegExp(`^${AUJOURDHUI} .*07:15$`)), expect.stringMatching(new RegExp(`^${AUJOURDHUI} .*16:45$`))]);
+
+    // 2b. Le commentaire du rapport, première version.
+    await ongletRapport(page);
+    const commentaire = page.getByPlaceholder("Précisions supplémentaires...").first();
+    await commentaire.fill(V1);
+    await expect
+      .poll(async () => derniereValeurEnFile(await fileEcritures(page), A, "rapportMonteur"),
+            { timeout: 15_000, message: "la 1re version du commentaire doit entrer dans la file" })
+      .toBe(V1);
+
+    // 2c. Un autre geste : deux photos (chacune relance l'enregistrement automatique).
+    await ongletPhotos(page);
+    await photographier(page, "Photos avant intervention", jpegs[0], A);
+    await photographier(page, "Photos montage", jpegs[1], A);
+    await expect(page.locator('[title^="Enregistrée sur l\'appareil"]')).toHaveCount(2);
+
+    // 2d. Le commentaire, corrigé.
+    await ongletRapport(page);
+    await expect(commentaire).toHaveValue(V1);
+    await commentaire.fill(V2);
+    await expect
+      .poll(async () => derniereValeurEnFile(await fileEcritures(page), A, "rapportMonteur"),
+            { timeout: 15_000, message: "la correction doit entrer dans la file, APRÈS la 1re version" })
+      .toBe(V2);
+    {
+      const f = await fileEcritures(page);
+      const versions = f.filter((e) => e.url === `/api/projects/${A}` && typeof e.body?.rapportMonteur === "string")
+        .map((e) => String(e.body!.rapportMonteur));
+      expect(versions, "la file tient les deux versions, la correction en dernier").toContain(V1);
+      expect(versions.at(-1)).toBe(V2);
+    }
+    /* Les heures sont restées les mêmes à travers les photos. */
+    await ongletInfos(page);
+    await expect(champHeure(page, "Arrivée")).toHaveValue("07:15");
+    await expect(champHeure(page, "Départ")).toHaveValue("16:45");
+
+    /* ── 3. Sans réseau, chantier B : une heure d'arrivée, une photo ─────── */
+    await ouvrirLeChantier(page, B, NOM_B);
+    await ongletInfos(page);
+    await champHeure(page, "Arrivée").fill("06:50");
+    await expect(champHeure(page, "Arrivée")).toHaveValue("06:50");
+    await ongletPhotos(page);
+    await photographier(page, "Photos montage", jpegs[2], B);
+    await expect
+      .poll(async () => derniereValeurEnFile(await fileEcritures(page), B, "heureArrivee") ?? "",
+            { timeout: 15_000, message: "l'heure d'arrivée de B doit entrer dans la file" })
+      .toMatch(new RegExp(`^${AUJOURDHUI} .*06:50$`));
+    /* La photo de montage relance l'enregistrement automatique de B : on
+       attend qu'il soit en file avant toute fermeture. */
+    await page.waitForTimeout(2_500);
+    expect(banc.acceptees((p) => p.donnees), "rien n'a atteint le serveur").toHaveLength(0);
+
+    const fileAvantFermeture = await fileEcritures(page);
+    const photosAvantFermeture = await filePhotos(page);
+    expect(photosAvantFermeture.filter((x) => x.projectId === A), "2 photos de A en file").toHaveLength(2);
+    expect(photosAvantFermeture.filter((x) => x.projectId === B), "1 photo de B en file").toHaveLength(1);
+    for (const x of photosAvantFermeture) expect(x.files[0].taille, `octets de ${x.files[0].name}`).toBeGreaterThan(0);
+    const attendu = {
+      rapportA: derniereValeurEnFile(fileAvantFermeture, A, "rapportMonteur")!,
+      arriveeA: derniereValeurEnFile(fileAvantFermeture, A, "heureArrivee")!,
+      departA: derniereValeurEnFile(fileAvantFermeture, A, "heureDepart")!,
+      arriveeB: derniereValeurEnFile(fileAvantFermeture, B, "heureArrivee")!,
+      departB: derniereValeurEnFile(fileAvantFermeture, B, "heureDepart") ?? "",
+    };
+    expect(attendu.rapportA).toBe(V2);
+    const photos = photosAvantFermeture.map((x) => ({
+      id: x.id, projet: x.projectId, champ: CHAMP_DU_LIBELLE[x.notionField!], nom: x.files[0].name, sha: x.files[0].sha,
+    }));
+    expect(photos.map((p) => `${p.projet === A ? "A" : "B"}/${p.champ}`).sort())
+      .toEqual(["A/photosAvant", "A/photosMontage", "B/photosMontage"]);
+
+    /* ── 4. Fermeture complète, réouverture toujours sans réseau ─────────── */
+    await ctx.close();
+    ({ c: ctx, p: page } = await ouvrir());
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    // Les files, intactes : chaque saisie, chaque photo avec ses octets.
+    const fileRouverte = await fileEcritures(page);
+    expect(fileRouverte.map((e) => [e.id, e.url, e.method, e.body]), "la file des saisies a survécu à la fermeture")
+      .toEqual(fileAvantFermeture.map((e) => [e.id, e.url, e.method, e.body]));
+    const photosRouvertes = await filePhotos(page);
+    expect(photosRouvertes.map((x) => [x.id, x.projectId, x.files[0].name, x.files[0].sha]).sort(),
+           "les photos ont survécu, octets lisibles et identiques")
+      .toEqual(photosAvantFermeture.map((x) => [x.id, x.projectId, x.files[0].name, x.files[0].sha]).sort());
+    for (const x of photosRouvertes) expect(x.files[0].taille, `octets de ${x.files[0].name} après réouverture`).toBeGreaterThan(0);
+
+    // À l'écran, A : les heures, les photos en attente, le commentaire corrigé.
+    await ouvrirLeChantier(page, A, NOM_A);
+    await ongletInfos(page);
+    await expect(champHeure(page, "Arrivée"), "heure d'arrivée de A, à l'écran après réouverture").toHaveValue("07:15");
+    await expect(champHeure(page, "Départ"), "heure de départ de A, à l'écran après réouverture").toHaveValue("16:45");
+    await ongletPhotos(page);
+    await expect(page.locator('[title^="Enregistrée sur l\'appareil"]'), "les 2 photos de A, à l'écran").toHaveCount(2);
+    await ongletRapport(page);
+    const texteAffiche = await page.getByPlaceholder("Précisions supplémentaires...").first().inputValue();
+    // À l'écran, B : l'heure d'arrivée et la photo.
+    await ouvrirLeChantier(page, B, NOM_B);
+    await ongletInfos(page);
+    await expect(champHeure(page, "Arrivée"), "heure d'arrivée de B, à l'écran après réouverture").toHaveValue("06:50");
+    await ongletPhotos(page);
+    await expect(page.locator('[title^="Enregistrée sur l\'appareil"]'), "la photo de B, à l'écran").toHaveCount(1);
+    /* Rouvrir les fiches n'a rien ajouté ni retiré à la file. */
+    expect((await fileEcritures(page)).map((e) => e.id), "la réouverture n'écrit rien de plus")
+      .toEqual(fileAvantFermeture.map((e) => e.id));
+    expect(banc.acceptees((p) => p.donnees), "toujours rien sur le serveur").toHaveLength(0);
+    /* Souple : voir DEFAUT_COMMENTAIRE_PERIME_APRES_REOUVERTURE. Le scénario
+       continue, et toutes les vérifications suivantes restent strictes. */
+    expect(texteAffiche, "le commentaire CORRIGÉ s'affiche après la réouverture sans réseau").toBe(V2);
+
+    /* ── 5. Le réseau revient ; l'application est fermée en pleine synchro ─ */
+    banc.reseau = "instable";
+    banc.refusRestants = 0;
+    banc.retenir = (p) => banc.acceptees((q) => q.donnees && q.n < p.n).length >= 1;
+    const debutSynchro = banc.journal.length;
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await expect.poll(() => banc.retenues, { timeout: 60_000, message: "un envoi doit être en vol, après un premier accepté" }).toBe(1);
+    const partisAvantFermeture = banc.journal.slice(debutSynchro).filter((p) => p.donnees && p.issue === "acceptee");
+    const fermeture = ctx.close();
+    banc.libererLesRetenues();
+    await fermeture;
+    expect(partisAvantFermeture.length, "au moins un envoi est parti avant la fermeture").toBeGreaterThanOrEqual(1);
+    const attachesAvantFermeture = Object.values(banc.projets).reduce((s, pr) =>
+      s + Object.values(CHAMP_DU_LIBELLE).reduce((t, cle) => t + ((pr[cle] as Fichier[]) ?? []).length, 0), 0);
+    const rapportAvantFermeture = String(banc.projets[A].rapportMonteur);
+    expect(attachesAvantFermeture < 3 || rapportAvantFermeture !== V2,
+           "la fermeture tombe AU MILIEU : tout n'était pas arrivé").toBe(true);
+
+    /* ── Réouverture avec le réseau : rien n'est émis, l'app repart seule ── */
+    banc.reseau = "ok";
+    banc.retenir = null;
+    const debutReouverture = banc.journal.length;
+    ({ c: ctx, p: page } = await ouvrir());
+    await page.goto(`/projet/${A}?mode=cmd`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByText(NOM_A).first()).toBeVisible({ timeout: 40_000 });
+    try {
+      await expect
+        .poll(async () => (await entreesPhotos(page)).length + (await fileEcritures(page)).length,
+              { timeout: 180_000, intervals: [2_000] })
+        .toBe(0);
+    } catch {
+      throw new Error(`les files ne se vident pas après la réouverture : ${(await entreesPhotos(page)).length} photo(s), ` +
+                      `${(await fileEcritures(page)).length} saisie(s) restent sur le téléphone`);
+    }
+    expect(banc.journal.slice(debutReouverture).some((p) => p.donnees && p.issue === "acceptee"),
+           "des envois sont partis APRÈS la réouverture").toBe(true);
+
+    /* ── 6. Les comptes ──────────────────────────────────────────────────── */
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("tm-offline-abandons") || "[]")),
+           "rien d'abandonné").toHaveLength(0);
+
+    // Chaque photo : une seule fois, au bon projet, au bon champ, avec ses octets.
+    for (const ph of photos) {
+      const partout = Object.entries(banc.projets).flatMap(([id, pr]) =>
+        Object.values(CHAMP_DU_LIBELLE).flatMap((cle) =>
+          ((pr[cle] as Fichier[]) ?? []).filter((f) => f.name === ph.nom).map(() => `${id}/${cle}`)));
+      expect(partout, `« ${ph.nom} » rattachée une seule fois, au bon endroit`).toEqual([`${ph.projet}/${ph.champ}`]);
+      const recus = banc.cloudinary.filter((f) => f.nom === ph.nom);
+      expect(recus.length, `octets de « ${ph.nom} » reçus`).toBeGreaterThan(0);
+      for (const r of recus) expect(r.sha, `octets de « ${ph.nom} » identiques à ceux du téléphone`).toBe(ph.sha);
+    }
+    const totalRattache = Object.values(banc.projets).reduce((s, pr) =>
+      s + Object.values(CHAMP_DU_LIBELLE).reduce((t, cle) => t + ((pr[cle] as Fichier[]) ?? []).length, 0), 0);
+    expect(totalRattache, "3 photos rattachées, pas une de plus").toBe(3);
+
+    // Le commentaire : la DERNIÈRE version, et l'ancienne n'est jamais repassée après elle.
+    const ecritsA = banc.acceptees((p) => p.chemin === `/api/projects/${A}` && p.methode === "PATCH" &&
+                                          typeof (p.corps as Record<string, unknown>)?.rapportMonteur === "string")
+      .map((p) => String((p.corps as Record<string, unknown>).rapportMonteur));
+    const ordre = ecritsA.map((r) => (r === V2 ? "V2" : r === V1 ? "V1" : "autre")).join(" puis ");
+    expect(String(banc.projets[A].rapportMonteur), `le serveur garde la correction (arrivées : ${ordre})`).toBe(V2);
+    expect(ecritsA.lastIndexOf(V1) < ecritsA.indexOf(V2), `jamais V1 après V2 (arrivées : ${ordre})`).toBe(true);
+    expect(ecritsA.slice(ecritsA.indexOf(V2)).every((r) => r === V2),
+           `après la correction, plus aucune autre version (arrivées : ${ordre})`).toBe(true);
+    expect(ecritsA.includes(RAPPORT_INITIAL) && ecritsA.lastIndexOf(RAPPORT_INITIAL) > ecritsA.indexOf(V2),
+           "l'ancien texte de la fiche ne revient pas par-dessus").toBe(false);
+
+    // Les heures : celles saisies, sur les deux chantiers.
+    expect(String(banc.projets[A].heureArrivee), "arrivée de A").toBe(attendu.arriveeA);
+    expect(String(banc.projets[A].heureDepart), "départ de A").toBe(attendu.departA);
+    expect(String(banc.projets[A].heureArrivee)).toMatch(/07:15$/);
+    expect(String(banc.projets[A].heureDepart)).toMatch(/16:45$/);
+    expect(String(banc.projets[B].heureArrivee), "arrivée de B").toBe(attendu.arriveeB);
+    expect(String(banc.projets[B].heureArrivee)).toMatch(/06:50$/);
+    if (attendu.departB) expect(String(banc.projets[B].heureDepart), "départ de B (posé par la photo)").toBe(attendu.departB);
+    // Rien de A n'est allé à B.
+    expect(String(banc.projets[B].rapportMonteur ?? "")).not.toContain("Commentaire");
+
+    // Les deux projets synchronisés, à l'écran aussi (données fraîches du serveur).
+    await ouvrirLeChantier(page, A, NOM_A);
+    await ongletRapport(page);
+    await expect(page.getByPlaceholder("Précisions supplémentaires...").first()).toHaveValue(V2);
+    await ongletInfos(page);
+    await expect(champHeure(page, "Arrivée")).toHaveValue("07:15");
+    await expect(champHeure(page, "Départ")).toHaveValue("16:45");
+    await ongletPhotos(page);
+    await expect(page.locator('[title^="Enregistrée sur l\'appareil"]'), "plus rien en attente sur A").toHaveCount(0);
+  } finally {
+    if (process.env.E2E_DIAG) {
+      writeFileSync(testInfo.outputPath("journal-du-banc-5.json"),
+                    JSON.stringify(banc.journal.map(({ n, methode, chemin, issue, corps }) => ({ n, methode, chemin, issue, corps })), null, 1));
+    }
+    await testInfo.attach("journal-du-banc-5.json", {
+      contentType: "application/json",
+      body: JSON.stringify(banc.journal.map(({ n, methode, chemin, issue, corps }) => ({ n, methode, chemin, issue, corps })), null, 1),
+    });
+    for (const c of contextes) await c.close().catch(() => {});
     rmSync(profil, { recursive: true, force: true });
   }
 });

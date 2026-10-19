@@ -135,7 +135,7 @@ import { interventionsDuLot, encodeInterventions, dernierPassage, type Intervent
 import { equipeDuJour, nomsAProposer, equipeDesPassages, listeDeNoms } from "@/lib/equipe-intervention";
 import { fusionnerPassage } from "@/lib/passage-lot";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
-import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
+import { addToQueue, avecSaisiesEnAttente, isOnline, offlineFetch } from "@/lib/offline";
 /* Importé STATIQUEMENT, et non au moment de signer. Le chargement à la
    demande se déclenchait exactement quand le réseau manque : sans service
    worker pour servir le fragment depuis sa réserve, la signature ne pouvait
@@ -6520,8 +6520,11 @@ function ProjectPageContent({ id }: { id: string }) {
     scheduleAutoSave();
   };
 
-  const initProject = (data: any) => {
-    if (!data?.id) return;
+  const initProject = (brut: any) => {
+    if (!brut?.id) return;
+    // Les corrections encore en file priment sur la copie (locale ou serveur)
+    // qui ne les a pas encore reçues — voir `avecSaisiesEnAttente`.
+    const data = avecSaisiesEnAttente(brut);
     setProject((prev) => {
       if (!prev) return data;
       // Préserve les champs édités inline récemment (grâce 30 s) pour ne pas
