@@ -35,7 +35,7 @@ final class AffichageTests: XCTestCase {
         let app = XCUIApplication()
         let releve = env["AFFICHAGE_SANS_RELEVE"] ?? "NO"
         app.launchArguments = ["-TMBaseURL", "http://localhost:3139", "-TMJetonTest", jeton, "-TMSansReleveCouleur", releve,
-                               "-TMThemeEssai", "signal"]
+                               "-TMThemeEssai", env["AFFICHAGE_THEME"] ?? "signal"]
         app.launch()
         accepterAutorisations(app, pendant: 10)
         // iPhone : le bouton rond ; iPad (thème Signal) : le champ de l'en-tête.
