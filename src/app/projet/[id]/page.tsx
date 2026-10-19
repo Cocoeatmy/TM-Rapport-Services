@@ -4146,6 +4146,31 @@ const PLANCHES_ASSISTANT: {
 ];
 
 /**
+ * Le rapport tel que l'écran le montre : la partie GÉNÉRALE (zone « Rapport
+ * général ») et le texte de chaque lot (lignes « Nom du lot : texte »).
+ *
+ * Une seule définition pour le chargement de la fiche ET son rafraîchissement
+ * toutes les 15 s. Le rafraîchissement remettait le texte BRUT dans la zone
+ * générale ; l'enregistrement suivant y rajoutait les lignes des lots, et les
+ * doublons s'accumulaient dans Notion (constaté sur TEST 5, 19.10.2026).
+ */
+function decouperRapport(data: { id: string; rapportMonteur?: string | null; nbCabines?: number | null; nomsCabines?: string | null }): { general: string; perCabine: Record<number, string> } {
+  const brut = data.rapportMonteur || "";
+  const nb = data.nbCabines || 1;
+  if (nb <= 1) return { general: brut, perCabine: {} };
+  const nomsNotion = new Map<number, string>();
+  { const re = /Cab(\d+)\s*:([^|]*)/g; let mm: RegExpExecArray | null;
+    while ((mm = re.exec(data.nomsCabines || ""))) nomsNotion.set(parseInt(mm[1], 10), mm[2].trim()); }
+  let nomsLocaux: string[] | null = null;
+  try { const s = localStorage.getItem(`tm-cabin-noms-${data.id}`); if (s) nomsLocaux = JSON.parse(s); } catch {}
+  const noms = Array.from({ length: nb }, (_, i) => {
+    const nn = nomsNotion.get(i + 1) || "";
+    return (nn && nn !== `Cabine ${i + 1}`) ? nn : (nomsLocaux?.[i] || `Cabine ${i + 1}`);
+  });
+  return splitRapportByCabine(brut, noms);
+}
+
+/**
  * Un lot d'un chantier multi-cabines, vu par l'assistant.
  *
  * Le pas à pas est le même pour un lot que pour un chantier simple — qui
@@ -6546,28 +6571,11 @@ function ProjectPageContent({ id }: { id: string }) {
     const firstInit = editablesInitializedRef.current !== data.id;
     editablesInitializedRef.current = data.id;
     const prevSnap = { ...serverSnapshotRef.current };
-    const sRapportRaw = data.rapportMonteur || "";
     // ── Rapport général : on SÉPARE la partie générale des lignes PAR LOT. ──
-    // Les lignes « Nom : texte » deviennent la propriété de chaque cabine (source
-    // de vérité → tri auto, renommage auto, gras) ; la zone « Rapport général »
-    // ne conserve que le texte général. `splitPerCabine` alimente les cabines.
-    const nbForSplit = data.nbCabines || 1;
-    let splitPerCabine: Record<number, string> = {};
-    let sRapport = sRapportRaw;
-    if (nbForSplit > 1) {
-      const nomsMapEarly = new Map<number, string>();
-      { const re = /Cab(\d+)\s*:([^|]*)/g; let mm: RegExpExecArray | null;
-        while ((mm = re.exec(data.nomsCabines || ""))) nomsMapEarly.set(parseInt(mm[1], 10), mm[2].trim()); }
-      let storedNomsEarly: string[] | null = null;
-      try { const s = localStorage.getItem(`tm-cabin-noms-${data.id}`); if (s) storedNomsEarly = JSON.parse(s); } catch {}
-      const nomsForSplit = Array.from({ length: nbForSplit }, (_, i) => {
-        const nn = nomsMapEarly.get(i + 1) || "";
-        return (nn && nn !== `Cabine ${i + 1}`) ? nn : (storedNomsEarly?.[i] || `Cabine ${i + 1}`);
-      });
-      const sp = splitRapportByCabine(sRapportRaw, nomsForSplit);
-      sRapport = sp.general;
-      splitPerCabine = sp.perCabine;
-    }
+    // Voir `decouperRapport` : même découpage ici et au rafraîchissement.
+    const decoupe = decouperRapport(data);
+    const sRapport = decoupe.general;
+    const splitPerCabine = decoupe.perCabine;
     const sCommentaires = data.commentairesMontages || "";
     const sHA = data.heureArrivee || "";
     const sHD = data.heureDepart || "";
@@ -6590,8 +6598,11 @@ function ProjectPageContent({ id }: { id: string }) {
         key: "rapport" | "commentaires" | "heureArrivee" | "heureDepart",
         setter: React.Dispatch<React.SetStateAction<string>>,
       ): string => {
-        if (grace && pend && serverVal !== pend[key]) return pend[key]; // périmé → garde le sauvé
-        setter((cur) => (cur === prevSnap[key] ? serverVal : cur));
+        /* Le rapport se compare toujours dans sa partie GÉNÉRALE : la
+           snapshot et le « sauvé » portent parfois le texte complet. */
+        const enGeneral = (v: string) => (key === "rapport" ? decouperRapport({ ...data, rapportMonteur: v }).general : v);
+        if (grace && pend && serverVal !== enGeneral(pend[key])) return pend[key]; // périmé → garde le sauvé
+        setter((cur) => (cur === enGeneral(prevSnap[key]) ? serverVal : cur));
         return serverVal;
       };
       serverSnapshotRef.current = {
@@ -7157,7 +7168,14 @@ function ProjectPageContent({ id }: { id: string }) {
         // discret pour inviter à recharger après avoir sauvé.
         let conflict = false;
         const snap = serverSnapshotRef.current;
-        const sRapport = data.rapportMonteur || "";
+        /* Plusieurs lots : la zone « Rapport général » ne montre que la partie
+           générale ; les lignes « Lot : texte » appartiennent aux lots. Le
+           texte brut remis ici (avant le 19.10.2026) faisait recopier les
+           lignes des lots à chaque enregistrement : doublons en série dans
+           Notion. Tout se compare donc dans la partie générale. */
+        const enGeneral = (t: string) => decouperRapport({ ...data, rapportMonteur: t }).general;
+        const sRapport = enGeneral(data.rapportMonteur || "");
+        snap.rapport = enGeneral(snap.rapport || "");
         const sCommentaires = data.commentairesMontages || "";
         const sHA = data.heureArrivee || "";
         const sHD = data.heureDepart || "";
@@ -7173,7 +7191,8 @@ function ProjectPageContent({ id }: { id: string }) {
         ) => {
           if (serverVal === snap[key]) return;
           const pend = pendingSaveRef.current;
-          if (pend && Date.now() - pend.ts < GRACE_MS && serverVal !== pend[key]) {
+          const sauve = pend ? (key === "rapport" ? enGeneral(pend.rapport) : pend[key]) : "";
+          if (pend && Date.now() - pend.ts < GRACE_MS && serverVal !== sauve) {
             return; // relecture Notion périmée → on garde le local
           }
           setter((cur) => {
@@ -7189,7 +7208,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
         // Le serveur reflète enfin tout ce qu'on a sauvé → on lève le garde.
         const pend = pendingSaveRef.current;
-        if (pend && sRapport === pend.rapport && sCommentaires === pend.commentaires &&
+        if (pend && sRapport === enGeneral(pend.rapport) && sCommentaires === pend.commentaires &&
             sHA === pend.heureArrivee && sHD === pend.heureDepart) {
           pendingSaveRef.current = null;
         }
