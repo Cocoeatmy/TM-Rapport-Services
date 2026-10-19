@@ -128,6 +128,19 @@ final class CoffreTests: XCTestCase {
         XCTAssertNotNil(e)
     }
 
+    func testLaVersionDitBuildSystemeEtModeleSansNomPersonnel() throws {
+        let (r, e) = PontNatif.traiter(action: "version", corps: [:], coffre: coffre)
+        XCTAssertNil(e)
+        let d = try XCTUnwrap(r as? [String: Any])
+        XCTAssertEqual(d["coque"] as? String, Configuration.versionCoque)
+        XCTAssertEqual(d["build"] as? String, Configuration.buildCoque)
+        XCTAssertEqual(d["coffre"] as? Int, 1)
+        XCTAssertTrue(["iOS", "iPadOS", "macOS"].contains(d["systeme"] as? String ?? ""))
+        XCTAssertNotNil((d["versionSysteme"] as? String)?.range(of: #"^\d+\.\d+(\.\d+)?$"#, options: .regularExpression))
+        XCTAssertTrue(["iPhone", "iPad", "iPod touch", "Mac"].contains(d["modele"] as? String ?? ""))
+        XCTAssertEqual(Set(d.keys), ["coque", "build", "coffre", "systeme", "versionSysteme", "modele"])
+    }
+
     func testCompatibiliteDesVersions() {
         XCTAssertTrue(Navigateur.plusRecente("1.10", que: "1.9"))
         XCTAssertTrue(Navigateur.plusRecente("2.0", que: "1.9.9"))

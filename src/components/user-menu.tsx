@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { BoutonHorsLigne } from "@/components/bouton-hors-ligne";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins, RefreshCcw, Database, Smartphone
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins, RefreshCcw, Database, Smartphone, Info
 } from "lucide-react";
 import { viderCachesDeLecture, viderCacheServiceWorker } from "@/lib/vider-caches";
 import { getQueue } from "@/lib/offline";
@@ -392,6 +392,13 @@ export function UserMenu() {
             >
               <HelpCircle className="w-4 h-4" />
               Guide d&apos;utilisation
+            </button>
+            <button
+              onClick={() => { setOpen(false); router.push("/informations"); }}
+              className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+            >
+              <Info className="w-4 h-4" />
+              Informations sur l&apos;application
             </button>
             <button
               onClick={toggleDark}

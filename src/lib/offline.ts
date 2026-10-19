@@ -260,6 +260,19 @@ export function addToQueue(item: Omit<QueueItem, "id" | "timestamp">): boolean {
   return false;
 }
 
+/**
+ * Le nombre de saisies en file — ou une ERREUR si la file est illisible.
+ * `getQueue` rend [] sur erreur (commode pour l'affichage) ; pour décider
+ * d'un rechargement, « illisible » ne doit jamais valoir « vide ».
+ */
+export function compterSaisiesStrict(): number {
+  const raw = localStorage.getItem(QUEUE_KEY);
+  if (!raw) return 0;
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed)) throw new Error("file de saisies illisible");
+  return parsed.length;
+}
+
 export function getQueue(): QueueItem[] {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
@@ -461,6 +474,11 @@ export function suiteApresEchec(essaisFaits: number, statutHttp?: number): Suite
    premier plan, un signal du bureau ou l'app Apple peuvent la demander au
    même moment : deux passes simultanées enverraient deux fois la même saisie. */
 let passeEnCours: Promise<{ success: number; failed: number; skipped: number }> | null = null;
+
+/** Une passe d'envoi des saisies est-elle en cours ? (MajAuto ne recharge pas pendant.) */
+export function saisiesEnCoursDEnvoi(): boolean {
+  return passeEnCours !== null;
+}
 
 export function processQueue(): Promise<{ success: number; failed: number; skipped: number }> {
   if (passeEnCours) return passeEnCours.then((r) => ({ success: 0, failed: 0, skipped: r.skipped }));

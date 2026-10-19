@@ -35,6 +35,12 @@ final class PontNatif: NSObject, WKScriptMessageHandlerWithReply {
             replyHandler(nil, "message illisible")
             return
         }
+        // « version » lit l'appareil (UIKit) : réponse immédiate, sur le fil
+        // principal, sans passer par la file des écritures.
+        if action == "version" {
+            replyHandler(Configuration.descriptionVersion(), nil)
+            return
+        }
         let coffre = self.coffre
         // Les écritures de fichiers ne bloquent pas l'interface, et passent
         // une par une, dans l'ordre d'arrivée : deux doubles successifs de la
@@ -53,7 +59,7 @@ final class PontNatif: NSObject, WKScriptMessageHandlerWithReply {
         switch action {
 
         case "version":
-            return (["coque": Configuration.versionCoque, "coffre": 1], nil)
+            return (Configuration.descriptionVersion(), nil)
 
         case "deposerPhoto":
             guard let id = corps["id"] as? String, let meta = corps["meta"] as? String,

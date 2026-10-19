@@ -25,7 +25,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { redisEnabled } from "@/lib/redis-cache";
-import { CLE_APPAREILS, CLE_SIGNAUX, ecrireChamp, lireHash, type EtatAppareil } from "@/lib/appareils";
+import { CLE_APPAREILS, CLE_SIGNAUX, ecrireChamp, lireHash, validerSuivi, type EtatAppareil } from "@/lib/appareils";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
     preparesHorsLigne: entier(corps.preparesHorsLigne),
     preparesQuand: entier(corps.preparesQuand),
     build: String(corps.build || "").slice(0, 40),
+    ...validerSuivi(corps),
     vu: Date.now(),
   };
   await ecrireChamp(CLE_APPAREILS, appareil, JSON.stringify(etat));

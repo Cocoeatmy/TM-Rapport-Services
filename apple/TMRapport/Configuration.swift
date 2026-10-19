@@ -63,6 +63,34 @@ enum Configuration {
     /// pas affectée : le reste de la signature est celui de Safari.
     static var nomAgent: String { "TMRapportApp/\(versionCoque) (\(plateforme))" }
 
+    /// Le numéro de build (CFBundleVersion), distinct de la version affichée.
+    static let buildCoque: String =
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+
+    /// Ce que l'app dit d'elle à la page « Informations » et au bureau : sa
+    /// version, son build, le système et un modèle GÉNÉRIQUE (« iPhone »,
+    /// « iPad », « Mac ») — jamais le nom donné à l'appareil. À appeler sur
+    /// le fil principal (UIKit).
+    static func descriptionVersion() -> [String: Any] {
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        let versionSysteme = v.patchVersion > 0
+            ? "\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
+            : "\(v.majorVersion).\(v.minorVersion)"
+        #if os(macOS)
+        let modele = "Mac"
+        #else
+        let modele = UIDevice.current.model
+        #endif
+        return [
+            "coque": versionCoque,
+            "build": buildCoque,
+            "coffre": 1,
+            "systeme": plateforme,
+            "versionSysteme": versionSysteme,
+            "modele": modele,
+        ]
+    }
+
     static var plateforme: String {
         #if os(macOS)
         return "macOS"

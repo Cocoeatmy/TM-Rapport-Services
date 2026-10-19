@@ -21,8 +21,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { exigerDroit } from "@/lib/droits-serveur";
 import { sendPushToUser } from "@/lib/send-push";
 import {
-  CLE_SIGNAUX, ecrireChamp, lireHash, listerAppareils, resumer, type SignalAppareil,
+  CLE_SIGNAUX, DERNIER_ETAT_CONNU_MS, ecrireChamp, lireHash, listerAppareils, resumer, statutVersion, type SignalAppareil,
 } from "@/lib/appareils";
+import { COQUE_APPLE_MINIMUM } from "@/lib/coque-apple";
+import { versionCompilee } from "@/lib/version-web";
 
 export const dynamic = "force-dynamic";
 
@@ -34,13 +36,22 @@ export async function GET() {
   const appareils = await listerAppareils(maintenant);
   const signaux = await lireHash(CLE_SIGNAUX);
 
+  /* La version que sert CE déploiement : la dernière disponible. */
+  const disponible = versionCompilee();
   return NextResponse.json({
     maintenant,
+    derniereDisponible: disponible,
+    coqueAppleMinimum: COQUE_APPLE_MINIMUM,
     resume: resumer(appareils, maintenant),
     appareils: appareils.map((a) => {
       let signal: SignalAppareil | null = null;
       try { signal = signaux[a.appareil] ? JSON.parse(signaux[a.appareil]) : null; } catch { /* ignore */ }
-      return { ...a, signalEnAttente: signal && signal.requestedAt > a.vu ? signal : null };
+      return {
+        ...a,
+        signalEnAttente: signal && signal.requestedAt > a.vu ? signal : null,
+        statutVersion: statutVersion(a, disponible, COQUE_APPLE_MINIMUM),
+        dernierEtatConnu: maintenant - a.vu > DERNIER_ETAT_CONNU_MS,
+      };
     }),
   });
 }

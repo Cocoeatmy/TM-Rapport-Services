@@ -20,6 +20,7 @@ import { RepliEntete } from "@/components/repli-entete";
 import { HomeButton } from "@/components/home-button";
 import { MajAuto } from "@/components/maj-auto";
 import { PontApple } from "@/components/pont-apple";
+import { balisePourPage, versionCompilee } from "@/lib/version-web";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -71,8 +72,9 @@ export default function RootLayout({
     <html lang="fr" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <head>
         <meta name="tm-build" content={BUILD} />
-        {/* Relevé Git de la compilation (diagnostic du versionnement). */}
-        <meta name="tm-version-diag" content={process.env.TM_VERSION_COMPILATION || ""} />
+        {/* La version que CETTE page exécute : libellé de compilation, commit,
+            déploiement. Lue par la page Informations, MajAuto et le battement. */}
+        <meta name="tm-version" content={balisePourPage(versionCompilee())} />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

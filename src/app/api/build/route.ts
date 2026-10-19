@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { COQUE_APPLE_MINIMUM } from "@/lib/coque-apple";
+import { versionCompilee } from "@/lib/version-web";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,10 @@ export const dynamic = "force-dynamic";
  * (`<meta name="tm-build">`). Si elles diffèrent, il tourne sur du code périmé
  * et se recharge. Aucune requête Notion ici : la route doit rester
  * instantanée, elle est interrogée régulièrement.
+ *
+ * `version` est celle compilée dans le déploiement qui RÉPOND — donc la
+ * version disponible en production, retour arrière compris. Aucun registre :
+ * voir src/lib/version-web.ts.
  */
 export async function GET() {
   const build =
@@ -26,7 +31,7 @@ export async function GET() {
     "dev";
   return NextResponse.json(
     // La version minimale des apps Apple : voir src/lib/coque-apple.ts.
-    { build, coqueAppleMinimum: COQUE_APPLE_MINIMUM },
+    { build, version: versionCompilee(), coqueAppleMinimum: COQUE_APPLE_MINIMUM },
     { headers: { "Cache-Control": "no-store, max-age=0" } },
   );
 }

@@ -35,6 +35,10 @@ import {
 } from "./idb-uploads";
 import { lireEtat } from "./offline-prefetch";
 import { rapportsEnAttente, relancerEnvoisDifferes } from "./envois-differes";
+import { versionDuDocument, type VersionWeb } from "./version-web";
+import { etatMiseAJour } from "./etat-mise-a-jour";
+import { infosNatives, plateformeLocale, systemeNavigateur } from "./appareil-local";
+import type { Plateforme, SuiviNatif } from "./appareils";
 
 const CLE_APPAREIL = "tm-appareil-id";
 const CLE_SIGNAL_VU = "tm-appareil-signal-vu";
@@ -68,6 +72,12 @@ export interface InstantaneAppareil {
   preparesHorsLigne: number;
   preparesQuand: number;
   build: string;
+  /** La version que CET onglet exécute. */
+  versionWeb: VersionWeb | null;
+  natif: SuiviNatif | null;
+  plateforme: Plateforme;
+  systemeNavigateur: string | null;
+  maj: { etat: string; verifieLe: number | null };
 }
 
 /** L'état de l'appareil, en chiffres. Rien d'autre. */
@@ -92,6 +102,11 @@ export async function instantane(build = ""): Promise<InstantaneAppareil> {
     preparesHorsLigne: prep.projets,
     preparesQuand: prep.quand,
     build,
+    versionWeb: typeof document !== "undefined" ? versionDuDocument() : null,
+    natif: await infosNatives().catch(() => null),
+    plateforme: plateformeLocale(),
+    systemeNavigateur: systemeNavigateur(),
+    maj: { etat: etatMiseAJour().etat, verifieLe: etatMiseAJour().derniereVerification },
   };
 }
 

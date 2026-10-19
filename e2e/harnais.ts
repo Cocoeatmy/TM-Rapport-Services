@@ -182,7 +182,10 @@ export async function brancherFixtures(
     }
     if (chemin === "/api/photos/attach") return json(route, { ok: true });
     if (chemin === "/api/upload") return json(route, { files: [{ name: "f", url: "https://c.test/f" }] });
-    if (chemin === "/api/build") return json(route, { build: "test" });
+    /* La version : celle du serveur de test lui-même (compilée avec la page),
+       donc « à jour » — les parcours qui simulent une nouvelle version
+       remplacent cette route (e2e/37). */
+    if (chemin === "/api/build") return route.continue();
     /* Le battement des appareils et sa lecture par le bureau : un téléphone
        fictif avec un rapport bloqué, pour que les lignes de « Signaux »
        aient quelque chose à montrer. */

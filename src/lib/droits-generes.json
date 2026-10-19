@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-18T11:53:31.201Z",
+  "genereLe": "2026-10-19T19:01:56.711Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -1649,6 +1649,14 @@
       "url": "/garanties",
       "type": "page",
       "fichier": "src/app/garanties/page.tsx",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": []
+    },
+    {
+      "url": "/informations",
+      "type": "page",
+      "fichier": "src/app/informations/page.tsx",
       "niveau": "connecte-middleware",
       "gardePage": false,
       "methodes": []

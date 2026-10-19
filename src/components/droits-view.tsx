@@ -15,6 +15,7 @@ import {
   Check, X, Loader2, RotateCcw, Users, History, ChevronDown, Save, AlertTriangle, Eye,
 } from "lucide-react";
 import { PERIMETRES } from "@/lib/perimetre-projets";
+import { marquerTravailNonEnregistre } from "@/lib/etat-mise-a-jour";
 import {
   CATALOGUE, PROFILS, TOUS_LES_DROITS, profilEffectif,
   type Niveau, type Perimetre, type Profil, type Reglages, REGLAGES_VIDES,
@@ -104,7 +105,12 @@ export function DroitsView() {
     if (!modifie) return;
     const garde = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
     window.addEventListener("beforeunload", garde);
-    return () => window.removeEventListener("beforeunload", garde);
+    /* Et la mise à jour automatique attend que ce soit enregistré. */
+    marquerTravailNonEnregistre("droits", true);
+    return () => {
+      window.removeEventListener("beforeunload", garde);
+      marquerTravailNonEnregistre("droits", false);
+    };
   }, [modifie]);
 
   const toucher = (maj: Partial<Brouillon>) => {

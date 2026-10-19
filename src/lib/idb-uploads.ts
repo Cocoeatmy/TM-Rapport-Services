@@ -618,6 +618,11 @@ async function _rattacherGroupe(avs: Avancement[], now: number): Promise<ItemOut
 const GROUP_CONCURRENCY = 4;
 let _relanceDemandee = false;
 
+/** Une passe d'envoi des photos est-elle en cours ? (MajAuto ne recharge pas pendant.) */
+export function photosEnCoursDEnvoi(): boolean {
+  return _processingUploads;
+}
+
 export async function processPendingUploads(): Promise<{
   success: number;
   failed: number;

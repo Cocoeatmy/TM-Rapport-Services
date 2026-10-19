@@ -21,6 +21,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Smartphone, RefreshCw, Loader2, AlertTriangle, CheckCircle2, Image as ImageIcon, FileText,
 } from "lucide-react";
+import { libelleVersion, type VersionWeb } from "@/lib/version-web";
 
 interface RapportNonEnvoye { projectId: string; depuis: number; client: boolean; retenuPar: number }
 interface Appareil {
@@ -39,9 +40,18 @@ interface Appareil {
   build: string;
   vu: number;
   signalEnAttente: { requestedAt: number; par: string } | null;
+  versionWeb?: VersionWeb | null;
+  natif?: { coque: string | null; build: string | null; systeme: string | null; versionSysteme: string | null; modele: string | null } | null;
+  plateforme?: string;
+  systemeNavigateur?: string | null;
+  maj?: { etat: string; verifieLe: number | null } | null;
+  statutVersion: "a-jour" | "web-en-retard" | "natif-ancien" | "inconnu";
+  dernierEtatConnu: boolean;
 }
 interface Reponse {
   maintenant: number;
+  derniereDisponible: VersionWeb | null;
+  coqueAppleMinimum: string;
   resume: {
     appareils: number; photosEnAttente: number; photosEnEchec: number;
     requetesEnAttente: number; rapportsNonEnvoyes: number;
@@ -51,6 +61,32 @@ interface Reponse {
 }
 
 const JOUR_MS = 24 * 3600_000;
+const ND = "Non disponible";
+
+const STATUTS: Record<Appareil["statutVersion"], { texte: string; classe: string }> = {
+  "a-jour": { texte: "À jour", classe: "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300" },
+  "web-en-retard": { texte: "Version Web ancienne", classe: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" },
+  "natif-ancien": { texte: "App native obsolète", classe: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300" },
+  "inconnu": { texte: "Version inconnue", classe: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" },
+};
+
+const ETATS_MAJ: Record<string, string> = {
+  "a-jour": "à jour", "disponible": "mise à jour disponible", "preparation": "en préparation",
+  "prete": "prête à être appliquée", "en-attente-synchro": "synchronisation en attente",
+  "hors-ligne": "vérification impossible hors ligne", "inconnu": "vérification impossible",
+};
+
+/** « iPhone · iOS 18.1 » ; dans l'app : « iPhone · iOS 18.1 · App 1.0 (3) ». */
+function descriptionAppareil(a: Appareil): { appareil: string; natif: string } {
+  const plateforme = a.plateforme && a.plateforme !== "autre" ? a.plateforme : typeAppareil(a.navigateur);
+  const systeme = a.natif?.systeme
+    ? [a.natif.systeme, a.natif.versionSysteme].filter(Boolean).join(" ")
+    : a.systemeNavigateur || null;
+  const natif = a.natif
+    ? `App ${a.natif.coque || "?"}${a.natif.build ? ` (${a.natif.build})` : " (build non disponible)"}`
+    : "Navigateur";
+  return { appareil: [plateforme, systeme || `système ${ND.toLowerCase()}`].join(" · "), natif };
+}
 
 /** « il y a 3 min », « il y a 2 h », « il y a 4 j ». */
 function ilYA(t: number, maintenant: number): string {
@@ -234,6 +270,33 @@ export default function AppareilsPage() {
                       Relancer
                     </button>
                   </div>
+
+                  {(() => {
+                    const d = descriptionAppareil(a);
+                    const st = STATUTS[a.statutVersion] || STATUTS.inconnu;
+                    return (
+                      <div className="mb-2 text-xs text-gray-600 dark:text-gray-400 space-y-0.5" data-testid="appareil-version">
+                        <p className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full px-2 py-0.5 font-semibold ${st.classe}`}>{st.texte}</span>
+                          <span>{d.appareil} · {d.natif}</span>
+                        </p>
+                        <p>
+                          Web : {libelleVersion(a.versionWeb) || (a.build ? `${a.build.slice(0, 7)} (ancienne page)` : ND)}
+                          {" · "}disponible : {libelleVersion(donnees.derniereDisponible) || ND}
+                        </p>
+                        <p>
+                          Mise à jour : {a.maj ? (ETATS_MAJ[a.maj.etat] || a.maj.etat) : ND}
+                          {" · "}dernière vérification : {a.maj?.verifieLe ? ilYA(a.maj.verifieLe, maintenant) : ND}
+                          {" · "}synchro : {a.enLigne ? "en ligne" : "hors ligne"}
+                        </p>
+                        {a.dernierEtatConnu && (
+                          <p className="text-amber-700 dark:text-amber-400">
+                            Dernier état connu · {new Date(a.vu).toLocaleString("fr-CH", { dateStyle: "short", timeStyle: "short" })}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {a.signalEnAttente && (
                     <p className="text-xs text-amber-700 dark:text-amber-400 mb-2">

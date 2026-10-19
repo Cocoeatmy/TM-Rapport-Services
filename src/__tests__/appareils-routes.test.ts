@@ -5,7 +5,7 @@
  * Redis est absent ici : les routes tombent sur leur mémoire de repli, et
  * les tests vérifient la logique, pas le transport.
  */
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 let compte: { email: string; name: string; role: string } | null =
@@ -187,5 +187,58 @@ describe("Le signal « relance tout »", () => {
     expect((await bureau.POST(poster("http://local/x", { appareil: "fantome", action: "relancer" }))).status).toBe(404);
     await battre(etatNominal("tel-1"));
     expect((await bureau.POST(poster("http://local/x", { appareil: "tel-1", action: "effacer" }))).status).toBe(400);
+  });
+});
+
+describe("Versions et appareil", () => {
+  const VERSION_SERVEUR = { sha: "5e1f00d", deploiement: "dpl_COURANT", env: "production", compile: "2026-10-19T12:00:00Z" };
+  const avant = process.env.TM_VERSION_COMPILATION;
+  beforeEach(() => { process.env.TM_VERSION_COMPILATION = JSON.stringify(VERSION_SERVEUR); });
+  afterEach(() => { process.env.TM_VERSION_COMPILATION = avant; });
+
+  it("le battement garde version, app native, plateforme et état de mise à jour — validés", async () => {
+    await battre(etatNominal("tel-v", {
+      versionWeb: { ...VERSION_SERVEUR, numero: "2026.10.19-120000", pirate: "x" },
+      natif: { coque: "1.0", build: "1", systeme: "iOS", versionSysteme: "27.0", modele: "iPhone", nomAppareil: "iPhone de Jacobo" },
+      plateforme: "iPhone", systemeNavigateur: "iOS 27.0",
+      maj: { etat: "prete", verifieLe: T0 },
+    }));
+    const a = (await (await bureau.GET()).json()).appareils[0];
+    expect(a.versionWeb).toMatchObject({ deploiement: "dpl_COURANT", numero: "2026.10.19-120000" });
+    expect(a.versionWeb.pirate).toBeUndefined();
+    expect(a.natif).toEqual({ coque: "1.0", build: "1", systeme: "iOS", versionSysteme: "27.0", modele: "iPhone" });
+    expect(JSON.stringify(a)).not.toContain("iPhone de Jacobo");
+    expect(a.plateforme).toBe("iPhone");
+    expect(a.maj).toEqual({ etat: "prete", verifieLe: T0 });
+    expect(a.statutVersion).toBe("a-jour");
+  });
+
+  it("valeurs inattendues : remplacées, jamais recopiées", async () => {
+    await battre(etatNominal("tel-w", { plateforme: "Grille-pain", maj: { etat: "<script>", verifieLe: "hier" }, natif: { coque: 12 } }));
+    const a = (await (await bureau.GET()).json()).appareils[0];
+    expect(a.plateforme).toBe("autre");
+    expect(a.maj).toEqual({ etat: "inconnu", verifieLe: null });
+    expect(a.natif).toBeNull();
+  });
+
+  it("statut : web en retard, natif ancien, inconnu — par identité de déploiement", async () => {
+    const { statutVersion } = await import("@/lib/appareils");
+    const dispo = { numero: null, sha: "5e1f00d", deploiement: "dpl_COURANT", env: "production", compile: null, dateCommit: null };
+    const v = (deploiement: string) => ({ ...dispo, deploiement });
+    expect(statutVersion({ versionWeb: v("dpl_COURANT"), natif: null, build: "" }, dispo, "1.0")).toBe("a-jour");
+    expect(statutVersion({ versionWeb: v("dpl_ANCIEN"), natif: null, build: "" }, dispo, "1.0")).toBe("web-en-retard");
+    expect(statutVersion({ versionWeb: v("dpl_COURANT"), natif: { coque: "0.9", build: null, systeme: null, versionSysteme: null, modele: null }, build: "" }, dispo, "1.0")).toBe("natif-ancien");
+    expect(statutVersion({ versionWeb: null, natif: null, build: "" }, dispo, "1.0")).toBe("inconnu");
+    /* Page ancienne : seul le commit est connu. */
+    expect(statutVersion({ versionWeb: null, natif: null, build: "5e1f00d" }, dispo, "1.0")).toBe("a-jour");
+    expect(statutVersion({ versionWeb: null, natif: null, build: "0dd0000" }, dispo, "1.0")).toBe("web-en-retard");
+  });
+
+  it("le bureau voit la dernière version disponible et le « dernier état connu »", async () => {
+    await battre(etatNominal("tel-z"));
+    const vue = await (await bureau.GET()).json();
+    expect(vue.derniereDisponible).toMatchObject({ deploiement: "dpl_COURANT" });
+    expect(vue.coqueAppleMinimum).toBe("1.0");
+    expect(vue.appareils[0].dernierEtatConnu).toBe(false);
   });
 });

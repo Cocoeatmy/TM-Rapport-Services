@@ -10,6 +10,7 @@
  * ses exports — d'où cette bibliothèque à part.
  */
 import { redisEnabled, redisHGetAll, redisHSet } from "./redis-cache";
+import { memeVersion, normaliserVersion, versionNativePlusAncienne, type VersionWeb } from "./version-web";
 
 export const CLE_APPAREILS = "appareils";
 export const CLE_SIGNAUX = "appareils-signaux";
@@ -42,8 +43,75 @@ export interface EtatAppareil {
   preparesHorsLigne: number;
   preparesQuand: number;
   build: string;
+  /** La version Web que l'onglet qui a battu exécute (balise tm-version). */
+  versionWeb?: VersionWeb | null;
+  /** L'app Apple, si c'en est une : ce que son pont a dit d'elle. */
+  natif?: SuiviNatif | null;
+  plateforme?: Plateforme;
+  /** Système vu par le navigateur, quand l'app native ne l'a pas dit. */
+  systemeNavigateur?: string | null;
+  maj?: { etat: string; verifieLe: number | null } | null;
   /** Dernier battement, horloge du serveur. */
   vu: number;
+}
+
+export const PLATEFORMES = ["iPhone", "iPad", "Mac", "Windows", "Android", "Linux", "autre"] as const;
+export type Plateforme = typeof PLATEFORMES[number];
+
+export interface SuiviNatif {
+  coque: string | null;
+  build: string | null;
+  systeme: string | null;
+  versionSysteme: string | null;
+  modele: string | null;
+}
+
+export const ETATS_MAJ = ["a-jour", "disponible", "preparation", "prete", "en-attente-synchro", "hors-ligne", "inconnu"] as const;
+
+const court = (v: unknown, max: number): string | null =>
+  typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
+
+/**
+ * Ce que le battement dit de la version et de l'appareil, validé champ par
+ * champ : types, longueurs, valeurs permises. Rien d'autre n'est recopié —
+ * ni nom d'appareil, ni identifiant matériel.
+ */
+export function validerSuivi(corps: Record<string, unknown>): Pick<EtatAppareil, "versionWeb" | "natif" | "plateforme" | "systemeNavigateur" | "maj"> {
+  const n = corps.natif && typeof corps.natif === "object" ? corps.natif as Record<string, unknown> : null;
+  const natif: SuiviNatif | null = n ? {
+    coque: court(n.coque, 16), build: court(n.build, 16), systeme: court(n.systeme, 16),
+    versionSysteme: court(n.versionSysteme, 16), modele: court(n.modele, 16),
+  } : null;
+  const p = court(corps.plateforme, 10);
+  const m = corps.maj && typeof corps.maj === "object" ? corps.maj as Record<string, unknown> : null;
+  const etat = court(m?.etat, 24);
+  return {
+    versionWeb: normaliserVersion(corps.versionWeb),
+    natif: natif && Object.values(natif).some(Boolean) ? natif : null,
+    plateforme: (PLATEFORMES as readonly string[]).includes(p || "") ? p as Plateforme : "autre",
+    systemeNavigateur: court(corps.systemeNavigateur, 24),
+    maj: m ? {
+      etat: etat && (ETATS_MAJ as readonly string[]).includes(etat) ? etat : "inconnu",
+      verifieLe: typeof m.verifieLe === "number" && Number.isFinite(m.verifieLe) ? Math.floor(m.verifieLe) : null,
+    } : null,
+  };
+}
+
+/** Au-delà, ce qu'on affiche d'un appareil est son « dernier état connu ». */
+export const DERNIER_ETAT_CONNU_MS = 30 * 60_000;
+
+export type StatutVersion = "a-jour" | "web-en-retard" | "natif-ancien" | "inconnu";
+
+/**
+ * Où en est un appareil, vu du bureau. Comparaison PAR IDENTITÉ avec la
+ * version que sert le déploiement qui répond — jamais par ordre de libellé.
+ */
+export function statutVersion(a: Pick<EtatAppareil, "versionWeb" | "natif" | "build">, disponible: VersionWeb | null, coqueMinimum: string): StatutVersion {
+  if (a.natif?.coque && versionNativePlusAncienne(a.natif.coque, coqueMinimum) === true) return "natif-ancien";
+  const executee = a.versionWeb ?? (a.build ? normaliserVersion({ sha: a.build }) : null);
+  const meme = memeVersion(executee, disponible);
+  if (meme === null) return "inconnu";
+  return meme ? "a-jour" : "web-en-retard";
 }
 
 export interface SignalAppareil {

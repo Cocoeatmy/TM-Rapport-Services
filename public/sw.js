@@ -51,7 +51,9 @@ const RV_TIMEOUT_MS = 8000;
  * qu'ils citent (« static/immutable/chunks/xxx.js »), de proche en proche. Ces fichiers
  * portent leur empreinte dans leur nom : un fichier gardé ne change jamais.
  */
-const RE_FRAGMENT = /["'](?:\/_next\/)?(static\/(?:immutable\/)?(?:chunks|media|css)\/[A-Za-z0-9_.~\-\/]+\.(?:js|css|woff2))["']/g;
+/* Un suffixe `?dpl=…` (protection contre les versions mêlées de Vercel, si
+   elle est activée un jour) est toléré et ignoré : on garde l'adresse nue. */
+const RE_FRAGMENT = /["'](?:\/_next\/)?(static\/(?:immutable\/)?(?:chunks|media|css)\/[A-Za-z0-9_.~\-\/]+\.(?:js|css|woff2))(?:\?[^"']*)?["']/g;
 const FRAGMENTS_MAX = 400;
 
 async function completerLesFragments(depart) {
@@ -87,12 +89,310 @@ async function completerLesFragments(depart) {
       if (!rep) {
         const r = await fetch(url, { credentials: "same-origin" });
         if (!r || !r.ok) continue;
+        ecrituresCache++;
         await cache.put(url, r.clone());
         rep = r;
       }
       if (!url.endsWith(".js")) continue;
       citer(await rep.text());
     } catch { /* hors ligne ou fichier absent : on continue avec les autres */ }
+  }
+}
+
+/* ═══ Versions : préparer, retenir, nettoyer — sans jamais tout vider ═══
+ *
+ * Avant, une mise à jour VIDAIT la coquille et les fichiers du build, puis
+ * rechargeait. Deux défauts : une coupure pendant le rechargement laissait
+ * l'appareil sans coquille ; et les autres onglets, restés sur l'ancienne
+ * version, perdaient les fichiers qu'ils allaient demander.
+ *
+ * Désormais :
+ *  - PRÉPARER une version, c'est la télécharger en entier dans un cache à
+ *    part (`tm-prep-…`), vérifier qu'il ne manque RIEN, puis seulement la
+ *    recopier dans le cache principal — fragments d'abord, coquille en
+ *    dernier. Le moindre échec : on jette le cache à part, rien d'autre n'a
+ *    bougé.
+ *  - Chaque page dit quelle version elle exécute (VERSION_EN_USAGE). Ce que
+ *    citent les pages en cache et les versions signalées depuis moins de
+ *    sept jours est CONSERVÉ ; le reste des fichiers du build peut partir,
+ *    au plus une fois par jour. Au moindre doute, on ne supprime rien.
+ */
+const META_CACHE = "tm-versions-meta";
+/* Chaque écriture de fichier dans les caches l'incrémente : un nettoyage qui
+   voit ce compteur bouger pendant son calcul abandonne sans rien supprimer. */
+let ecrituresCache = 0;
+const META_VERSIONS = "/__tm-meta/versions";
+const META_NETTOYAGE = "/__tm-meta/nettoyage";
+const META_RECONSTRUCTION = "/__tm-meta/reconstruction";
+const PREP_PREFIXE = "tm-prep-";
+const PREPARATION_MAX = 1500;
+const RETENTION_MS = 7 * 24 * 3600_000;
+const NETTOYAGE_PERIODE_MS = 24 * 3600_000;
+
+/* Une écriture des métadonnées à la fois : lire-modifier-écrire sans course. */
+let fileMeta = Promise.resolve();
+function avecMeta(f) {
+  const suite = fileMeta.then(f, f);
+  fileMeta = suite.catch(() => {});
+  return suite;
+}
+/**
+ * Lit une métadonnée. ABSENTE → `defaut` ; ILLISIBLE → exception. Les deux
+ * ne se confondent jamais : réécrire par-dessus une lecture ratée effacerait
+ * les versions qu'un autre onglet a signalées, et le nettoyage suivant
+ * supprimerait ses fichiers.
+ */
+async function lireMeta(cle, defaut) {
+  const rep = await (await caches.open(META_CACHE)).match(cle);
+  if (!rep) return defaut;
+  const valeur = await rep.json(); // lève si illisible
+  if (!valeur || typeof valeur !== "object") throw new Error("métadonnée illisible");
+  return valeur;
+}
+async function ecrireMeta(cle, valeur) {
+  const c = await caches.open(META_CACHE);
+  await c.put(cle, new Response(JSON.stringify(valeur), { headers: { "Content-Type": "application/json" } }));
+}
+
+/** La version inscrite dans un HTML (balise tm-version), ou null. */
+function versionDuHtml(texte) {
+  const m = /<meta[^>]+name="tm-version"[^>]+content="([^"]*)"/.exec(texte)
+    || /<meta[^>]+content="([^"]*)"[^>]+name="tm-version"/.exec(texte);
+  if (!m) return null;
+  try {
+    const brut = m[1].replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&amp;/g, "&");
+    return JSON.parse(brut);
+  } catch { return null; }
+}
+
+/** Les fragments cités par un texte (HTML ou JS), en adresses absolues. */
+function citations(texte) {
+  const out = [];
+  for (const m of texte.matchAll(RE_FRAGMENT)) out.push(self.location.origin + "/_next/" + m[1]);
+  return out;
+}
+
+/** Ce qu'une feuille de style cite par `url(...)` (polices, images), résolu depuis SON adresse. */
+const RE_URL_CSS = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
+function citationsCss(texte, base) {
+  const out = [];
+  for (const m of texte.matchAll(RE_URL_CSS)) {
+    try {
+      const x = new URL(m[2], base);
+      if (x.origin === self.location.origin && x.pathname.startsWith("/_next/static/")) out.push(x.origin + x.pathname);
+    } catch { /* data:, adresse illisible : ignorée */ }
+  }
+  return out;
+}
+
+/** Tout ce qu'un fichier de code cite : JS par chaînes, CSS par url(). */
+async function dependances(url, rep) {
+  if (url.endsWith(".js")) return citations(await rep.text());
+  if (url.endsWith(".css")) { const t = await rep.text(); return [...citations(t), ...citationsCss(t, url)]; }
+  return [];
+}
+
+/* Les gros travaux sur les caches — préparer, nettoyer — un à la fois :
+   un nettoyage ne doit jamais tourner pendant qu'une préparation recopie
+   des fichiers que rien ne cite encore. */
+let fileTravaux = Promise.resolve();
+function enSerie(f) {
+  const suite = fileTravaux.then(f, f);
+  fileTravaux = suite.catch(() => {});
+  return suite;
+}
+
+let preparationEnCours = null;
+let preparationIdEnCours = null;
+
+/**
+ * Télécharge la coquille `/` de la version visée et TOUT ce qu'elle cite,
+ * de proche en proche. Tout ou rien. Rend true si la version est prête.
+ */
+async function preparerVersion(id, champ) {
+  const nomPrep = PREP_PREFIXE + id.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+  /* Les préparations interrompues (iOS arrête le worker en arrière-plan)
+     laissent leur cache : une seule préparation tourne à la fois, on peut
+     donc tous les jeter ici. */
+  for (const nom of await caches.keys()) {
+    if (nom.startsWith(PREP_PREFIXE)) await caches.delete(nom);
+  }
+  const prep = await caches.open(nomPrep);
+  try {
+    const coquille = await fetch("/", { credentials: "same-origin", cache: "no-store" });
+    const finale = new URL(coquille.url || "/", self.location.origin);
+    if (!coquille.ok || coquille.redirected || finale.pathname !== "/") throw new Error("coquille indisponible");
+    const html = await coquille.clone().text();
+    const v = versionDuHtml(html);
+    if (!v || v[champ === "sha" ? "sha" : "deploiement"] !== id) throw new Error("coquille d'une autre version");
+    await prep.put("/", coquille);
+
+    const aSuivre = citations(html);
+    const vus = new Set();
+    while (aSuivre.length) {
+      const url = aSuivre.shift();
+      if (vus.has(url)) continue;
+      if (vus.size >= PREPARATION_MAX) throw new Error("limite atteinte");
+      vus.add(url);
+      let rep = await caches.match(url);
+      if (!rep || !rep.ok) {
+        rep = await fetch(url, { credentials: "same-origin" });
+        if (!rep || !rep.ok) throw new Error("fragment manquant " + url);
+      }
+      await prep.put(url, rep.clone());
+      aSuivre.push(...await dependances(url, rep));
+    }
+
+    /* Tout est là : on publie. Ordre voulu :
+       1. les fragments — AJOUTS seulement : leurs adresses portent leur
+          empreinte, aucune entrée existante n'est remplacée ni retirée ;
+       2. les métadonnées de rétention de la nouvelle version ;
+       3. la coquille `/`, en DERNIER et en une seule écriture.
+       Un échec avant 3 laisse l'ancienne coquille et tout l'existant intacts
+       (les fragments ajoutés sont inertes, et nettoyables) ; après 3, il n'y
+       a plus rien qui puisse échouer. */
+    const principal = await caches.open(CACHE_NAME);
+    for (const url of vus) {
+      const rep = await prep.match(url);
+      if (!rep) throw new Error("copie incomplète");
+      await principal.put(url, rep);
+    }
+    await avecMeta(async () => {
+      const versions = await lireVersionsOuReconstruire();
+      versions[id] = { ...(versions[id] || {}), racines: [...vus].slice(0, 800), vuLe: Date.now() };
+      await ecrireMeta(META_VERSIONS, versions);
+    });
+    const c = await prep.match("/");
+    if (!c) throw new Error("copie incomplète");
+    await principal.put("/", c);
+    await caches.delete(nomPrep).catch(() => {});
+    return true;
+  } catch {
+    await caches.delete(nomPrep).catch(() => {});
+    return false;
+  }
+}
+
+/**
+ * Des métadonnées illisibles ne sont jamais réécrites à l'aveugle. Si elles
+ * le restent, on repart d'une liste neuve — mais on NOTE la reconstruction :
+ * le nettoyage s'abstient alors pendant toute la durée de rétention, le
+ * temps que chaque onglet encore ouvert ait redit ce qu'il utilise.
+ */
+async function lireVersionsOuReconstruire() {
+  try {
+    return await lireMeta(META_VERSIONS, {});
+  } catch {
+    await ecrireMeta(META_RECONSTRUCTION, { quand: Date.now() });
+    return {};
+  }
+}
+
+/** Une page dit quelle version elle exécute, et ce qu'elle a chargé. */
+async function noterUsage(id, racines) {
+  const origine = self.location.origin;
+  const propres = (racines || []).filter((u) => {
+    try { const x = new URL(u); return x.origin === origine && x.pathname.startsWith("/_next/static/"); } catch { return false; }
+  }).slice(0, 400);
+  await avecMeta(async () => {
+    const versions = await lireVersionsOuReconstruire();
+    const avant = versions[id] || {};
+    versions[id] = { racines: [...new Set([...(avant.racines || []), ...propres])].slice(0, 800), vuLe: Date.now() };
+    /* Les versions muettes depuis plus de deux fois la rétention sont oubliées. */
+    for (const [cle, v] of Object.entries(versions)) {
+      if (!v || typeof v.vuLe !== "number" || Date.now() - v.vuLe > 2 * RETENTION_MS) delete versions[cle];
+    }
+    await ecrireMeta(META_VERSIONS, versions);
+  });
+}
+
+/**
+ * Supprime les fichiers du build que plus rien ne cite. Conservé : la
+ * fermeture (calculée dans les caches seulement, sans réseau) de toutes les
+ * pages en cache et des racines signalées depuis moins de sept jours. Une
+ * erreur de lecture annule tout. Au plus une fois par jour.
+ */
+async function nettoyerSiPossible(maintenant = Date.now()) {
+  if (self.navigator && self.navigator.onLine === false) return { fait: false, raison: "hors ligne" };
+  const dernier = await lireMeta(META_NETTOYAGE, { quand: 0 });
+  if (maintenant - (dernier.quand || 0) < NETTOYAGE_PERIODE_MS) return { fait: false, raison: "trop tôt" };
+  const origine = self.location.origin;
+  const reconstruction = await lireMeta(META_RECONSTRUCTION, { quand: 0 });
+  if (maintenant - (reconstruction.quand || 0) < RETENTION_MS) return { fait: false, raison: "métadonnées reconstruites récemment" };
+  const versions = await lireMeta(META_VERSIONS, null);
+  if (!versions) return { fait: false, raison: "métadonnées absentes" };
+
+  /* La liste de ce qui POURRAIT partir est relevée AVANT le calcul de ce
+     qu'on garde : un fichier mis en cache pendant le calcul n'y figure pas,
+     il ne peut donc pas être supprimé. Et si une écriture a eu lieu
+     pendant le calcul, on abandonne tout. */
+  const ecrituresAuDepart = ecrituresCache;
+  const candidats = [];
+  for (const nom of [CACHE_NAME, STATIC_CACHE]) {
+    const c = await caches.open(nom);
+    for (const req of await c.keys()) {
+      const x = new URL(req.url);
+      if (x.origin === origine && x.pathname.startsWith("/_next/static/")) candidats.push([nom, req]);
+    }
+  }
+
+  const aSuivre = [];
+  for (const v of Object.values(versions)) {
+    if (v && typeof v.vuLe === "number" && maintenant - v.vuLe < RETENTION_MS) aSuivre.push(...(v.racines || []));
+  }
+  /* Les pages en cache citent leur propre code : on le garde. */
+  for (const nom of [CACHE_NAME, PRECACHE_CACHE]) {
+    const c = await caches.open(nom);
+    for (const req of await c.keys()) {
+      const x = new URL(req.url);
+      if (x.origin !== origine || x.pathname.startsWith("/_next/") || x.pathname.startsWith("/api/")) continue;
+      const rep = await c.match(req);
+      if (!rep) throw new Error("lecture impossible");
+      /* Pages HTML et réponses de navigation interne (RSC) : toutes deux citent du code. */
+      const type = rep.headers.get("content-type") || "";
+      if (type.includes("text/html") || type.includes("text/x-component")) aSuivre.push(...citations(await rep.text()));
+    }
+  }
+  const garde = new Set();
+  while (aSuivre.length) {
+    const url = aSuivre.shift();
+    if (garde.has(url)) continue;
+    garde.add(url);
+    if (!url.endsWith(".js") && !url.endsWith(".css")) continue;
+    const rep = await caches.match(url);
+    if (rep) aSuivre.push(...await dependances(url, rep));
+  }
+  if (ecrituresCache !== ecrituresAuDepart) return { fait: false, raison: "écritures pendant le calcul" };
+  let supprimes = 0;
+  for (const [nom, req] of candidats) {
+    if (ecrituresCache !== ecrituresAuDepart) break; // une écriture arrive : on s'arrête là
+    const cle = origine + new URL(req.url).pathname;
+    if (garde.has(cle) || garde.has(req.url)) continue;
+    if (await (await caches.open(nom)).delete(req)) supprimes++;
+  }
+  await ecrireMeta(META_NETTOYAGE, { quand: maintenant, supprimes, gardes: garde.size });
+  return { fait: true, supprimes, gardes: garde.size };
+}
+
+/**
+ * Un ancien pré-cache ne disparaît qu'après avoir confié ses fichiers au
+ * cache principal : une page ouverte qui comptait sur l'un d'eux le
+ * retrouve. Une recopie ratée : on le garde, pour la prochaine fois.
+ */
+async function migrerPreCache(nom) {
+  try {
+    const ancien = await caches.open(nom);
+    const principal = await caches.open(CACHE_NAME);
+    for (const req of await ancien.keys()) {
+      if (await principal.match(req)) continue;
+      const rep = await ancien.match(req);
+      if (!rep) throw new Error("lecture impossible");
+      await principal.put(req, rep);
+    }
+    await caches.delete(nom);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -128,22 +428,23 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then(async (keys) => {
-      const perimes = keys.filter(
-        (key) => key !== STATIC_CACHE && key !== API_CACHE && key !== CACHE_NAME && key !== PRECACHE_CACHE,
-      );
-      await Promise.all(perimes.map((key) => caches.delete(key)));
+      const actuels = new Set([STATIC_CACHE, API_CACHE, CACHE_NAME, PRECACHE_CACHE, META_CACHE]);
+      for (const key of keys) {
+        if (actuels.has(key)) continue;
+        /* Un ancien pré-cache confie d'abord ses fichiers au cache principal. */
+        if (key.startsWith("tm-precache-")) { await migrerPreCache(key); continue; }
+        /* Une préparation interrompue (fermeture de l'app) : à jeter. */
+        if (key.startsWith(PREP_PREFIXE)) { await caches.delete(key); continue; }
+        /* Les caches d'une ANCIENNE valeur de VERSION. */
+        await caches.delete(key);
+      }
 
-      // MISE À JOUR (et non première installation) : les pages ouvertes
-      // exécutent encore l'ANCIEN bundle, chargé depuis les caches qu'on vient
-      // d'effacer. Elles ne le savent pas et peuvent le garder des jours — c'est
-      // ce qui faisait afficher à l'iPhone d'autres chiffres qu'au Mac. On les
-      // renavigue une fois, pour qu'elles repartent sur le code à jour.
-      if (perimes.length === 0) return;
+      /* On ne recharge plus les pages ouvertes : une fiche en cours de saisie
+         repartait de zéro sous les doigts du monteur. Chaque page décide
+         elle-même du bon moment (voir MajAuto) ; on la prévient seulement. */
       const fenetres = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const fenetre of fenetres) {
-        if ("navigate" in fenetre) {
-          try { await fenetre.navigate(fenetre.url); } catch { /* onglet occupé : il repartira au prochain lancement */ }
-        }
+        try { fenetre.postMessage({ type: "SW_ACTIVE", version: VERSION }); } catch { /* onglet fermé */ }
       }
     }),
   );
@@ -166,6 +467,7 @@ async function networkFirstWithTimeout(request, cache, timeoutMs) {
     (response) => {
       networkResolved = true;
       if (response && response.ok) {
+        ecrituresCache++;
         cache.put(request, response.clone()).catch(() => {});
       }
       return response;
@@ -205,7 +507,7 @@ async function networkFirstFresh(request, cache) {
      copie en cache s'il y en a une (le réseau continue derrière et la
      rafraîchira) ; sans copie, on continue d'attendre, c'est la seule option. */
   const networkPromise = fetch(request).then((response) => {
-    if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
+    if (response && response.ok) { ecrituresCache++; cache.put(request, response.clone()).catch(() => {}); }
     return response;
   });
   const timeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), FRESH_TIMEOUT_MS));
@@ -372,6 +674,7 @@ self.addEventListener("fetch", (event) => {
           .then((response) => {
             if (response && response.ok) {
               const cloned = response.clone();
+              ecrituresCache++;
               caches.open(STATIC_CACHE).then((cache) => cache.put(request, cloned));
             }
             return response;
@@ -464,19 +767,44 @@ self.addEventListener("notificationclick", function (event) {
 
 // === Message handler ===
 self.addEventListener("message", (event) => {
-  // Purge de la coquille HTML et des fichiers du build, sur demande du client
-  // (voir `MajAuto`) : l'app tourne sur un ancien bundle et va se recharger.
-  // Le cache des données (API_CACHE) est conservé — il reste consultable hors
-  // ligne, et il n'est pas en cause.
+  // Ancien message (pages d'avant la refonte des mises à jour) : il VIDAIT la
+  // coquille et les fichiers du build avant de recharger. On répond comme
+  // avant, mais sans rien effacer : la page se recharge par le réseau, et
+  // une coupure à ce moment ne la laisse plus sans coquille.
   if (event.data?.type === "PURGE_APP_SHELL") {
+    event.source?.postMessage({ type: "APP_SHELL_PURGED" });
+  }
+
+  // Télécharger une nouvelle version, tout ou rien (voir preparerVersion).
+  if (event.data?.type === "PREPARER_VERSION" && typeof event.data.deploiement === "string") {
+    const id = event.data.deploiement.slice(0, 80);
+    const champ = event.data.champ === "sha" ? "sha" : "deploiement";
+    const source = event.source;
+    let essai;
+    if (!preparationEnCours) {
+      preparationIdEnCours = id;
+      preparationEnCours = enSerie(() => preparerVersion(id, champ)).finally(() => { preparationEnCours = null; preparationIdEnCours = null; });
+      essai = preparationEnCours;
+    } else if (preparationIdEnCours === id) {
+      essai = preparationEnCours;
+    } else {
+      /* Une autre version est en cours de préparation : celle-ci réessaiera. */
+      essai = Promise.resolve(false);
+    }
+    const travail = essai.then(async (ok) => {
+      try { source?.postMessage({ type: ok ? "VERSION_PRETE" : "VERSION_NON_PREPAREE", deploiement: id }); } catch { /* onglet fermé */ }
+      if (ok) await enSerie(() => nettoyerSiPossible()).catch(() => {});
+    });
+    event.waitUntil(travail);
+  }
+
+  // Une page signale la version qu'elle exécute (rétention des fichiers),
+  // puis, au plus une fois par jour, le nettoyage passe.
+  if (event.data?.type === "VERSION_EN_USAGE" && typeof event.data.deploiement === "string") {
     event.waitUntil(
-      Promise.all([
-        caches.delete(CACHE_NAME),
-        caches.delete(STATIC_CACHE),
-        caches.delete(PRECACHE_CACHE),
-      ]).then(() => {
-        event.source?.postMessage({ type: "APP_SHELL_PURGED" });
-      }),
+      noterUsage(event.data.deploiement.slice(0, 80), Array.isArray(event.data.racines) ? event.data.racines : [])
+        .then(() => enSerie(() => nettoyerSiPossible()))
+        .catch(() => { /* lecture impossible : rien n'est écrit ni supprimé */ }),
     );
   }
 
@@ -525,6 +853,7 @@ self.addEventListener("message", (event) => {
               // cache telles quelles (headers préservés).
               if (url.includes("/api/file-proxy")) {
                 const buf = await response.arrayBuffer();
+                ecrituresCache++;
                 await cache.put(url, new Response(buf, {
                   status: 200,
                   headers: {
@@ -533,6 +862,7 @@ self.addEventListener("message", (event) => {
                   },
                 }));
               } else {
+                ecrituresCache++;
                 await cache.put(url, response);
               }
             }
