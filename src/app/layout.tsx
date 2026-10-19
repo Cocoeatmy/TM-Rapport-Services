@@ -71,6 +71,8 @@ export default function RootLayout({
     <html lang="fr" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <head>
         <meta name="tm-build" content={BUILD} />
+        {/* Relevé Git de la compilation (diagnostic du versionnement). */}
+        <meta name="tm-version-diag" content={process.env.TM_VERSION_COMPILATION || ""} />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
