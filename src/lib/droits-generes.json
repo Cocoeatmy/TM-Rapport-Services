@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-19T19:01:56.711Z",
+  "genereLe": "2026-10-19T19:53:45.536Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -447,7 +447,7 @@
       "url": "/api/controles",
       "type": "api",
       "fichier": "src/app/api/controles/route.ts",
-      "niveau": "connecte",
+      "niveau": "droit",
       "gardePage": false,
       "methodes": [
         "GET"

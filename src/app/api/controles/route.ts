@@ -9,7 +9,7 @@
  * l'affichage, quelques dizaines de lignes.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { exigerDroit } from "@/lib/droits-serveur";
 import { getAllProjectsRaw } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
 import { appliquer, compterFiches, compterFichesVives, DORMANT_JOURS, REGLES_ANOMALIES, REGLES_RELANCES } from "@/lib/regles";
@@ -18,12 +18,13 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
-  const token = req.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  try { if (!(await verifyToken(token))) throw new Error(); }
-  catch { return NextResponse.json({ error: "Non autorisé" }, { status: 401 }); }
-
   const jeu = req.nextUrl.searchParams.get("jeu") === "relances" ? "relances" : "anomalies";
+  /* Toutes les fiches, hors périmètre : réservé à qui en a le droit. Les
+     relances (dossiers, factures qui dorment) relèvent de « argent.relances » ;
+     les anomalies de saisie, d'une page d'administration. Il suffisait
+     auparavant d'être connecté. */
+  const v = await exigerDroit(jeu === "relances" ? "argent.relances" : "administration.droits");
+  if ("refus" in v) return v.refus;
   const regles = jeu === "relances" ? REGLES_RELANCES : REGLES_ANOMALIES;
 
   try {

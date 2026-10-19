@@ -44,6 +44,8 @@ import {
 } from "@/lib/sav-cabines";
 import { EtatSavRapide } from "@/components/etat-sav-rapide";
 import { PersonalStats } from "@/components/personal-stats";
+import { useIsSignalTheme } from "@/lib/use-signal-theme";
+import { useDroits } from "@/lib/use-droits";
 
 // ─── Citations motivantes quotidiennes (365) ────────────────────────────────
 const DAILY_QUOTES: string[] = [
@@ -1651,9 +1653,27 @@ const RDV_STATUS_ORDER: Record<string, string[]> = {
 };
 
 type ForcedPanel = "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer";
-function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [], forcePanel = null, onForcePanelClose }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[]; forcePanel?: ForcedPanel | null; onForcePanelClose?: () => void }) {
+function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [], forcePanel = null, onForcePanelClose, restreint = false }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[]; forcePanel?: ForcedPanel | null; onForcePanelClose?: () => void; restreint?: boolean }) {
   useNotionColors(); // couleurs Notion sur les badges de statut
   const firstName = userName.split(" ")[0];
+  /* ── Compte collaborateur (`restreint`) ────────────────────────────────
+     Le même tableau de bord que l'administrateur — c'est la référence du
+     thème Signal —, mais seulement ce que le compte a le droit de voir.
+     Tant que les droits ne sont pas lus, RIEN de réservé n'est montré (au
+     contraire de `peut()`, qui suppose autorisé). Masquer n'est que du
+     confort : chaque route appelée vérifie elle-même ses droits. */
+  const { mes: mesDroits, peut } = useDroits();
+  const autorise = (id: string) => !restreint || (!!mesDroits && peut(id));
+  /** Charge et disponibilité de l'ÉQUIPE : « suivre l'activité de l'équipe ». */
+  const voitEquipe = autorise("tableau.activite");
+  /** Signaux (bexio, appareils, relances, pages d'administration) : administrateur. */
+  const voitSignaux = !restreint;
+  const tuileAutorisee = (id: string) =>
+    id === "a-facturer" ? autorise("argent.voir")
+    : id === "mesures-sans-commande" ? autorise("argent.relances")
+    /* « Monteurs actifs » : heures et statistiques de chacun. */
+    : id === "active" ? voitEquipe
+    : true;
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
 
@@ -1795,7 +1815,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // Thème « Signal » actif ? Il dispose de son PROPRE rendu de dashboard.
   // Tout autre thème (Classique, Aurora) continue d'emprunter
   // exactement le même chemin de code qu'avant : rien n'est modifié pour eux.
-  const [isSignal, setIsSignal] = useState(false);
+  /* Lu dès le premier rendu (composant client seulement, chargé sans rendu
+     serveur) : un compte collaborateur ne doit jamais entrevoir, le temps
+     d'une image, le rendu classique de l'administrateur. */
+  const [isSignal, setIsSignal] = useState(() =>
+    typeof document !== "undefined" && document.documentElement.getAttribute("data-ui") === "signal");
   // Projet sélectionné dans la vue maître-détail du thème Signal.
   const [sgSelected, setSgSelected] = useState<string | null>(null);
   // Onglet de catégorie de la grille de tuiles (thème Signal). "all" = tout,
@@ -1865,6 +1889,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
    */
   const [absences, setAbsences] = useState<Set<string>>(new Set());
   useEffect(() => {
+    if (restreint) return; // disponibilités de l'équipe : vue administrateur
     let vivant = true;
     fetch("/api/absences")
       .then((r) => (r.ok ? r.json() : []))
@@ -2495,6 +2520,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [relancesHisto, setRelancesHisto] = useState<Record<string, string[]>>({});
   const [filtreRelance, setFiltreRelance] = useState<FiltreRelance>("");
   useEffect(() => {
+    if (restreint) return; // réservé à « argent.relances »
     fetch("/api/relance/trace")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d?.historique) setRelancesHisto(d.historique); })
@@ -2603,6 +2629,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   }, []);
 
   useEffect(() => {
+    if (restreint) return; // réservé à l'administrateur
     fetch("/api/user-activity")
       .then((r) => r.json())
       .then((data) => {
@@ -3047,6 +3074,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     resume: { appareils: number; photosEnAttente: number; photosEnEchec: number; requetesEnAttente: number; rapportsNonEnvoyes: number; bloques: { nom: string; projectId: string; depuis: number }[] };
   } | null>(null);
   useEffect(() => {
+    if (restreint) return; // réservé à l'administrateur
     let vivant = true;
     const lire = () => fetch("/api/admin/appareils")
       .then((r) => (r.ok ? r.json() : null))
@@ -3065,6 +3093,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     return () => { vivant = false; };
   }, []);
   useEffect(() => {
+    if (restreint) return; // réservé à « argent.relances »
     let vivant = true;
     fetch("/api/controles?jeu=relances")
       .then((r) => (r.ok ? r.json() : null))
@@ -3138,6 +3167,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   /** Quelle liste bexio est ouverte dans le tiroir — et aucune par défaut. */
   const [apercuBexio, setApercuBexio] = useState<"devis" | "echues" | null>(null);
   useEffect(() => {
+    if (restreint) return; // réservé au propriétaire des accès bexio
     let vivant = true;
     fetch("/api/bexio/signaux")
       .then(async (r) => {
@@ -3574,6 +3604,51 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </div>
           </div>
 
+          {/* Compte collaborateur : SES interventions d'abord — ce que son
+              ancien tableau de bord mettait en tête (« Cette semaine »). Même
+              ligne Signal que l'agenda ; un appui ouvre l'aperçu du chantier. */}
+          {restreint && (() => {
+            const aujourdhui = getTodayStr();
+            const prochaines = getProjectsForCollaborator(projects, firstName)
+              .filter((p) => projectActiveDuringRange(p, aujourdhui, getWeekEndStr()))
+              .sort((x, y) => ((getProjectSource(x) === "mesures" ? x.dateMesures : x.dateMontage) || "")
+                .localeCompare((getProjectSource(y) === "mesures" ? y.dateMesures : y.dateMontage) || ""));
+            const COULEURS: Record<string, string> = { montage: "#1b63ff", mesures: "#0e7490", services: "#6d28d9", sav: "#b45309" };
+            const MODES: Record<string, string> = { montage: "cmd", mesures: "mesures", services: "services", sav: "sav" };
+            return (
+              <div className="sg-section sg-mes-interventions">
+                <div className="sg-section-head">
+                  <span>Mes interventions</span>
+                  <i className="sg-rule" />
+                </div>
+                <div className="sg-card">
+                  {prochaines.length === 0 && (
+                    <div className="sg-row sg-row-static"><span className="sg-row-label">Aucune intervention prévue d&apos;ici la fin de la semaine prochaine</span></div>
+                  )}
+                  {prochaines.map((p) => {
+                    const source = getProjectSource(p);
+                    const brut = (source === "mesures" ? p.dateMesures : p.dateMontage) || "";
+                    const quand = brut ? new Date(brut.includes("T") ? brut : brut + "T12:00:00") : null;
+                    const jour = quand ? quand.toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" }) : "";
+                    const heure = quand && brut.includes("T") ? quand.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" }) : "";
+                    return (
+                      <button key={`${source}-${p.id}`} type="button" className="sg-row"
+                        title={`${p.ofrTM || ""} ${p.projet || ""}`.trim()}
+                        onClick={() => openSignalPreview(p, MODES[source] || "cmd")}>
+                        <span className="sg-row-bar" style={{ background: COULEURS[source] || "var(--sg-line-strong)" }} />
+                        <span className="sg-row-label">
+                          {[jour, heure].filter(Boolean).join(" · ")}{jour ? " — " : ""}{p.projet}
+                        </span>
+                        <span className="sg-row-count">{p.nbCabines || 0}</span>
+                        <span className="sg-row-unit">cab.</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Agenda — aujourd'hui / demain / après-demain.
               Les compteurs historiques ne voient que les projets DÉJÀ ATTRIBUÉS
               à un monteur (ils dérivent de collabData) : un RDV fixé sans
@@ -3837,9 +3912,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               qu'on ouvrait une fiche — c'est-à-dire au moment même où un
               monteur veut savoir si sa journée est chargée. */}
 
-          {/* Charge de la semaine + Signaux, côte à côte */}
-          <div className="sg-duo">
-            {(() => {
+          {/* Charge de la semaine + Signaux, côte à côte. Pour un collaborateur :
+              la charge de l'équipe selon son droit, jamais les signaux. */}
+          {(voitEquipe || voitSignaux) && (
+          <div className={voitEquipe && voitSignaux ? "sg-duo" : "sg-duo is-seul"}>
+            {voitEquipe && (() => {
               const now = new Date();
               const monday = new Date(now);
               monday.setDate(now.getDate() - ((now.getDay() + 6) % 7) + sgWeek * 7);
@@ -4567,6 +4644,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               );
             })()}
 
+            {voitSignaux && (
             <div className="sg-card">
               <div className="sg-card-head">
                 <span className="sg-card-title">Signaux</span>
@@ -4786,7 +4864,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </Link>
               )}
             </div>
+            )}
           </div>
+          )}
 
           {/* Projets derrière une pastille de légende : un chiffre du tableau
               de bord doit pouvoir être ouvert pour voir ce qu'il recouvre. */}
@@ -4794,7 +4874,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               tiroir que la charge de la semaine : on reste sur la page, et la
               liste se referme d'un geste. Les montants n'y sont écrits qu'ici,
               une fois le tiroir ouvert. */}
-          {apercuBexio && signauxBexio.etat === "pret" && (
+          {voitSignaux && apercuBexio && signauxBexio.etat === "pret" && (
             <>
               <div className="sgs-drawer" role="dialog"
                 aria-label={apercuBexio === "devis" ? "Devis en attente" : "Factures échues"}>
@@ -4898,7 +4978,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   title={ouvert ? `Replier ${c.label.toLowerCase()}` : `Afficher ${c.label.toLowerCase()}`}
                 >
                   {c.label}
-                  <span className="sg-cat-n">{c.id === "all" ? buttonOrder.filter((i) => !isEmptyId(i)).length : c.ids.length}</span>
+                  <span className="sg-cat-n">{c.id === "all" ? buttonOrder.filter((i) => !isEmptyId(i) && tuileAutorisee(i)).length : c.ids.filter(tuileAutorisee).length}</span>
                   {/* Le chevron ne s'affiche que sur l'onglet ouvert : six
                       chevrons côte à côte ne diraient rien de plus. */}
                   {ouvert && <ChevronUp className="w-3 h-3 sg-cat-chev" />}
@@ -5231,6 +5311,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             <div className={`dash-grid grid grid-cols-2 sm:grid-cols-6 gap-1.5 sm:gap-3 ${isEditMode ? "select-none" : ""}`}>
               {buttonOrder
                 .filter((id) => {
+                  // Compte collaborateur : seulement les tuiles autorisées.
+                  if (!tuileAutorisee(id)) return false;
                   // Thème Signal : filtrage par onglet de catégorie. « Tout »
                   // (et tous les autres thèmes) → grille complète inchangée.
                   if (!isSignal || sgCat === "all" || sgCat === "") return true;
@@ -9729,6 +9811,7 @@ function CollaborateurDashboard({ userName, projects, onNavigate }: { userName: 
           userName={userName}
           forcePanel={showPanel}
           onForcePanelClose={() => setShowPanel(null)}
+          restreint
         />
       )}
 
@@ -9924,9 +10007,19 @@ function CollaborateurDashboard({ userName, projects, onNavigate }: { userName: 
 }
 
 export function MonteurDashboard({ userName, projects, isAdmin, onNavigate, terminatedProjectsInit = [] }: MonteurDashboardProps) {
+  const isSignal = useIsSignalTheme();
   // Admin view: show all collaborators
   if (isAdmin) {
     return <AdminDashboard projects={projects} userName={userName} onNavigate={onNavigate} terminatedProjectsInit={terminatedProjectsInit} />;
+  }
+
+  /* Thème Signal : le collaborateur a LE tableau de bord Signal — celui de
+     l'administrateur, qui en est la référence —, réduit à ce que ses droits
+     autorisent (`restreint`). Il avait jusqu'ici un écran à part, jamais
+     adapté à Signal : le thème n'y changeait que les couleurs. Les thèmes
+     Classique et Aurora gardent l'écran collaborateur, inchangé. */
+  if (isSignal) {
+    return <AdminDashboard projects={projects} userName={userName} onNavigate={onNavigate} terminatedProjectsInit={terminatedProjectsInit} restreint />;
   }
 
   // Collaborateur (non-admin) view

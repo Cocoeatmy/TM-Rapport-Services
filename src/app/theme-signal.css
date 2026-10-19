@@ -1396,6 +1396,18 @@ html[data-ui="signal"] .sg-signal-arrow {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+/* « Mes interventions » (compte collaborateur) : une ligne par chantier, le
+   nom rogné plutôt qu'un « cab. » renvoyé seul à la ligne. */
+html[data-ui="signal"] .sg-mes-interventions .sg-row { flex-wrap: nowrap; }
+html[data-ui="signal"] .sg-mes-interventions .sg-row-label {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sg-mes-interventions .sg-row-unit { width: auto; }
+/* Compte collaborateur : une seule des deux cartes (la charge, selon ses
+   droits) — elle prend toute la largeur au lieu de laisser une colonne vide. */
+html[data-ui="signal"] .sg-duo.is-seul {
+  grid-template-columns: minmax(0, 1fr);
+}
 
 /* ── Écran dense « RDV … à fixer » — vue maître-détail ────────────────────
    Markup rendu uniquement sous la garde isSignal. */
