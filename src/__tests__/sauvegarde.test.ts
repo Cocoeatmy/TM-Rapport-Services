@@ -33,6 +33,13 @@ vi.mock("../lib/kv-store", () => ({
   }),
 }));
 
+/** Le journal vivant, dans sa liste Redis. */
+let journalRedis: string[] = [];
+vi.mock("../lib/redis-cache", () => ({
+  redisEnabled: true,
+  redisLRange: vi.fn(async (cle: string) => (cle === "logs" ? journalRedis : [])),
+}));
+
 const {
   CLES_SAUVEGARDEES, cleDeSauvegarde, emplacementsDe,
   sauvegarderUne, sauvegarderTout, apercuRestauration,
@@ -45,6 +52,7 @@ beforeEach(() => {
   lectureLeve = null;
   contenu = [{ id: "a" }, { id: "b" }, { id: "c" }];
   relecture = null;
+  journalRedis = [];
 });
 
 describe("où va une sauvegarde", () => {
@@ -93,6 +101,16 @@ describe("TEST A — une erreur Notion n'écrit rien", () => {
     expect(r.etat).toBe("ok");
     expect(r.lignes).toBe(3);
     expect(r.verifiees).toBe(3);
+  });
+});
+
+describe("la copie nocturne du journal", () => {
+  it("prend la liste Redis ET le reliquat Notion, sans doublon", async () => {
+    contenu = [{ id: "a", timestamp: 1 }, { id: "b", timestamp: 2 }];
+    journalRedis = [JSON.stringify({ id: "c", timestamp: 3 }), JSON.stringify({ id: "b", timestamp: 2 })];
+    const r = await sauvegarderUne("logs", LUNDI);
+    expect(r.lignes).toBe(3); // c (Redis), b (dédoublonné), a (reliquat)
+    expect(ecritures).toEqual([{ cle: "sauvegarde-logs-lun", lignes: 3 }]);
   });
 });
 

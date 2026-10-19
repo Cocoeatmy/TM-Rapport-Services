@@ -64,8 +64,11 @@ export async function sauvegarderUne(
   try {
     /* `getDataFresh` LÈVE en cas d'erreur Notion, contrairement à `getData`
        qui rend une liste vide. C'est toute la différence entre « il n'y a
-       rien » et « je n'ai pas pu lire ». */
-    donnees = await getDataFresh<unknown>(cle);
+       rien » et « je n'ai pas pu lire ».
+       Le journal passe par ses DEUX sources (Redis + reliquat Notion) : la
+       copie nocturne ne lisait que le reliquat — 500 lignes sur plus de
+       3 000, constaté en relisant les copies du 18 et du 19.10.2026. */
+    donnees = await lireListeSauvegardable(cle);
   } catch (e) {
     return {
       cle, emplacement, lignes: 0, verifiees: 0,
@@ -165,7 +168,7 @@ export async function apercuRestauration(cle: string, emplacement: string): Prom
   let sauvegarde: number | null = null;
   let message: string | undefined;
   try {
-    actuel = (await getDataFresh<unknown>(cle)).length;
+    actuel = (await lireListeSauvegardable(cle)).length;
   } catch (e) {
     message = `état actuel illisible : ${e instanceof Error ? e.message : String(e)}`;
   }
