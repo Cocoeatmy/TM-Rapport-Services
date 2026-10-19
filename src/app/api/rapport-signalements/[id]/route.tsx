@@ -284,18 +284,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!sigValid && !authed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   try {
-    const project = await getProject(id);
-    /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
-       « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
-    const avecContacts = contactsVisibles(
-      await lireReglagesRapports(),
-      req.nextUrl.searchParams.get("contacts"),
-    );
-
-    const [allPieces, allDefauts] = await Promise.all([
+    /* Les quatre lectures sont indépendantes : elles partent ENSEMBLE. */
+    const [project, reglages, allPieces, allDefauts] = await Promise.all([
+      getProject(id),
+      lireReglagesRapports(),
       getDataFresh<Piece>("pieces").catch(() => getData<Piece>("pieces").catch(() => [] as Piece[])),
       getDataFresh<Defaut>("defauts").catch(() => getData<Defaut>("defauts").catch(() => [] as Defaut[])),
     ]);
+    /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
+       « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
+    const avecContacts = contactsVisibles(reglages, req.nextUrl.searchParams.get("contacts"));
     // Sélection explicite (ids) prioritaire ; sinon filtre « displayInRapport ».
     const keep = (x: { id: string; displayInRapport?: boolean }) =>
       idsSet ? idsSet.has(x.id) : (includeAll || x.displayInRapport !== false);

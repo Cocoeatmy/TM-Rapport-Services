@@ -1038,11 +1038,28 @@ export async function GET(
   }
 
   try {
-    const project = await getProject(id);
+    /* Toutes les lectures partent ENSEMBLE (elles se suivaient, cinq de
+       suite) : la fiche, les réglages, les commentaires, les signalements,
+       et les mesures dès que la fiche dit si elles s'appliquent. */
+    type SigPiece = { projectId: string; status?: string };
+    type SigDefaut = { projectId: string; phase?: string; resolved?: boolean };
+    type MesureLot = { projectId: string; cab: number; serie?: string; ref?: string; fileName: string; pageStart: number | null; pageEnd: number | null };
+    const projetEnRoute = getProject(id);
+    const reglagesEnRoute = lireReglagesRapports();
+    const commentairesEnRoute = fetchNotionComments(id).catch(() => [] as FicheComment[]);
+    const listesEnRoute = Promise.all([
+      getDataFresh<SigPiece>("pieces").catch(() => getData<SigPiece>("pieces").catch(() => [] as SigPiece[])),
+      getDataFresh<SigDefaut>("defauts").catch(() => getData<SigDefaut>("defauts").catch(() => [] as SigDefaut[])),
+    ]);
+    const mesuresEnRoute = projetEnRoute.then((p) => isNewProjectForMesures(p.createdTime)
+      ? getDataFresh<MesureLot>("mesures-map").catch(() => getData<MesureLot>("mesures-map").catch(() => [] as MesureLot[]))
+      : ([] as MesureLot[]));
+    for (const pr of [reglagesEnRoute, mesuresEnRoute]) pr.catch(() => {});
+    const project = await projetEnRoute;
     /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
        « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
     const avecContacts = contactsVisibles(
-      await lireReglagesRapports(),
+      await reglagesEnRoute,
       req.nextUrl.searchParams.get("contacts"),
     );
 
@@ -1067,14 +1084,9 @@ export async function GET(
     const reportUrl = `${req.nextUrl.origin}/projet/${encodeURIComponent(id)}`;
     // Lien vers le PDF « Suivi du chantier » (signé → ouvrable sans login).
     const syntheseUrl = `${req.nextUrl.origin}/api/synthese/${encodeURIComponent(id)}?s=${signSynthese(id)}`;
-    const notionComments = await fetchNotionComments(id).catch(() => [] as FicheComment[]);
+    const notionComments = await commentairesEnRoute;
     // Signalements OUVERTS (KV) pour le bandeau d'alerte en haut de fiche.
-    type SigPiece = { projectId: string; status?: string };
-    type SigDefaut = { projectId: string; phase?: string; resolved?: boolean };
-    const [allPieces, allDefauts] = await Promise.all([
-      getDataFresh<SigPiece>("pieces").catch(() => getData<SigPiece>("pieces").catch(() => [] as SigPiece[])),
-      getDataFresh<SigDefaut>("defauts").catch(() => getData<SigDefaut>("defauts").catch(() => [] as SigDefaut[])),
-    ]);
+    const [allPieces, allDefauts] = await listesEnRoute;
     const myPieces = allPieces.filter((p) => p.projectId === id);
     const myDefauts = allDefauts.filter((d) => d.projectId === id);
     const sig = {
@@ -1087,10 +1099,7 @@ export async function GET(
         + myDefauts.filter((d) => d.resolved).length,
     };
     // Mesures par cabine (mappage analysé, stocké en KV) → lien signé par lot.
-    type MesureLot = { projectId: string; cab: number; serie?: string; ref?: string; fileName: string; pageStart: number | null; pageEnd: number | null };
-    const mesuresMap = (isNewProjectForMesures(project.createdTime)
-      ? (await getDataFresh<MesureLot>("mesures-map").catch(() => getData<MesureLot>("mesures-map").catch(() => [] as MesureLot[])))
-      : [])
+    const mesuresMap = (await mesuresEnRoute)
       .filter((e) => e.projectId === id)
       .sort((a, b) => a.cab - b.cab);
     const cabNoms = parseCabMulti(project.nomsCabines);

@@ -482,21 +482,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!sigValid && !authed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   try {
-    const project = await getProject(id);
-    /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
-       « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
-    const avecContacts = contactsVisibles(
-      await lireReglagesRapports(),
-      req.nextUrl.searchParams.get("contacts"),
-    );
-
+    /* Les quatre lectures sont indépendantes : elles partent ENSEMBLE (elles
+       se faisaient l'une après l'autre — 6 à 8 s mesurées en production le
+       20.10.2026 au premier appel). Ce qui est lu ne change pas. */
     // Signalements (pièces + défauts) du projet. Lecture FRAÎCHE (bypass cache
     // 60 s) pour que l'état « réglé » soit toujours à jour dans le PDF ; repli
     // sur le cache si la lecture fraîche échoue.
-    const [allPieces, allDefauts] = await Promise.all([
+    const [project, reglages, allPieces, allDefauts] = await Promise.all([
+      getProject(id),
+      lireReglagesRapports(),
       getDataFresh<Piece>("pieces").catch(() => getData<Piece>("pieces").catch(() => [] as Piece[])),
       getDataFresh<Defaut>("defauts").catch(() => getData<Defaut>("defauts").catch(() => [] as Defaut[])),
     ]);
+    /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
+       « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
+    const avecContacts = contactsVisibles(reglages, req.nextUrl.searchParams.get("contacts"));
     const pieces = allPieces.filter((p) => p.projectId === id);
     const defauts = allDefauts.filter((d) => d.projectId === id);
     const pdfStream = await ReactPDF.renderToStream(<SynthesePDF project={project} pieces={pieces} defauts={defauts} avecContacts={avecContacts} />);

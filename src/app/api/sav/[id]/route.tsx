@@ -416,13 +416,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!sigValid && !authed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   try {
-    const project = await getProject(id);
+    /* La fiche et les réglages se lisent ENSEMBLE (ils se suivaient). */
+    const [project, reglages] = await Promise.all([getProject(id), lireReglagesRapports()]);
     /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
        « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
-    const avecContacts = contactsVisibles(
-      await lireReglagesRapports(),
-      req.nextUrl.searchParams.get("contacts"),
-    );
+    const avecContacts = contactsVisibles(reglages, req.nextUrl.searchParams.get("contacts"));
 
     const reportBaseUrl = `${req.nextUrl.origin}/projet/${encodeURIComponent(id)}?mode=dashboard`;
     const stream = await ReactPDF.renderToStream(<SavPDF project={project} collabFilter={collab} cabineFilter={cabine} reportBaseUrl={reportBaseUrl} avecContacts={avecContacts} />);
