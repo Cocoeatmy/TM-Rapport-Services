@@ -1,3 +1,4 @@
+import { chronoPdf } from "@/lib/chrono-pdf";
 import { NextRequest, NextResponse } from "next/server";
 import { getProject, fournisseursForDisplay, type Project } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
@@ -1762,6 +1763,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const chrono = chronoPdf();
   try {
     const { id } = await params;
 
@@ -1797,8 +1799,10 @@ export async function GET(
     // Accès via lien CLIENT → on FORCE le masquage des heures (impossible de le
     // contourner en retirant client=1, car la signature ne vaut que pour le client).
     const forceClient = sigValidClient && !authed;
+    chrono.etape("session");
 
     const project = await getProject(id);
+    chrono.etape("projet");
 
     // Override heures from query params if provided (avoids Notion propagation delay)
     const arriveeOverride = request.nextUrl.searchParams.get("arrivee");
@@ -1814,12 +1818,15 @@ export async function GET(
     const heuresPhotosVisibles = !versionClient && estAdmin;
 
     const pieces = await loadPiecesForProject(id, project);
+    chrono.etape("pieces");
     const defauts = await loadDefautsForProject(id, project);
+    chrono.etape("defauts");
 
     // Charge les noms/monteurs de cabines.
     // Source prioritaire : project.nomsCabines + project.attributionCabines (stockés dans Notion).
     // Fallback : ancien KV store "cabine-attributions" (projets non encore migrés).
     let cabineAttribution = await loadCabineAttribution(id);
+    chrono.etape("lots");
     const nbCab = project.nbCabines || 0;
     if (nbCab > 0 && (project.nomsCabines || project.attributionCabines)) {
       const parseNotionCabField = (raw: string): Map<number, string> => {
@@ -1857,6 +1864,8 @@ export async function GET(
       chunks.push(Buffer.from(chunk));
     }
     const buffer = Buffer.concat(chunks);
+    chrono.etape("rendu");
+    chrono.journal(`${project.ofrTM || id}${versionClient ? " client" : " interne"}`, { octets: buffer.length });
 
     // Nom de fichier voulu : « Rapport de montage - TM 2600615 - <nom complet du
     // projet> - <date> ».
@@ -1980,6 +1989,7 @@ export async function GET(
         // PDF généré à la volée : jamais mis en cache (navigateur/CDN), sinon
         // une modification (défaut masqué…) n'apparaît pas à la régénération.
         "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Server-Timing": chrono.enTete(),
       },
     });
   } catch (error: any) {
