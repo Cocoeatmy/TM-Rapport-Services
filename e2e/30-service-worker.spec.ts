@@ -126,6 +126,27 @@ test.describe("la PWA et son service worker", () => {
     await context.setOffline(false);
   });
 
+  test("un PDF n'est jamais servi depuis une ancienne copie", async ({ page, context }) => {
+    /* Constaté en production le 20.10.2026 : rapport de suivi, d'arrivage,
+       de signalements, planning, déstockage passaient par la branche API du
+       worker, qui servait sa copie au-delà de 400 ms — une version ANCIENNE. */
+    await seConnecter(context);
+    await brancherFixtures(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await attendreLeServiceWorker(page);
+    const version = /const VERSION = "([^"]+)"/.exec(readFileSync(join(process.cwd(), "public", "sw.js"), "utf8"))![1];
+    const recus = await page.evaluate(async (nom) => {
+      const chemins = ["/api/synthese/X", "/api/arrivage/X", "/api/rapport-signalements/X", "/api/planning-pdf?month=2026-10", "/api/destockage/pdf/all"];
+      const cache = await caches.open(nom);
+      for (const c of chemins) await cache.put(c, new Response("ANCIEN-PDF", { headers: { "Content-Type": "application/pdf" } }));
+      const out: string[] = [];
+      for (const c of chemins) out.push(await (await fetch(c)).text());
+      return out;
+    }, `tm-api-${version}`);
+    for (const r of recus) expect(r, "jamais l'ancienne copie").not.toBe("ANCIEN-PDF");
+  });
+
   test("les fragments de code déjà vus sont resservis sans réseau", async ({ page, context }) => {
     /* C'est le rôle du service worker, et le cas qui avait échoué sans lui :
        le pavé de signature est chargé à la demande, en fragment séparé. Si

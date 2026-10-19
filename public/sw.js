@@ -298,6 +298,13 @@ self.addEventListener("fetch", (event) => {
   // Idem pour le Rapport SAV (PDF) : jamais depuis le cache SW.
   if (url.pathname.startsWith("/api/sav/")) return;
 
+  // Et pour TOUS les autres PDF générés. Ils passaient par la branche API :
+  // au-delà de 400 ms, le SW servait la copie gardée — un rapport de suivi,
+  // d'arrivage ou de signalements, le planning ou le déstockage pouvait
+  // s'afficher dans une version ANCIENNE (constaté en production le
+  // 20.10.2026 : ces PDF « répondaient » tous en ~410 ms, depuis la copie).
+  if (/^\/api\/(synthese|arrivage|rapport-signalements|planning-pdf|destockage\/pdf|rapport-journalier|rapport-mensuel|rapport-fournisseurs|rapport-stats)(\/|$)/.test(url.pathname)) return;
+
   // === Signature du build : JAMAIS de cache SW ===
   // C'est elle qui dit au client si son code est périmé. Servie depuis le cache,
   // elle mentirait, et le client se rechargerait en boucle ou pas du tout.
