@@ -42,7 +42,8 @@ test.describe("app iPhone", () => {
     for (const l of ["Accueil", "Planning", "Projets", "Profil"]) await expect(barre(page)).toContainText(l);
     /* La barre ne déborde pas, et reste dans l'écran. */
     const b = (await barre(page).boundingBox())!;
-    expect(b.x).toBe(0); expect(b.width).toBe(390); expect(b.y + b.height).toBeLessThanOrEqual(844);
+    expect(b.x).toBeGreaterThanOrEqual(0); expect(b.x + b.width).toBeLessThanOrEqual(390); expect(b.width).toBeGreaterThan(340);
+    expect(b.y + b.height).toBeLessThanOrEqual(844);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     /* En-tête : plus d'Accueil, ni de seconde barre d'onglets. */
     await expect(page.locator(".tm-h-accueil")).toBeHidden();
@@ -55,12 +56,13 @@ test.describe("app iPhone", () => {
     expect(actualiser).toBeLessThan(recherche);
   });
 
-  test("Planning puis Accueil : changement de rubrique sans rechargement", async ({ page, context }) => {
+  test("« Projets en cours » (l'ancien Planning) est dans Projets, sans rechargement", async ({ page, context }) => {
     await ouvrir(page, context, MONTEUR);
     await marquer(page);
-    await barre(page).getByText("Planning").click();
+    await barre(page).getByText("Projets").click();
+    await page.locator(".tm-ios-rubrique", { hasText: "Projets en cours" }).click();
     await expect(page).toHaveURL(/mode=calendrier/);
-    await expect(barre(page).locator(".tm-ios-onglet.is-actif")).toContainText("Planning");
+    await expect(barre(page).locator(".tm-ios-onglet.is-actif")).toContainText("Projets");
     await barre(page).getByText("Accueil").click();
     await expect(page).not.toHaveURL(/mode=/);
     expect(await marque(page), "aucun rechargement").toBe(1);
@@ -71,7 +73,7 @@ test.describe("app iPhone", () => {
     await marquer(page);
     await barre(page).getByText("Projets").click();
     const feuille = page.locator(".tm-ios-feuille");
-    for (const r of ["Services", "CRM", "Grossistes", "Fournisseurs", "Kanban", "Déstockage", "Chantiers PPE"]) {
+    for (const r of ["Projets en cours", "Services", "CRM", "Grossistes", "Fournisseurs", "Kanban", "Déstockage", "Chantiers PPE"]) {
       await expect(feuille.locator(".tm-ios-rubrique", { hasText: r })).toBeVisible();
     }
     await feuille.locator(".tm-ios-rubrique", { hasText: "Services" }).click();
@@ -126,3 +128,89 @@ test.describe("navigateur ordinaire (Safari iPhone)", () => {
     await expect(page.locator(".tm-h-accueil a, .tm-h-accueil button").first()).toBeVisible();
   });
 });
+
+/* ── Planning : l'agenda des rendez-vous ─────────────────────────────── */
+const lundi = (decalage = 0) => {
+  const d = new Date(); d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + decalage * 7);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const jourIso = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+async function servirPlanning(page: Page, voitTout: boolean) {
+  const demandes: string[] = [];
+  await page.route("**/api/planning**", async (route) => {
+    const u = new URL(route.request().url());
+    demandes.push(u.search);
+    const du = u.searchParams.get("du")!;
+    const auj = jourIso();
+    const rdv = du === lundi(0) ? [
+      { cle: "a", projetId: "11111111-2222-3333-4444-555555555555", type: "montage", jour: auj, heure: "08:30", projet: "Montage du jour", ofr: "TM-1", adresse: "Lausanne", collaborateurs: "Jacobo & Claudio", cabines: 3, mode: "cmd", etape: null },
+      { cle: "b", projetId: "p2", type: "sav", jour: auj, heure: "13:30", projet: "SAV du jour", ofr: "TM-2", adresse: "Genève", collaborateurs: "Jacobo", cabines: 1, mode: "sav", etape: "lot 1" },
+    ] : [
+      { cle: "c", projetId: "p3", type: "mesures", jour: du, heure: "10:00", projet: "Mesure semaine suivante", ofr: "TM-3", adresse: "", collaborateurs: "Jacobo", cabines: 2, mode: "mesures", etape: null },
+    ];
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ du, au: du, voitTout, collab: u.searchParams.get("collab"), collaborateurs: voitTout ? ["Micael", "Claudio", "Jacobo"] : [], rdv }) });
+  });
+  return demandes;
+}
+
+test.describe("Planning", () => {
+  test.use({ userAgent: UA_APP, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("collaborateur : le jour même d'abord, semaines, filtres, ouverture d'une fiche", async ({ page, context }) => {
+    await ouvrir(page, context, MONTEUR);
+    const demandes = await servirPlanning(page, false);
+    await barre(page).getByText("Planning").click();
+    await expect(page).toHaveURL(/\/planning/);
+    await expect(barre(page).locator(".tm-ios-onglet.is-actif")).toContainText("Planning");
+    const jour = page.locator(".tm-planning-jour.is-aujourdhui");
+    await expect(jour).toContainText("Montage du jour");
+    await expect(jour).toContainText("08:30");
+    await expect(jour).toContainText("SAV du jour");
+    await expect(page.locator(".tm-planning-collab"), "pas de choix de collaborateur").toHaveCount(0);
+    /* Filtre : SAV seulement, puis tout. */
+    await page.locator(".tm-planning-puce", { hasText: "SAV" }).click();
+    await expect(jour).not.toContainText("Montage du jour");
+    await expect(jour).toContainText("SAV du jour");
+    await page.locator(".tm-planning-puce", { hasText: "SAV" }).click();
+    await expect(jour).toContainText("Montage du jour");
+    /* Semaine suivante, puis retour. */
+    await page.getByLabel("Semaine suivante").click();
+    await expect(page.locator(".tm-planning")).toContainText("Mesure semaine suivante");
+    expect(demandes.some((q) => q.includes(`du=${lundi(1)}`))).toBe(true);
+    await page.getByRole("button", { name: "Aujourd'hui" }).click();
+    await expect(page.locator(".tm-planning-jour.is-aujourdhui")).toContainText("Montage du jour");
+    /* Semaine passée : consultable. */
+    await page.getByLabel("Semaine précédente").click();
+    expect(demandes.some((q) => q.includes(`du=${lundi(-1)}`))).toBe(true);
+    await page.getByRole("button", { name: "Aujourd'hui" }).click();
+    /* Un appui ouvre la fiche. */
+    await page.locator(".tm-planning-rdv", { hasText: "Montage du jour" }).click();
+    await expect(page).toHaveURL(/\/projet\/11111111-2222-3333-4444-555555555555\?mode=cmd/);
+  });
+
+  test("administrateur : « Tous les collaborateurs », puis un seul", async ({ page, context }) => {
+    await ouvrir(page, context, ADMIN);
+    const demandes = await servirPlanning(page, true);
+    await barre(page).getByText("Planning").click();
+    const choix = page.locator(".tm-planning-collab select");
+    await expect(choix).toHaveValue("");
+    await expect(choix.locator("option").first()).toHaveText("Tous les collaborateurs");
+    await choix.selectOption("Claudio");
+    await expect.poll(() => demandes.some((q) => q.includes("collab=Claudio"))).toBe(true);
+  });
+
+  test("lisibilité du verre : la barre reste opaque à plus de 50 % et le texte blanc contraste", async ({ page, context }) => {
+    await ouvrir(page, context, MONTEUR);
+    const style = await page.evaluate(() => {
+      const b = getComputedStyle(document.querySelector("nav.tm-ios-barre")!);
+      return { fond: b.backgroundColor, flou: b.backdropFilter || (b as unknown as { webkitBackdropFilter: string }).webkitBackdropFilter, rayon: b.borderRadius };
+    });
+    const alpha = Number((/rgba?\([^)]*,\s*([0-9.]+)\)/.exec(style.fond) || [])[1] ?? 1);
+    expect(alpha).toBeGreaterThanOrEqual(0.5);
+    expect(style.flou).toContain("blur");
+    expect(parseFloat(style.rayon)).toBeGreaterThan(16);
+  });
+});
+

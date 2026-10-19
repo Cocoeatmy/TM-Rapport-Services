@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-19T19:53:45.536Z",
+  "genereLe": "2026-10-19T21:00:16.315Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -978,6 +978,16 @@
       ]
     },
     {
+      "url": "/api/planning",
+      "type": "api",
+      "fichier": "src/app/api/planning/route.ts",
+      "niveau": "droit",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
       "url": "/api/planning-pdf",
       "type": "api",
       "fichier": "src/app/api/planning-pdf/route.tsx",
@@ -1678,6 +1688,14 @@
       "methodes": [
         "GET"
       ]
+    },
+    {
+      "url": "/planning",
+      "type": "page",
+      "fichier": "src/app/planning/page.tsx",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": []
     },
     {
       "url": "/projet/[id]",

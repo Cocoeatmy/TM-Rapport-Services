@@ -56,6 +56,9 @@ export function ouvrirRubrique(router: ReturnType<typeof useRouter>, pathname: s
 /* Les rubriques, dans l'ordre de la barre d'onglets qu'elles remplacent. */
 interface Rubrique { id: string; label: string; droit?: string; signal?: boolean; classique?: boolean; sous?: { mode: string; label: string }[]; mode?: string }
 const RUBRIQUES: Rubrique[] = [
+  /* La liste de tous les projets ouverts — ce qu'ouvrait « Planning » avant
+     que celui-ci ne devienne l'agenda des rendez-vous. */
+  { id: "en-cours", label: "Projets en cours", mode: "calendrier", droit: "projets.voir" },
   { id: "services", label: "Services", droit: "projets.voir", sous: [
     { mode: "mesures", label: "Mesures" }, { mode: "cmd", label: "Montages" },
     { mode: "services", label: "Services" }, { mode: "sav", label: "SAV" },
@@ -126,8 +129,10 @@ export function NavigationIos() {
 
   const aller = (mode: string) => { setProjetsOuvert(false); setGroupe(null); ouvrirRubrique(router, pathname, mode); };
   const surAccueil = pathname === "/";
-  const est = (m: string) => surAccueil && modeCourant === m;
-  const projetsActif = surAccueil && !["dashboard", "calendrier"].includes(modeCourant);
+  /* Feuille Projets ouverte : c'est elle, et elle seule, qui est active. */
+  const est = (m: string) => !projetsOuvert && surAccueil && modeCourant === m;
+  const projetsActif = surAccueil && modeCourant !== "dashboard";
+  const surPlanning = pathname.startsWith("/planning");
   /* Avant la réponse des droits, on attend : un « + » qui s'ouvrirait puis
      se refuserait serait pire qu'un instant d'hésitation. */
   const peutCreer = !!mes && peut("projets.creer");
@@ -190,14 +195,15 @@ export function NavigationIos() {
         <button type="button" className={`tm-ios-onglet${est("dashboard") ? " is-actif" : ""}`} onClick={() => aller("dashboard")}>
           <Home className="w-6 h-6" /><span>Accueil</span>
         </button>
-        <button type="button" className={`tm-ios-onglet${est("calendrier") ? " is-actif" : ""}`} onClick={() => aller("calendrier")}>
+        <button type="button" className={`tm-ios-onglet${surPlanning && !projetsOuvert ? " is-actif" : ""}`}
+          onClick={() => { setProjetsOuvert(false); setGroupe(null); if (!surPlanning) router.push("/planning"); }}>
           <CalendarDays className="w-6 h-6" /><span>Planning</span>
         </button>
         <button type="button" className={`tm-ios-onglet tm-ios-plus${peutCreer ? "" : " is-inactif"}`}
           aria-label="Nouveau projet" onClick={nouveauProjet}>
           <span className="tm-ios-plus-rond"><Plus className="w-6 h-6" /></span>
         </button>
-        <button type="button" className={`tm-ios-onglet${projetsOuvert || projetsActif ? " is-actif" : ""}`}
+        <button type="button" className={`tm-ios-onglet${projetsOuvert || (projetsActif && !surPlanning) ? " is-actif" : ""}`}
           aria-expanded={projetsOuvert} onClick={() => { setProjetsOuvert((v) => !v); setGroupe(null); }}>
           <FolderOpen className="w-6 h-6" /><span>Projets</span>
         </button>

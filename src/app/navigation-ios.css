@@ -142,3 +142,118 @@ html[data-app="ios"] .tm-chat-projet {
 html[data-app="ios"] .tm-chatbot-panneau {
   bottom: calc(var(--tm-barre-ios) + var(--tm-bas-ios) + 8px);
 }
+
+/* ══ « Liquid Glass » — app iPhone, thème Signal ════════════════════════
+   REPRODUCTION CSS du langage visuel d'Apple (iOS 26) : le vrai Liquid
+   Glass est une API native (SwiftUI `glassEffect`, UIKit `UIGlassEffect`)
+   qui ne s'applique pas aux éléments HTML d'un WKWebView. Ici : flou et
+   saturation de ce qui passe dessous, teinte bleu marine Signal, reflet
+   en bordure, ombre de profondeur. Réservé à la navigation et aux menus
+   flottants — jamais aux formulaires, rapports ni tableaux.
+   Repli : sans `backdrop-filter`, ou si iOS demande de réduire la
+   transparence, des surfaces opaques aux mêmes couleurs. */
+html[data-app="ios"][data-ui="signal"] {
+  --tm-verre-encre: rgba(12, 22, 38, 0.76);
+  --tm-verre-encre-fort: rgba(12, 22, 38, 0.78);
+  --tm-verre-clair: rgba(255, 255, 255, 0.72);
+  --tm-verre-flou: blur(20px) saturate(185%);
+  --tm-verre-reflet: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  --tm-verre-ombre: 0 10px 30px rgba(8, 14, 25, 0.28), 0 2px 6px rgba(8, 14, 25, 0.18);
+}
+
+/* Barre du bas : une capsule de verre qui flotte au-dessus de la page. */
+html[data-app="ios"][data-ui="signal"] .tm-ios-barre {
+  left: 10px; right: 10px;
+  bottom: var(--tm-bas-ios);
+  height: var(--tm-barre-ios);
+  padding: 0 4px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: var(--tm-verre-encre);
+  -webkit-backdrop-filter: var(--tm-verre-flou);
+  backdrop-filter: var(--tm-verre-flou);
+  box-shadow: var(--tm-verre-reflet), var(--tm-verre-ombre);
+}
+html[data-app="ios"][data-ui="signal"] main {
+  padding-bottom: calc(var(--tm-barre-ios) + var(--tm-bas-ios) + 14px);
+}
+/* L'onglet actif : une pastille de verre plus claire derrière l'icône. */
+html[data-app="ios"][data-ui="signal"] .tm-ios-onglet { position: relative; transition: color 0.2s ease, transform 0.15s ease; }
+html[data-app="ios"][data-ui="signal"] .tm-ios-onglet.is-actif::before {
+  content: ""; position: absolute; inset: 6px 4px; border-radius: 20px;
+  background: rgba(255, 255, 255, 0.13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  z-index: -1;
+}
+html[data-app="ios"][data-ui="signal"] .tm-ios-onglet { color: rgba(231, 238, 250, 0.78); }
+html[data-app="ios"][data-ui="signal"] .tm-ios-onglet.is-actif { color: #fff; }
+html[data-app="ios"][data-ui="signal"] .tm-ios-onglet.is-actif svg { color: #7fb0ff; }
+html[data-app="ios"][data-ui="signal"] .tm-ios-plus-rond {
+  background: linear-gradient(180deg, #3d7bff 0%, #1b63ff 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 16px rgba(27, 99, 255, 0.45);
+}
+
+/* Boutons de l'en-tête (IA, notifications, actualiser, recherche) : verre. */
+html[data-app="ios"][data-ui="signal"] #main-header button.w-9.h-9,
+html[data-app="ios"][data-ui="signal"] #main-header a.w-9.h-9 {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: blur(12px) saturate(170%);
+  backdrop-filter: blur(12px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 8px rgba(8, 14, 25, 0.25);
+}
+
+/* Menus flottants : feuille Projets, menu du profil — verre clair, texte net. */
+html[data-app="ios"][data-ui="signal"] .tm-ios-feuille-corps,
+html[data-app="ios"][data-ui="signal"] .tm-menu-profil {
+  background: var(--tm-verre-clair) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  border-radius: 22px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), var(--tm-verre-ombre) !important;
+}
+html.dark[data-app="ios"][data-ui="signal"] .tm-ios-feuille-corps,
+html.dark[data-app="ios"][data-ui="signal"] .tm-menu-profil {
+  background: rgba(17, 30, 48, 0.74) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), var(--tm-verre-ombre) !important;
+}
+html[data-app="ios"][data-ui="signal"] .tm-ios-voile { background: rgba(8, 14, 25, 0.24); }
+/* Apparition discrète des menus. */
+html[data-app="ios"][data-ui="signal"] .tm-ios-feuille-corps { animation: tm-verre-entree 0.18s ease-out; }
+@keyframes tm-verre-entree { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+/* Planning : la barre de semaine et les filtres en verre ; les cartes du
+   jour restent opaques (ce sont des données). */
+html[data-app="ios"][data-ui="signal"] .tm-planning-nav button,
+html[data-app="ios"][data-ui="signal"] .tm-planning-puce.is-on {
+  background: var(--tm-verre-clair);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 2px 8px rgba(11, 18, 32, 0.08);
+}
+
+/* Accessibilité : « Réduire la transparence » → surfaces pleines ;
+   « Réduire les animations » → aucun mouvement. */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-app="ios"][data-ui="signal"] .tm-ios-barre { background: var(--sg-ink, #0c1626); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  html[data-app="ios"][data-ui="signal"] .tm-ios-feuille-corps,
+  html[data-app="ios"][data-ui="signal"] .tm-menu-profil { background: var(--sg-paper, #fff) !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  html.dark[data-app="ios"][data-ui="signal"] .tm-ios-feuille-corps,
+  html.dark[data-app="ios"][data-ui="signal"] .tm-menu-profil { background: #1e293b !important; }
+  html[data-app="ios"][data-ui="signal"] #main-header button.w-9.h-9,
+  html[data-app="ios"][data-ui="signal"] .tm-planning-nav button,
+  html[data-app="ios"][data-ui="signal"] .tm-planning-puce.is-on { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-app="ios"][data-ui="signal"] .tm-ios-feuille-corps { animation: none; }
+  html[data-app="ios"][data-ui="signal"] .tm-ios-onglet { transition: none; }
+}
+/* Sans flou d'arrière-plan (WebKit ancien) : verre plus dense, toujours lisible. */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  html[data-app="ios"][data-ui="signal"] .tm-ios-barre { background: var(--tm-verre-encre-fort); }
+  html[data-app="ios"][data-ui="signal"] .tm-ios-feuille-corps,
+  html[data-app="ios"][data-ui="signal"] .tm-menu-profil { background: rgba(255, 255, 255, 0.96) !important; }
+}

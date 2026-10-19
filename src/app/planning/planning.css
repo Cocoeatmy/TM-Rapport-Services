@@ -1,0 +1,63 @@
+/* Planning (/planning) — mise en page sobre, valable dans tous les thèmes.
+   Le verre « Liquid Glass » de l'app iPhone en thème Signal vit dans
+   navigation-ios.css. */
+.tm-planning { max-width: 720px; margin: 0 auto; padding: 12px 12px 24px; color: var(--sg-text, #0f172a); }
+.dark .tm-planning { color: #e2e8f0; }
+.tm-planning-tete { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 4px 2px 12px; }
+.tm-planning-tete h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.tm-planning-tete p { font-size: 13px; opacity: 0.65; margin-top: 2px; }
+.tm-planning-nav { display: flex; align-items: center; gap: 4px; }
+.tm-planning-nav button {
+  min-width: 40px; height: 40px; padding: 0 10px; border-radius: 9999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(15, 23, 42, 0.12); background: rgba(255, 255, 255, 0.8);
+  font-size: 13px; font-weight: 600; color: inherit;
+}
+.dark .tm-planning-nav button { background: rgba(30, 41, 59, 0.8); border-color: rgba(255, 255, 255, 0.12); }
+.tm-planning-nav button:disabled { opacity: 0.45; }
+.tm-planning-filtres { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 8px; scrollbar-width: none; }
+.tm-planning-filtres::-webkit-scrollbar { display: none; }
+.tm-planning-puce {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
+  border-radius: 9999px; border: 1px solid rgba(15, 23, 42, 0.12); background: transparent;
+  font-size: 13px; font-weight: 600; color: inherit; opacity: 0.55;
+}
+.tm-planning-puce.is-on { opacity: 1; background: rgba(255, 255, 255, 0.85); }
+.dark .tm-planning-puce.is-on { background: rgba(30, 41, 59, 0.85); }
+.tm-planning-puce i { width: 8px; height: 8px; border-radius: 9999px; }
+.tm-planning-puce b { font-size: 11px; opacity: 0.6; font-variant-numeric: tabular-nums; }
+.tm-planning-collab { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 2px 12px; font-size: 13px; font-weight: 600; }
+.tm-planning-collab select {
+  height: 38px; padding: 0 12px; border-radius: 12px; border: 1px solid rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.9); color: inherit; font-size: 15px; font-weight: 600;
+}
+.dark .tm-planning-collab select { background: #1e293b; border-color: rgba(255, 255, 255, 0.14); }
+.tm-planning-note { display: flex; align-items: center; gap: 6px; font-size: 13px; opacity: 0.75; margin: 4px 2px 10px; }
+.tm-planning-note.is-erreur { color: #b91c1c; opacity: 1; }
+.tm-planning-jour {
+  margin-bottom: 12px; border-radius: 18px; padding: 10px 10px 6px;
+  background: var(--sg-paper, #fff); box-shadow: 0 1px 2px rgba(11, 18, 32, 0.05), 0 6px 18px rgba(11, 18, 32, 0.05);
+  scroll-margin-top: calc(var(--header-h, 60px) + 8px);
+}
+.dark .tm-planning-jour { background: #1e293b; }
+.tm-planning-jour.is-passe { opacity: 0.72; }
+.tm-planning-jour h2 { display: flex; align-items: baseline; gap: 8px; padding: 2px 4px 8px; font-size: 16px; font-weight: 700; text-transform: capitalize; }
+.tm-planning-jour.is-aujourdhui h2 span { color: #15803d; }
+.tm-planning-jour h2 small { font-size: 12px; font-weight: 500; opacity: 0.6; text-transform: none; }
+.tm-planning-jour h2 b { margin-left: auto; min-width: 24px; height: 22px; padding: 0 7px; border-radius: 9999px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; background: rgba(27, 99, 255, 0.1); color: #1b63ff; }
+.tm-planning-vide { font-size: 13px; opacity: 0.5; padding: 0 4px 8px; }
+.tm-planning-rdv {
+  width: 100%; display: grid; grid-template-columns: 4px 46px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  min-height: 56px; padding: 8px 6px; border: none; border-top: 1px solid rgba(15, 23, 42, 0.07);
+  background: none; color: inherit; text-align: left;
+}
+.tm-planning-rdv:active { background: rgba(27, 99, 255, 0.06); border-radius: 12px; }
+.tm-planning-barre { width: 4px; align-self: stretch; border-radius: 9999px; }
+.tm-planning-heure { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tm-planning-corps { display: flex; flex-direction: column; min-width: 0; }
+.tm-planning-type { font-size: 11.5px; font-weight: 700; }
+.tm-planning-projet { font-size: 15px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tm-planning-meta { font-size: 12px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm-planning-equipe { display: flex; }
+.tm-planning-equipe i { width: 26px; height: 26px; border-radius: 9999px; margin-left: -6px; border: 2px solid var(--sg-paper, #fff); font-size: 9.5px; font-weight: 800; font-style: normal; display: inline-flex; align-items: center; justify-content: center; }
+.dark .tm-planning-equipe i { border-color: #1e293b; }
