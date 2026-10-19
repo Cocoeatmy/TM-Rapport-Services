@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Camera, X, Package, Loader2, Download, CloudUpload } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
+import { nouvelleCleEnvoi } from "@/lib/cle-envoi";
 import { addPendingUpload, removePendingUpload } from "@/lib/idb-uploads";
 import { usePendingUploads } from "@/lib/use-pending-uploads";
 import { isOnline, offlineFetch } from "@/lib/offline";
@@ -117,12 +118,20 @@ export function CartonPhotos({
 
     setUploading(true);
 
-    // Renomme les fichiers pour Cloudinary (préfixe "carton" + index).
-    const baseCount = photos.length;
+    // Renomme les fichiers (préfixe "carton" + rang + horodatage).
+    /* L'horodatage rend chaque nom UNIQUE. Le rattachement écarte les doublons
+       par leur nom : deux photos prises sans réseau l'une après l'autre
+       recevaient « carton-3 » toutes les deux (le rang ne voyait pas celles
+       en attente), et la seconde était écartée — perdue (19.10.2026). */
+    const baseCount = photos.length + pendingCartons.length;
+    const stamp = Date.now();
     const renamed: File[] = originals.map((file, i) => {
       const ext = file.name.split(".").pop() || "jpg";
-      return new File([file], `${filePrefix}-${baseCount + i + 1}.${ext}`, { type: file.type });
+      return new File([file], `${filePrefix}-${baseCount + i + 1}.${stamp + i}.${ext}`, { type: file.type });
     });
+    /* Une clé par envoi : même identifiant Cloudinary en ligne et depuis la
+       file (voir src/lib/cle-envoi.ts). */
+    const cleEnvoi = nouvelleCleEnvoi();
 
     // Helper : queue dans IDB pour upload différé. Le notionField
     // "État des cartons réceptionnés" fait que /api/upload écrira
@@ -133,6 +142,7 @@ export function CartonPhotos({
           projectId,
           category,
           notionField,
+          cleEnvoi,
           files: renamed.map((f) => ({ name: f.name, type: f.type, blob: f })),
         });
         toast.info("Photos en attente — envoi auto au retour du réseau", { duration: 3500 });
@@ -155,6 +165,7 @@ export function CartonPhotos({
       formData.append("category", category);
       formData.append("projectId", projectId);
       formData.append("notionField", notionField);
+      formData.append("cleEnvoi", cleEnvoi);
 
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       if (!res.ok) {

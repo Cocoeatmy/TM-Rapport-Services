@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exigerDroit } from "@/lib/droits-serveur";
 import { v2 as cloudinary } from "cloudinary";
+import { identifiantCloudinary } from "@/lib/cle-envoi";
 import { notionWrite as notion } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
 import { descripteurFichier, urlDuDescripteur, type DescripteurFichier } from "@/lib/notion-fichiers";
@@ -68,6 +69,9 @@ export async function POST(request: NextRequest) {
     const category = formData.get("category") as string;
     const projectId = formData.get("projectId") as string;
     const notionField = formData.get("notionField") as string;
+    /* Clé d'envoi (défauts, cartons) : mêmes identifiants Cloudinary que la
+       file de l'appareil si elle prend le relais — pas de seconde copie. */
+    const cleEnvoi = formData.get("cleEnvoi");
     console.log("Upload request:", { category, projectId, notionField, fileCount: files.length });
 
     if (!files.length) {
@@ -76,7 +80,9 @@ export async function POST(request: NextRequest) {
 
     // Uploads Cloudinary en parallèle (gain ~Nx sur N photos simultanées)
     const uploaded: { name: string; url: string }[] = await Promise.all(
-      files.map(async (file) => {
+      files.map(async (file, rang) => {
+        const publicId = identifiantCloudinary(cleEnvoi, rang);
+        const idImpose = publicId ? { public_id: publicId, overwrite: true } : {};
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
         const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
@@ -93,6 +99,7 @@ export async function POST(request: NextRequest) {
         const result = isVideo
           ? await cloudinary.uploader.upload(base64, {
               folder: `tm-rapport/${projectId}/${category}`,
+              ...idImpose,
               resource_type: "video",
               use_filename: true,
               unique_filename: true,
@@ -100,6 +107,7 @@ export async function POST(request: NextRequest) {
           : isImage
           ? await cloudinary.uploader.upload(base64, {
               folder: `tm-rapport/${projectId}/${category}`,
+              ...idImpose,
               resource_type: "image",
               transformation: [
                 { width: 1200, crop: "limit" },
@@ -109,6 +117,7 @@ export async function POST(request: NextRequest) {
             })
           : await cloudinary.uploader.upload(base64, {
               folder: `tm-rapport/${projectId}/${category}`,
+              ...idImpose,
               resource_type: "raw",
               use_filename: true,
               unique_filename: true,

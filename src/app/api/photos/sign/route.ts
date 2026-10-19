@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exigerDroit } from "@/lib/droits-serveur";
 import { v2 as cloudinary } from "cloudinary";
+import { identifiantValide } from "@/lib/cle-envoi";
 
 /**
  * Signature pour upload DIRECT client → Cloudinary.
@@ -22,20 +23,24 @@ export async function POST(request: NextRequest) {
   const v = await exigerDroit("documents.ajouter");
   if ("refus" in v) return v.refus;
   try {
-    const { projectId, category } = await request.json();
+    const { projectId, category, publicId } = await request.json();
     if (!projectId || !category) {
       return NextResponse.json({ error: "projectId et category requis" }, { status: 400 });
     }
     const folder = `tm-rapport/${projectId}/${category}`;
     const timestamp = Math.round(Date.now() / 1000);
+    /* Un identifiant imposé (voir src/lib/cle-envoi.ts) entre dans la
+       signature : Cloudinary refuse sinon le public_id envoyé. */
+    const avecId = identifiantValide(publicId);
     const signature = cloudinary.utils.api_sign_request(
-      { folder, timestamp },
+      avecId ? { folder, public_id: publicId, timestamp } : { folder, timestamp },
       process.env.CLOUDINARY_API_SECRET as string,
     );
     return NextResponse.json({
       signature,
       timestamp,
       folder,
+      ...(avecId ? { publicId } : {}),
       apiKey: process.env.CLOUDINARY_API_KEY,
       cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     });

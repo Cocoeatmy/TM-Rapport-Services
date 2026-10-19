@@ -34,6 +34,7 @@
  *     afficher une alerte persistante dans l'UI.
  */
 
+import { identifiantCloudinary } from "./cle-envoi";
 import { uploadToCloudinary, attachPhotos, attacherChampTexte, envoyerSignalement, UploadError } from "@/lib/cloudinary-upload";
 import { coffreDeposerPhoto, coffreRetirerPhoto } from "@/lib/pont-apple";
 import { leverLesDelais } from "@/lib/offline";
@@ -79,6 +80,13 @@ export interface PendingUpload {
    * Son `id` est fabriqué à la saisie : un renvoi ne le crée pas deux fois.
    */
   signalement?: Record<string, unknown>;
+  /**
+   * Clé de l'envoi quand il a d'abord été tenté en ligne (/api/upload) —
+   * défauts, cartons. La file réutilise le même identifiant Cloudinary :
+   * si le premier essai était arrivé sans que la réponse revienne, la photo
+   * est remplacée, pas dédoublée. Voir src/lib/cle-envoi.ts.
+   */
+  cleEnvoi?: string;
   files: PendingUploadFile[];
   createdAt: number;
   retryCount: number;
@@ -448,7 +456,7 @@ async function _envoyerOctets(item: PendingUpload): Promise<Avancement | null> {
       // défauts envoyés en ligne (dossier « defauts »).
       const dossier = item.signalement ? "defauts" : item.category;
       f.uploadedUrl = await uploadToCloudinary(octets, f.name, item.projectId, dossier,
-        (pct) => annoncer(item.id, "en-cours", { pct }));
+        (pct) => annoncer(item.id, "en-cours", { pct }), identifiantCloudinary(item.cleEnvoi, index));
       // Persiste immédiatement : si la suite échoue, ce fichier ne sera pas
       // re-uploadé (octets déjà sûrs sur Cloudinary). Si cette écriture-là
       // échoue, on continue quand même avec l'URL en mémoire : le rattachement

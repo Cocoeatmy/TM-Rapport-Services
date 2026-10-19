@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { Camera, ImagePlus, Loader2, Send, ShieldAlert, X, Check, Sparkles } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { offlineFetch } from "@/lib/offline";
+import { nouvelleCleEnvoi } from "@/lib/cle-envoi";
 import { addPendingUpload } from "@/lib/idb-uploads";
 import { identifiantSignalement } from "@/lib/signalement-id";
 import { Label } from "@/components/ui/label";
@@ -185,6 +186,9 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
         ...(typeof cabineIdx === "number" && !selectedCabine ? { cabineIdx } : {}),
       };
     };
+    /* Une clé par envoi : le même identifiant Cloudinary, que la photo parte
+       en ligne ou plus tard depuis la file (voir src/lib/cle-envoi.ts). */
+    const cleEnvoi = nouvelleCleEnvoi();
     try {
       const photoUrls: string[] = [];
 
@@ -200,6 +204,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
             photos.forEach((p) => formData.append("files", p));
             formData.append("projectId", projectId);
             formData.append("category", "defauts");
+            formData.append("cleEnvoi", cleEnvoi);
             const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
             if (uploadRes.status >= 500) passager = true;
             if (uploadRes.ok) {
@@ -237,6 +242,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
                  et garderait le défaut en file au lieu de le retirer. */
               notionField: "__signalement_hors_ligne__",
               signalement: corpsDuSignalement(),
+              cleEnvoi,
               files: photos.map((p) => ({ name: p.name, type: p.type, blob: p })),
             });
           } catch {

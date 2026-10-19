@@ -85,19 +85,19 @@ async function fetchWithTimeout(input: RequestInfo, init: RequestInit, timeoutMs
 /* La signature d'envoi, gardée dix minutes par projet et par dossier :
    Cloudinary l'accepte pendant une heure. Sans cela, chaque photo coûtait un
    aller-retour de plus vers le serveur avant même d'envoyer ses octets. */
-type Signature = { signature: string; timestamp: number; folder: string; apiKey: string; cloudName: string };
+type Signature = { signature: string; timestamp: number; folder: string; apiKey: string; cloudName: string; publicId?: string };
 const signatures = new Map<string, { sign: Signature; jusqua: number }>();
 const DUREE_SIGNATURE_MS = 10 * 60_000;
 
-async function signatureDEnvoi(projectId: string, category: string, fraiche = false): Promise<Signature> {
-  const cle = `${projectId}::${category}`;
+async function signatureDEnvoi(projectId: string, category: string, fraiche = false, publicId?: string): Promise<Signature> {
+  const cle = `${projectId}::${category}::${publicId ?? ""}`;
   const memo = signatures.get(cle);
   if (!fraiche && memo && memo.jusqua > Date.now()) return memo.sign;
   let sign: Signature;
   try {
     const res = await fetchWithTimeout(
       "/api/photos/sign",
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId, category }) },
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(publicId ? { projectId, category, publicId } : { projectId, category }) },
       API_TIMEOUT_MS,
     );
     if (!res.ok) throw new UploadError(`sign ${res.status}`, res.status >= 400 && res.status < 500 && res.status !== 429);
@@ -147,6 +147,9 @@ export async function uploadToCloudinary(
   projectId: string,
   category: string,
   surProgression?: (pct: number) => void,
+  /** Identifiant Cloudinary imposé (voir src/lib/cle-envoi.ts) : un renvoi
+   *  remplace la même image au lieu d'en créer une seconde. */
+  publicId?: string,
 ): Promise<string> {
   /* Jamais de photo vide : une référence d'octets périmée (WebKit, après une
      réécriture de la file) se lit comme un fichier de 0 octet. L'envoyer, ce
@@ -154,7 +157,7 @@ export async function uploadToCloudinary(
      échoue « passagèrement » : la file réessaiera avec des octets relus. */
   if (!blob || blob.size === 0) throw new UploadError("photo illisible sur l'appareil (0 octet)", false);
   // 1. Signature (petit appel Vercel, gardé dix minutes)
-  let sign = await signatureDEnvoi(projectId, category);
+  let sign = await signatureDEnvoi(projectId, category, false, publicId);
   let signatureMemorisee = true;
 
   // 2. Upload direct vers Cloudinary (les octets ne passent PAS par Vercel)
@@ -174,6 +177,7 @@ export async function uploadToCloudinary(
     fd.append("timestamp", String(sign.timestamp));
     fd.append("signature", sign.signature);
     fd.append("folder", sign.folder);
+    if (publicId && sign.publicId === publicId) fd.append("public_id", publicId);
     const url = `https://api.cloudinary.com/v1_1/${sign.cloudName}/${resourceType}/upload`;
     try {
       res = surProgression && blob.size > SEUIL_PROGRESSION
@@ -187,7 +191,7 @@ export async function uploadToCloudinary(
        conclure à un refus définitif. */
     if (!res.ok && res.status >= 400 && res.status < 500 && signatureMemorisee) {
       signatureMemorisee = false;
-      sign = await signatureDEnvoi(projectId, category, true);
+      sign = await signatureDEnvoi(projectId, category, true, publicId);
       continue;
     }
     break;
