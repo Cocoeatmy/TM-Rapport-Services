@@ -119,7 +119,12 @@ export function OfflineBanner() {
       setFaible(reseauDegrade());
       setQueueCount(items.length + upCount);
       const restant = items.length + upCount;
-      if (restant === 0 && precedentRef.current > 0 && isOnline()) {
+      /* « Tout est synchronisé » seulement si TOUT est confirmé : aucune photo
+         en échec, aucune saisie mise de côté ou abandonnée. Une photo qui
+         passe en échec définitif quitte la file des envois — sans cette
+         condition, la file vide aurait annoncé un faux succès. */
+      const toutConfirme = restant === 0 && failCount === 0 && getAbandons().length === 0;
+      if (toutConfirme && precedentRef.current > 0 && isOnline()) {
         setToutEnvoyeA(Date.now());
         setTimeout(() => { if (!cancelled) setToutEnvoyeA(0); }, 12_000);
       }
@@ -358,7 +363,7 @@ export function OfflineBanner() {
   // En ligne, réseau correct, queue vide, aucun échec : rien à afficher —
   // sauf, quelques secondes, la confirmation que tout est arrivé.
   if (online && !faible && queueCount === 0) {
-    if (!toutEnvoyeA) return null;
+    if (!toutEnvoyeA || failedCount > 0 || abandons.length > 0) return null;
     return (
       <div className="w-full shadow-md bg-emerald-600 text-white">
         <button type="button" role="status" aria-live="polite" onClick={() => setVoirHistorique((v) => !v)}

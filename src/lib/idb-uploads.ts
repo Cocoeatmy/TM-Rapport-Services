@@ -553,7 +553,22 @@ async function _rattacherGroupe(avs: Avancement[], now: number): Promise<ItemOut
         lot.flatMap((av) => av.files.map((f) => ({ name: f.name, url: f.uploadedUrl as string }))));
       for (const av of lot) { await _confirmer(av); t.success++; }
     } catch (e) {
-      for (const av of lot) { echec(av, e, "rattachement échoué"); ajouter(await _noterEchec(av, now)); }
+      const ue = e as UploadError;
+      if (ue?.permanent && lot.length > 1) {
+        /* Refus DÉFINITIF d'un lot : une seule photo en est peut-être la
+           cause. On les reprend une par une, pour que seule la fautive reste
+           en échec — les autres ne doivent pas être bloquées avec elle. */
+        for (const av of lot) {
+          try {
+            await attachPhotos(projectId, notionField as string, av.files.map((f) => ({ name: f.name, url: f.uploadedUrl as string })));
+            await _confirmer(av); t.success++;
+          } catch (e2) {
+            echec(av, e2, "rattachement échoué"); ajouter(await _noterEchec(av, now));
+          }
+        }
+      } else {
+        for (const av of lot) { echec(av, e, "rattachement échoué"); ajouter(await _noterEchec(av, now)); }
+      }
     }
   }
   // Signatures, signalements, entrées sans champ : une par une, dans l'ordre.

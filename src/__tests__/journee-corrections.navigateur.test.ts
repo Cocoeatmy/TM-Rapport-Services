@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const recus: { url: string; corps: unknown }[] = [];
+const rattaches: string[] = [];
 let signalementEchoue: { message: string; permanent: boolean } | null = null;
 
 vi.mock("@/lib/cloudinary-upload", () => {
@@ -21,7 +22,10 @@ vi.mock("@/lib/cloudinary-upload", () => {
   return {
     UploadError,
     uploadToCloudinary: vi.fn(async (_b: Blob, nom: string, _p: string, dossier: string) => `https://c.test/${dossier}/${nom}`),
-    attachPhotos: vi.fn(async () => {}),
+    attachPhotos: vi.fn(async (_p: string, champ: string, photos: { name: string; url: string }[]) => {
+      if (photos.some((ph) => ph.name.includes("refus"))) throw new UploadError("champ refusé", true);
+      rattaches.push(...photos.map((ph) => ph.name));
+    }),
     attacherChampTexte: vi.fn(async () => {}),
     envoyerSignalement: vi.fn(async (corps: Record<string, unknown>) => {
       if (signalementEchoue) throw new UploadError(signalementEchoue.message, signalementEchoue.permanent);
@@ -41,6 +45,7 @@ function ecrireFile(items: unknown[]) {
 beforeEach(async () => {
   localStorage.clear();
   recus.length = 0;
+  rattaches.length = 0;
   signalementEchoue = null;
   for (const x of await idb.getPendingUploads({ status: "all" })) await idb.removePendingUpload(x.id);
   Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
@@ -142,5 +147,21 @@ describe("3. Un défaut saisi sans réseau, avec ses photos", () => {
     await idb.processPendingUploads();
     expect(recus.map((x) => (x.corps as { id: string }).id)).toEqual(["sig-456"]);
     expect(await idb.getPendingUploads({ status: "all" })).toHaveLength(0);
+  });
+});
+
+describe("4. Un lot refusé définitivement à cause d'une seule photo", () => {
+  function photo(nom: string) {
+    return { projectId: "P", category: "montage", notionField: "Photos montage terminé",
+      files: [{ name: nom, type: "image/jpeg", blob: new Blob([new Uint8Array([0xff, 0xd8, 1])], { type: "image/jpeg" }) }] };
+  }
+  it("les autres photos du lot passent ; seule la fautive reste en échec, gardée", async () => {
+    await idb.addPendingUpload(photo("bonne-1.jpg"));
+    await idb.addPendingUpload(photo("refus.jpg"));
+    await idb.addPendingUpload(photo("bonne-2.jpg"));
+    await idb.processPendingUploads();
+    expect(rattaches.sort()).toEqual(["bonne-1.jpg", "bonne-2.jpg"]);
+    const restes = await idb.getPendingUploads({ status: "all" });
+    expect(restes.map((r) => [r.files[0].name, r.status])).toEqual([["refus.jpg", "permanently-failed"]]);
   });
 });

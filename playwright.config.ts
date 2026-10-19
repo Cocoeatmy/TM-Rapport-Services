@@ -95,7 +95,7 @@ export default defineConfig({
     },
     {
       name: "journee-webkit",
-      testMatch: /60-.*\.spec\.ts$/,
+      testMatch: /(60|62)-.*\.spec\.ts$/,
       use: { ...devices["iPhone 13"] },
     },
   ],
