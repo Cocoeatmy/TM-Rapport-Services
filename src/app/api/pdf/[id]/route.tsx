@@ -1,3 +1,4 @@
+import { prechargerImages, sourceImage } from "@/lib/pdf-images";
 import { chronoPdf } from "@/lib/chrono-pdf";
 import { NextRequest, NextResponse } from "next/server";
 import { getProject, fournisseursForDisplay, type Project } from "@/lib/notion";
@@ -186,7 +187,7 @@ function parseDefautsFromNotion(text: string): DefautRequest[] {
   });
 }
 
-async function loadPiecesForProject(projectId: string, project?: Project): Promise<PieceRequest[]> {
+async function loadPiecesForProject(projectId: string, projetEnRoute?: Project | Promise<Project>): Promise<PieceRequest[]> {
   // KV-store en priorité : source de vérité per-pièce avec photos individuelles.
   // On filtre les pièces marquées « ne pas afficher » (displayInRapport===false)
   // pour qu'elles n'apparaissent jamais sur le rapport client.
@@ -194,6 +195,7 @@ async function loadPiecesForProject(projectId: string, project?: Project): Promi
   const fromKv = all.filter((p) => p.projectId === projectId);
   if (fromKv.length > 0) return fromKv.filter((p) => p.displayInRapport !== false);
   // Fallback : pièces saisies directement dans Notion (ancien système)
+  const project = await projetEnRoute;
   if (project?.infoPiecesManquantes) {
     const parsed = parsePiecesFromNotion(project.infoPiecesManquantes);
     if (project.photosPiecesManquantes.length > 0 && parsed.length > 0) {
@@ -212,7 +214,7 @@ async function loadPiecesForProject(projectId: string, project?: Project): Promi
   return [];
 }
 
-async function loadDefautsForProject(projectId: string, project?: Project): Promise<DefautRequest[]> {
+async function loadDefautsForProject(projectId: string, projetEnRoute?: Project | Promise<Project>): Promise<DefautRequest[]> {
   // KV-store en priorité : c'est la seule source qui contient les
   // métadonnées per-défaut (status, displayInRapport, comments). On
   // filtre côté serveur les défauts marqués "ne pas afficher" pour
@@ -239,6 +241,7 @@ async function loadDefautsForProject(projectId: string, project?: Project): Prom
   // Notion) → on parse le texte concaténé de la colonne "Infos -
   // Défauts signalé". Ces entrées-là sont toujours affichées (pas de
   // métadonnée displayInRapport disponible).
+  const project = await projetEnRoute;
   if (project?.infoDefautsSignale) {
     const parsed = parseDefautsFromNotion(project.infoDefautsSignale);
     if (project.photosDefautsSignale.length > 0 && parsed.length > 0) {
@@ -630,6 +633,31 @@ function estVideo(u: string): boolean {
  * vidéo s'afficherait comme un cadre vide — on verrait qu'il manque quelque
  * chose sans savoir quoi.
  */
+/** La signature telle que le PDF la montre (même transformation qu'avant). */
+function urlSignature(u: string): string {
+  return u.includes("res.cloudinary.com") && u.includes("/upload/") ? u.replace("/upload/", "/upload/w_900,q_90,f_png/") : u;
+}
+
+/** Champs photo que le rapport de montage affiche. */
+const CHAMPS_PHOTO_PDF = [
+  "photosAvant", "photosDemontage", "photosMontage", "photosQRCode", "photosGaranties",
+  "photosNumeroLot", "videosMontage", "photosSoucisRegle", "photosDefautsSignale", "photosPiecesManquantes",
+] as const;
+
+/** Les adresses d'images que le rendu va demander, exactement sous la même forme. */
+function imagesDuProjet(project: any): string[] {
+  const out: string[] = [];
+  for (const champ of CHAMPS_PHOTO_PDF) for (const f of project?.[champ] || []) if (f?.url) out.push(apercuUrl(f.url));
+  if (project?.signatureUrl) out.push(urlSignature(project.signatureUrl));
+  return out;
+}
+function imagesDesListes(pieces: PieceRequest[], defauts: DefautRequest[]): string[] {
+  const out: string[] = [];
+  for (const p of pieces) { for (const u of p.photoUrls || []) out.push(apercuUrl(u)); if (p.photoUrl) out.push(apercuUrl(p.photoUrl)); }
+  for (const d of defauts) for (const u of d.photoUrls || []) out.push(apercuUrl(u));
+  return out;
+}
+
 function apercuUrl(u: string): string {
   if (estVideo(u) && u.includes("/video/upload/")) {
     const i = u.indexOf("/video/upload/") + "/video/upload/".length;
@@ -674,7 +702,7 @@ function PhotoLink({ url, style }: { url: string; style: any }) {
   return (
     <Link src={downloadImageUrl(url)} style={linkStyle}>
       <View style={{ width: "100%", height: "100%", position: "relative" }}>
-        <Image src={apercuUrl(url)} style={imgStyle} />
+        <Image src={sourceImage(apercuUrl(url))} style={imgStyle} />
         {video ? (
           <View style={{ position: "absolute", top: "50%", left: "50%", marginTop: -13, marginLeft: -13, width: 26, height: 26, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 13, alignItems: "center", justifyContent: "center" }}>
             <Svg width={13} height={13} viewBox="0 0 24 24"><Path d="M7 4 L20 12 L7 20 Z" fill="#ffffff" /></Svg>
@@ -1324,7 +1352,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
         {project.signatureUrl && (
           <View style={{ marginTop: 16, padding: 10, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 6 }} wrap={false}>
             <Text style={{ fontSize: 9, color: "#6b7280", marginBottom: 6 }}>Signature du client</Text>
-            <Image src={project.signatureUrl.includes("res.cloudinary.com") && project.signatureUrl.includes("/upload/") ? project.signatureUrl.replace("/upload/", "/upload/w_900,q_90,f_png/") : project.signatureUrl} style={{ width: 300, height: 120, objectFit: "contain" }} />
+            <Image src={sourceImage(urlSignature(project.signatureUrl))} style={{ width: 300, height: 120, objectFit: "contain" }} />
           </View>
         )}
 
@@ -1801,7 +1829,20 @@ export async function GET(
     const forceClient = sigValidClient && !authed;
     chrono.etape("session");
 
-    const project = await getProject(id);
+    /* Tout ce qui ne dépend pas d'autre chose part EN MÊME TEMPS : la fiche,
+       les pièces, les défauts (lecture fraîche, inchangée), les noms de lots.
+       Les photos de la fiche se téléchargent dès qu'elle arrive, pendant que
+       les listes se lisent encore. Avant : tout à la file, puis les images au
+       moment du rendu (mesuré en production le 20.10.2026 : 2 à 10 s). */
+    const projetEnRoute = getProject(id);
+    const piecesEnRoute = loadPiecesForProject(id, projetEnRoute);
+    const defautsEnRoute = loadDefautsForProject(id, projetEnRoute);
+    const lotsEnRoute = loadCabineAttribution(id);
+    const photosEnRoute = projetEnRoute.then((p) => prechargerImages(imagesDuProjet(p))).catch(() => null);
+    // Une branche qui échoue pendant qu'on attend l'autre ne doit pas rester « non gérée ».
+    for (const pr of [piecesEnRoute, defautsEnRoute, lotsEnRoute]) pr.catch(() => {});
+
+    const project = await projetEnRoute;
     chrono.etape("projet");
 
     // Override heures from query params if provided (avoids Notion propagation delay)
@@ -1817,16 +1858,15 @@ export async function GET(
        circule, et ce relevé n'a pas à circuler. */
     const heuresPhotosVisibles = !versionClient && estAdmin;
 
-    const pieces = await loadPiecesForProject(id, project);
-    chrono.etape("pieces");
-    const defauts = await loadDefautsForProject(id, project);
-    chrono.etape("defauts");
+    const [pieces, defauts] = await Promise.all([piecesEnRoute, defautsEnRoute]);
+    chrono.etape("listes");
 
     // Charge les noms/monteurs de cabines.
     // Source prioritaire : project.nomsCabines + project.attributionCabines (stockés dans Notion).
     // Fallback : ancien KV store "cabine-attributions" (projets non encore migrés).
-    let cabineAttribution = await loadCabineAttribution(id);
-    chrono.etape("lots");
+    let cabineAttribution = await lotsEnRoute;
+    await Promise.all([photosEnRoute, prechargerImages(imagesDesListes(pieces, defauts))]);
+    chrono.etape("photos");
     const nbCab = project.nbCabines || 0;
     if (nbCab > 0 && (project.nomsCabines || project.attributionCabines)) {
       const parseNotionCabField = (raw: string): Map<number, string> => {
@@ -1898,15 +1938,12 @@ export async function GET(
       .trim();
 
     // Envoyer le PDF par email automatiquement
-    const token = request.cookies.get("auth-token")?.value;
+    // La session a déjà été vérifiée plus haut : inutile de la relire.
     let collaborateur = "Inconnu";
     let collaborateurEmail = "";
-    if (token) {
-      const user = await verifyToken(token);
-      if (user) {
-        collaborateur = user.name;
-        collaborateurEmail = user.email;
-      }
+    if (utilisateur) {
+      collaborateur = utilisateur.name;
+      collaborateurEmail = utilisateur.email;
     }
 
     // Generate client portal link

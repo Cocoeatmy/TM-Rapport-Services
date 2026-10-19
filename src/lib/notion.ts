@@ -14,6 +14,10 @@ import { descripteurFichier } from "@/lib/notion-fichiers";
 // pics du full-sync) et un pour les ÉCRITURES (rattachement des photos). Ainsi un
 // pic de lectures ne peut JAMAIS affamer les écritures → les photos uploadées
 // (déjà sûres sur Cloudinary) se rattachent à Notion sans rester bloquées.
+/** Compteurs de l'instance : appels Notion lancés et temps passé à attendre
+ *  le seau à jetons. Lus par le chronomètre des PDF (src/lib/chrono-pdf.ts). */
+export const compteursNotion = { appels: 0, attenteMs: 0 };
+
 function makeRateLimitedFetch(label: string, bucketMax: number, refillPerSec: number): typeof fetch {
   let tokens = bucketMax;
   let lastRefill = Date.now();
@@ -22,8 +26,9 @@ function makeRateLimitedFetch(label: string, bucketMax: number, refillPerSec: nu
       const now = Date.now();
       tokens = Math.min(bucketMax, tokens + ((now - lastRefill) / 1000) * refillPerSec);
       lastRefill = now;
-      if (tokens >= 1) { tokens -= 1; return; }
+      if (tokens >= 1) { tokens -= 1; compteursNotion.appels++; return; }
       const waitMs = ((1 - tokens) / refillPerSec) * 1000;
+      compteursNotion.attenteMs += Math.max(20, waitMs);
       await new Promise((r) => setTimeout(r, Math.max(20, waitMs)));
     }
   };
