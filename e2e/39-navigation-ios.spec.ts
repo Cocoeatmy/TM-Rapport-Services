@@ -214,3 +214,64 @@ test.describe("Planning", () => {
   });
 });
 
+
+/* ── L'app web de l'écran d'accueil (comme les monteurs l'utilisent) ── */
+const standalone = (context: BrowserContext) => context.addInitScript(() => {
+  Object.defineProperty(navigator, "standalone", { get: () => true, configurable: true });
+});
+
+test.describe("app web de l'écran d'accueil (iPhone)", () => {
+  test.use({ userAgent: UA_SAFARI, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("collaborateur : même navigation, même verre, Planning et menus — avec ses droits", async ({ page, context }) => {
+    await standalone(context);
+    await ouvrir(page, context, MONTEUR);
+    await expect(page.locator("html")).toHaveAttribute("data-app", "ios");
+    await expect(page.locator("html")).toHaveAttribute("data-app-source", "ecran-accueil");
+    await expect(barre(page)).toBeVisible();
+    /* En-tête et barre du bas : la même surface de verre. */
+    const verre = await page.evaluate(() => {
+      const lire = (el: Element) => { const c = getComputedStyle(el); return { fond: c.backgroundColor, flou: c.backdropFilter || (c as unknown as { webkitBackdropFilter: string }).webkitBackdropFilter }; };
+      const h = document.getElementById("main-header")!;
+      return { haut: lire(h), bas: lire(document.querySelector("nav.tm-ios-barre")!), rayon: getComputedStyle(h).borderBottomLeftRadius };
+    });
+    expect(verre.haut.fond).toBe(verre.bas.fond);
+    expect(verre.haut.flou).toBe(verre.bas.flou);
+    expect(verre.haut.flou).toContain("blur");
+    expect(parseFloat(verre.rayon)).toBeGreaterThan(16);
+    /* La barre laisse la place de la barre d'accueil d'iOS. */
+    const b = (await barre(page).boundingBox())!;
+    expect(844 - (b.y + b.height)).toBeGreaterThanOrEqual(20);
+    /* Droits : pas de création, pas de Statistiques. */
+    await barre(page).getByLabel("Nouveau projet").click();
+    await expect(page.getByText("La création de projets est réservée aux comptes autorisés.")).toBeVisible();
+    await barre(page).getByText("Profil").click();
+    await expect(page.locator(".tm-menu-profil")).not.toContainText("Statistiques");
+    await page.keyboard.press("Escape");
+    await barre(page).getByText("Profil").click();
+    /* Planning : ses rendez-vous (filtrés par le serveur), sans choix de collaborateur. */
+    await servirPlanning(page, false);
+    await barre(page).getByText("Planning").click();
+    await expect(page.locator(".tm-planning-jour.is-aujourdhui")).toContainText("Montage du jour");
+    await expect(page.locator(".tm-planning-collab")).toHaveCount(0);
+  });
+
+  test("administrateur : la même interface, avec le choix du collaborateur", async ({ page, context }) => {
+    await standalone(context);
+    await ouvrir(page, context, ADMIN);
+    await expect(page.locator("html")).toHaveAttribute("data-app", "ios");
+    await servirPlanning(page, true);
+    await barre(page).getByText("Planning").click();
+    await expect(page.locator(".tm-planning-collab select")).toHaveValue("");
+  });
+});
+
+test.describe("iPad en mode écran d'accueil", () => {
+  test.use({ userAgent: "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1", viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true });
+  test("rien ne change sur l'iPad", async ({ page, context }) => {
+    await standalone(context);
+    await ouvrir(page, context, MONTEUR);
+    await expect(page.locator("html")).not.toHaveAttribute("data-app", /.*/);
+    await expect(barre(page)).toHaveCount(0);
+  });
+});

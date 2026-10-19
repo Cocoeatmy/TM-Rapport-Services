@@ -114,15 +114,20 @@ export default function RootLayout({
             __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='ocean'||m==='cleanmymac'){m='signal';localStorage.setItem('tm-ui-mode',m);}if(m==='aurora'||m==='signal'){document.documentElement.setAttribute('data-ui',m);}}catch(e){}})();`,
           }}
         />
-        {/* L'app Apple sur iPhone, et elle seule : sa navigation d'app (barre
-            du bas, en-tête simplifié). Reconnue à l'identité que l'app native
-            ajoute à son navigateur (« TMRapportApp/1.0 (iOS) », depuis sa
-            première version) — jamais à une largeur d'écran : Safari, l'iPad
-            et le Mac gardent la navigation d'aujourd'hui. `viewport-fit`
-            donne alors accès à la zone de sécurité, sous la barre d'accueil. */}
+        {/* L'app sur iPhone : sa navigation d'app (barre du bas, en-tête
+            simplifié). Deux façons d'être « l'app » :
+             - l'app Apple native — identité « TMRapportApp/1.0 (iOS) » ;
+             - l'app web posée sur l'écran d'accueil de l'iPhone (mode
+               « standalone ») — c'est ainsi que travaillent les monteurs tant
+               que l'app native ne leur est pas distribuée (relevé du
+               19.10.2026 sur la page Appareils).
+            Jamais selon la largeur d'écran : un onglet Safari ordinaire,
+            l'iPad et le Mac gardent la navigation d'aujourd'hui.
+            `viewport-fit` (app native seulement) donne accès à la zone de
+            sécurité sous la barre d'accueil ; l'app web garde son réglage. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var u=navigator.userAgent;if(u.indexOf('TMRapportApp/')>=0&&u.indexOf('(iOS)')>=0){var d=document.documentElement;d.setAttribute('data-app','ios');var v=document.querySelector('meta[name="viewport"]');if(v&&v.content.indexOf('viewport-fit')<0)v.content+=', viewport-fit=cover';}}catch(e){}})();`,
+            __html: `(function(){try{var u=navigator.userAgent,d=document.documentElement;var natif=u.indexOf('TMRapportApp/')>=0&&u.indexOf('(iOS)')>=0;var web=!natif&&/iPhone|iPod/.test(u)&&(navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));if(natif||web){d.setAttribute('data-app','ios');d.setAttribute('data-app-source',natif?'natif':'ecran-accueil');if(natif){var v=document.querySelector('meta[name="viewport"]');if(v&&v.content.indexOf('viewport-fit')<0)v.content+=', viewport-fit=cover';}}}catch(e){}})();`,
           }}
         />
       </head>
