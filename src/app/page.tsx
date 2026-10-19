@@ -511,7 +511,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
         en CSS (`.sg-onglets`), avec EXACTEMENT la condition qui fait
         apparaître le rail — `lg:hidden` ne la connaissait pas et laissait
         les deux navigations côte à côte sur iPad. */}
-    <div className={`nav-stack mb-4 space-y-1.5${isSignal ? " sg-nav-stack" : ""}`}>
+    <div className={`nav-stack space-y-1.5${isSignal ? " sg-nav-stack" : ""}`}>
       {/* Ligne principale — remplacée par le rail dès que celui-ci paraît ;
           elle reste la navigation sur téléphone. */}
       <div className={`p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain${isSignal ? " sg-onglets" : ""}`}>
@@ -1300,8 +1300,12 @@ function HomePage() {
   // Sync filters to URL search params
   useEffect(() => {
     const setHeights = () => {
+      /* Tout le bloc collé en haut : l'en-tête ET le bandeau de synchro posé
+         au-dessus. Mesurer l'en-tête seul laissait la barre d'onglets glisser
+         sous le bandeau, ou bouger quand il paraissait. */
       const header = document.getElementById("main-header");
-      if (header) document.documentElement.style.setProperty("--header-h", `${header.offsetHeight}px`);
+      const bloc = header?.parentElement ?? header;
+      if (bloc) document.documentElement.style.setProperty("--header-h", `${bloc.offsetHeight}px`);
       const navbar = document.getElementById("main-navbar");
       if (navbar) document.documentElement.style.setProperty("--navbar-h", `${navbar.offsetHeight}px`);
     };
@@ -1316,6 +1320,7 @@ function HomePage() {
       ro = new ResizeObserver(setHeights);
       const header = document.getElementById("main-header");
       const navbar = document.getElementById("main-navbar");
+      if (header?.parentElement) ro.observe(header.parentElement);
       if (header) ro.observe(header);
       if (navbar) ro.observe(navbar);
     }
@@ -2336,7 +2341,10 @@ function HomePage() {
     // `sg-host` : repère de positionnement de l'aperçu latéral « Signal ».
     // La fiche s'ancre dans ce conteneur, donc sur la hauteur de la page
     // affichée, et non sur celle de la fenêtre. Inerte pour les autres thèmes.
-    <div className="px-3 sm:px-4 py-3 sm:py-4 w-full sg-host">
+    /* Pas de marge AU-DESSUS de la barre d'onglets : elle démarrait 12 à
+       16 px sous l'en-tête et y sautait au premier défilement (relevé du
+       20.10.2026). Collée dès le départ, elle ne bouge plus. */
+    <div className={`px-3 sm:px-4 pb-3 sm:pb-4 ${sgRailOnly ? "pt-3 sm:pt-4" : "pt-0"} w-full sg-host`}>
       <PullToRefresh />
       <Onboarding />
       {isSignal && <SignalPreviewHost />}
@@ -2366,7 +2374,7 @@ function HomePage() {
           page démarre directement sous l'en-tête. */}
       <div
         id="main-navbar"
-        className={sgRailOnly ? "" : "sticky z-40 -mx-3 sm:-mx-4 px-3 sm:px-4 pb-2 pt-1 glass-navbar"}
+        className={sgRailOnly ? "" : "sticky z-40 -mx-3 sm:-mx-4 px-3 sm:px-4 pb-1 pt-1.5 mb-2 glass-navbar"}
         style={sgRailOnly ? undefined : { top: `var(--header-h, 60px)` }}
       >
       <div className={sgRailOnly ? "" : "flex items-start gap-2"}>

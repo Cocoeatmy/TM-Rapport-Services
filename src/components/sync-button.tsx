@@ -453,7 +453,7 @@ export function SyncButton() {
 
       {/* Badge file d'attente */}
       {queueCount > 0 && (
-        <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+        <span data-alerte="1" className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
           {queueCount}
         </span>
       )}

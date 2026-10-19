@@ -15,6 +15,8 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineBanner } from "@/components/offline-banner";
 import { GlobalSearch } from "@/components/global-search";
 import { BackButton } from "@/components/back-button";
+import { BoutonAssistant } from "@/components/bouton-assistant";
+import { RepliEntete } from "@/components/repli-entete";
 import { HomeButton } from "@/components/home-button";
 import { MajAuto } from "@/components/maj-auto";
 import { PontApple } from "@/components/pont-apple";
@@ -117,9 +119,11 @@ export default function RootLayout({
         <div className="sticky top-0 z-50">
         <OfflineBanner />
         <header id="main-header" className="glass-header text-white">
-          <div className="flex items-center justify-between gap-2 px-2 sm:px-4 py-3 overflow-x-auto md:overflow-visible scrollbar-hide">
+          <div className="flex items-center justify-between gap-2 px-2 sm:px-4 py-2 overflow-x-auto md:overflow-visible scrollbar-hide">
             <div className="flex items-center gap-2 shrink-0">
               <HomeButton />
+              {/* L'assistant IA, juste à droite de l'Accueil (20.10.2026). */}
+              <BoutonAssistant />
               <BackButton />
             </div>
             {/* Emplacement d'accueil pour la barre du thème « Signal »
@@ -144,6 +148,9 @@ export default function RootLayout({
                   remonter. Il ne se monte ici que pour les MONTEURS, à qui
                   il sert avant de partir ; l'administrateur l'a dans son
                   menu de profil. Le composant tranche lui-même. */}
+              {/* Quand la ligne ne tient plus (iPhone), ces dernières pastilles
+                  se replient derrière « ⋯ » au lieu de déborder. */}
+              <RepliEntete>
               <BoutonHorsLigne />
               {/* SendPendingButton (avion) : quand il est coloré, des photos ne
                   sont pas encore uploadées → l'utilisateur relance en tapant.
@@ -154,6 +161,7 @@ export default function RootLayout({
               <ForceSyncButton />
               <SyncButton />
               <UserMenu />
+              </RepliEntete>
             </div>
           </div>
         </header>
@@ -161,8 +169,8 @@ export default function RootLayout({
         <main className="flex-1">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>
-        {/* Assistant IA : bouton flottant fixe (bas à droite), masqué sur la
-            page projet. Rendu au niveau page (positionnement fixed). */}
+        {/* Assistant IA : le panneau. Il s'ouvre depuis sa pastille de
+            l'en-tête (BoutonAssistant) — plus de bouton flottant. */}
         <MajAuto />
         {/* App Apple seulement : coffre natif et envois en arrière-plan. */}
         <PontApple />

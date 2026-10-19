@@ -135,21 +135,10 @@ export function AIChatbot() {
   // Sur la page projet : on masque complètement l'assistant (bouton + panneau).
   if (hidden) return null;
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Assistant IA"
-        title="Assistant IA"
-        /* `tm-ai-fab` : repère pour le thème Signal, qui masque ce bouton
-           flottant sur grand écran — l'assistant y vit dans le rail, avec les
-           autres destinations, et deux entrées pour la même chose se gênent. */
-        className="tm-ai-fab fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-white flex items-center justify-center shadow-xl hover:scale-105 transition-transform active:scale-95 border border-white/20"
-      >
-        <Sparkles className="w-6 h-6" />
-      </button>
-    );
-  }
+  /* Fermé, l'assistant n'occupe plus l'écran : il s'ouvre depuis sa pastille
+     de l'en-tête (BoutonAssistant) ou depuis le rail du thème Signal. Le
+     bouton flottant d'avant masquait du contenu en bas à droite. */
+  if (!open) return null;
 
   return (
     <div className="fixed bottom-5 right-5 w-80 sm:w-96 glass-card rounded-2xl shadow-2xl z-50 flex flex-col" style={{ maxHeight: "70vh" }}>

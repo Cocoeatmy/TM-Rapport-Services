@@ -45,6 +45,9 @@
   .app-hdr-search,
   .app-hdr-new,
   header button,
+  /* Le bouton Accueil est un LIEN : seule sa hauteur grandissait, et il
+     devenait une pilule de 30 × 40 au milieu des ronds (20.10.2026). */
+  header a.home-badge,
   .signal-headerbar button {
     min-width: 40px;
     min-height: 40px;

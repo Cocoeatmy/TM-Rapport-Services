@@ -51,7 +51,7 @@ export default defineConfig({
       /* Les parcours hors ligne, qui ont besoin de stocker des octets, et
          ceux qui exigent le vrai service worker : Playwright n'intercepte
          les requêtes d'un service worker que sur Chromium. */
-      testMatch: /(00|10|3[0-9]|40)-.*\.spec\.ts$/,
+      testMatch: /(00|10|3[0-5]|3[7-9]|40)-.*\.spec\.ts$/,
       use: {
         ...devices["Pixel 7"],
         viewport: { width: 390, height: 844 },
@@ -92,6 +92,13 @@ export default defineConfig({
       name: "vitesse-webkit",
       testMatch: /61-.*\.spec\.ts$/,
       use: { ...devices["iPhone 13"] },
+    },
+    {
+      /* L'en-tête mesuré dans WebKit (le moteur de l'iPhone et de l'iPad),
+         aux tailles d'écran réelles : e2e/36. */
+      name: "entete-webkit",
+      testMatch: /36-.*\.spec\.ts$/,
+      use: { browserName: "webkit" },
     },
     {
       name: "journee-webkit",

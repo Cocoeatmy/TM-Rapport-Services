@@ -132,7 +132,7 @@ export function SendPendingButton() {
         <TelegramIcon className="w-[18px] h-[18px]" />
       )}
       {hasPending && !sending && (
-        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-[#3b1e6e] shadow">
+        <span data-alerte="1" className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-[#3b1e6e] shadow">
           {count}
         </span>
       )}
