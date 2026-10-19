@@ -71,7 +71,15 @@ struct Ecran: View {
         .sheet(item: $navigateur.fenetreSecondaire) { fenetre in
             FenetreSecondaireVue(fenetre: fenetre, navigateur: navigateur)
         }
-        .sheet(item: $navigateur.documentAPartager) { doc in
+        /* La feuille de partage ne se présente d'ici que si aucune fenêtre
+           secondaire n'est ouverte : SwiftUI ne superpose pas deux feuilles
+           sur la même vue, et le bouton « Partager ou enregistrer » d'une
+           fenêtre secondaire restait sans effet. La fenêtre secondaire la
+           présente alors elle-même (FenetreSecondaireVue). */
+        .sheet(item: Binding(
+            get: { navigateur.fenetreSecondaire == nil ? navigateur.documentAPartager : nil },
+            set: { navigateur.documentAPartager = $0 }
+        )) { doc in
             FeuilleDePartage(fichiers: [doc.fichier])
         }
         #endif
@@ -182,6 +190,10 @@ struct FenetreSecondaireVue: View {
                         .accessibilityLabel("Partager ou enregistrer")
                     }
                 }
+        }
+        // Le document téléchargé depuis cette fenêtre se partage PAR-DESSUS elle.
+        .sheet(item: $navigateur.documentAPartager) { doc in
+            FeuilleDePartage(fichiers: [doc.fichier])
         }
     }
 }

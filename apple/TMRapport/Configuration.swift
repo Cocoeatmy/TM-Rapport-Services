@@ -23,10 +23,14 @@ enum Configuration {
     /// `-TMBaseURL http://localhost:3137`. Rien ne l'enregistre : l'app
     /// relancée normalement retrouve toujours la production.
     static var adresse: URL {
+        #if DEBUG
+        // Essais seulement : une app distribuée (TestFlight, App Store) ne
+        // peut JAMAIS être pointée ailleurs que sur la production.
         if let surcharge = UserDefaults.standard.string(forKey: "TMBaseURL"),
            let url = URL(string: surcharge), url.scheme != nil, url.host != nil {
             return url
         }
+        #endif
         return URL(string: "https://tm-rapport-services.vercel.app")!
     }
 
