@@ -103,6 +103,14 @@ export function CreateProjectButton() {
     }
   };
 
+  /* La barre du bas de l'app iPhone ouvre la même création. */
+  useEffect(() => {
+    if (!isAdmin) return;
+    const ouvrir = () => setOuvert(true);
+    window.addEventListener("tm-nouveau-projet", ouvrir);
+    return () => window.removeEventListener("tm-nouveau-projet", ouvrir);
+  }, [isAdmin]);
+
   if (!isAdmin) return null;
 
   return (

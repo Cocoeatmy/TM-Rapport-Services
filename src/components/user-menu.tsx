@@ -11,6 +11,8 @@ import { getQueue } from "@/lib/offline";
 import { countPendingUploads } from "@/lib/idb-uploads";
 import { getCollaboratorInitials } from "@/lib/collaborators";
 import { isSaveToGalleryEnabled, setSaveToGalleryEnabled } from "@/lib/save-to-gallery";
+import { estAppIphone, ouvrirRubrique } from "@/components/navigation-ios";
+import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 
 interface UserData {
@@ -33,6 +35,17 @@ const PROPRIETAIRE = "ferreira.micael@gmail.com";
 
 export function UserMenu() {
   const router = useRouter();
+  const pathname = usePathname() || "/";
+  /* App iPhone : le menu s'ouvre depuis le bouton Profil de la barre du bas,
+     en feuille, et reprend la synchro, la journée hors ligne et les stats
+     que l'en-tête simplifié n'affiche plus. Ailleurs, rien ne change. */
+  const [iphone, setIphone] = useState(false);
+  useEffect(() => {
+    setIphone(estAppIphone());
+    const basculer = () => setOpen((o) => !o);
+    window.addEventListener("tm-basculer-profil", basculer);
+    return () => window.removeEventListener("tm-basculer-profil", basculer);
+  }, []);
   const [vidage, setVidage] = useState(false);
 
   /**
@@ -124,6 +137,8 @@ export function UserMenu() {
     if (!open) return;
     const handler = (e: PointerEvent) => {
       const t = e.target as Node;
+      /* La barre du bas de l'app iPhone gère elle-même son bouton Profil. */
+      if ((t as Element)?.closest?.("[data-nav-ios]")) return;
       if (!menuRef.current?.contains(t) && !popRef.current?.contains(t)) setOpen(false);
     };
     document.addEventListener("pointerdown", handler);
@@ -259,7 +274,7 @@ export function UserMenu() {
           <div
             ref={popRef}
             style={{ position: "fixed", top: pos.top, right: pos.right }}
-            className="z-[100] w-56 max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-xl p-2 shadow-xl border border-gray-200 dark:border-gray-700">
+            className="tm-menu-profil z-[100] w-56 max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-xl p-2 shadow-xl border border-gray-200 dark:border-gray-700">
             <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 mb-1">
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
@@ -327,7 +342,7 @@ export function UserMenu() {
                 barre du haut, à portée de pouce avant de partir. Jamais aux
                 deux endroits. Il déplie son panneau DANS le menu, une bulle
                 flottante aurait recouvert la liste dont elle sort. */}
-            {user.role === "admin" && <BoutonHorsLigne variante="menu" />}
+            {(user.role === "admin" || iphone) && <BoutonHorsLigne variante="menu" />}
             {user.role === "admin" && (
               <button
                 onClick={() => { setOpen(false); router.push("/admin/sauvegardes"); }}
@@ -400,6 +415,24 @@ export function UserMenu() {
               <Info className="w-4 h-4" />
               Informations sur l&apos;application
             </button>
+            {iphone && (
+              <button
+                onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent("tm-ouvrir-synchro")); router.push("/informations"); }}
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                Synchronisation
+              </button>
+            )}
+            {iphone && user.role === "admin" && (
+              <button
+                onClick={() => { setOpen(false); ouvrirRubrique(router, pathname, "stats"); }}
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              >
+                <TrendingUp className="w-4 h-4" />
+                Statistiques
+              </button>
+            )}
             <button
               onClick={toggleDark}
               className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"

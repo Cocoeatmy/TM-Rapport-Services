@@ -21,7 +21,10 @@ import { HomeButton } from "@/components/home-button";
 import { MajAuto } from "@/components/maj-auto";
 import { PontApple } from "@/components/pont-apple";
 import { balisePourPage, versionCompilee } from "@/lib/version-web";
+import { Suspense } from "react";
 import "./globals.css";
+import "./navigation-ios.css";
+import { NavigationIos, IndicateurSynchro } from "@/components/navigation-ios";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -111,6 +114,17 @@ export default function RootLayout({
             __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='ocean'||m==='cleanmymac'){m='signal';localStorage.setItem('tm-ui-mode',m);}if(m==='aurora'||m==='signal'){document.documentElement.setAttribute('data-ui',m);}}catch(e){}})();`,
           }}
         />
+        {/* L'app Apple sur iPhone, et elle seule : sa navigation d'app (barre
+            du bas, en-tête simplifié). Reconnue à l'identité que l'app native
+            ajoute à son navigateur (« TMRapportApp/1.0 (iOS) », depuis sa
+            première version) — jamais à une largeur d'écran : Safari, l'iPad
+            et le Mac gardent la navigation d'aujourd'hui. `viewport-fit`
+            donne alors accès à la zone de sécurité, sous la barre d'accueil. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var u=navigator.userAgent;if(u.indexOf('TMRapportApp/')>=0&&u.indexOf('(iOS)')>=0){var d=document.documentElement;d.setAttribute('data-app','ios');var v=document.querySelector('meta[name="viewport"]');if(v&&v.content.indexOf('viewport-fit')<0)v.content+=', viewport-fit=cover';}}catch(e){}})();`,
+          }}
+        />
       </head>
       <body className="min-h-full flex flex-col lg-bg">
         {/* Bandeau hors-ligne + header dans un même conteneur sticky : le
@@ -125,10 +139,13 @@ export default function RootLayout({
         <header id="main-header" className="glass-header text-white">
           <div className="flex items-center justify-between gap-2 px-2 sm:px-4 py-2 overflow-x-auto md:overflow-visible scrollbar-hide">
             <div className="flex items-center gap-2 shrink-0">
-              <HomeButton />
+              {/* `contents` : ces enveloppes n'existent pas pour la mise en page,
+                  sauf dans l'app iPhone (navigation-ios.css), qui réordonne et
+                  écarte les boutons repris par sa barre du bas. */}
+              <div className="contents tm-h-accueil"><HomeButton /></div>
               {/* L'assistant IA, juste à droite de l'Accueil (20.10.2026). */}
               <BoutonAssistant />
-              <BackButton />
+              <div className="contents tm-h-retour"><BackButton /></div>
             </div>
             {/* Emplacement d'accueil pour la barre du thème « Signal »
                 (recherche ouverte + Nouveau projet + fenêtre secondaire), qui
@@ -140,12 +157,14 @@ export default function RootLayout({
                 (Actualiser et la synchro orange) et les deux nuages (la
                 synchro et le téléchargement hors réseau) se confondaient
                 quand elles étaient voisines. */}
-            <div className="flex items-center gap-2 shrink-0">
-              <GlobalSearch />
-              <CreateProjectButton />
+            <div className="flex items-center gap-2 shrink-0 tm-h-droite">
+              <div className="contents tm-h-recherche"><GlobalSearch /></div>
+              <div className="contents tm-h-creer"><CreateProjectButton /></div>
               {/* Bouton Actualiser : visible pour TOUS (admin + employé). */}
-              <RefreshButton />
-              <NotificationBell />
+              <div className="contents tm-h-actualiser"><RefreshButton /></div>
+              <div className="contents tm-h-notifications"><NotificationBell /></div>
+              {/* App iPhone : l'état de la synchro, discret (rien quand tout est parti). */}
+              <IndicateurSynchro />
               {/* Le nuage descendant (« Journée hors ligne ») : ce qui est
                   TÉLÉCHARGÉ sur l'appareil pour travailler sans réseau —
                   l'inverse du nuage de synchro et de l'avion, qui font
@@ -154,6 +173,7 @@ export default function RootLayout({
                   menu de profil. Le composant tranche lui-même. */}
               {/* Quand la ligne ne tient plus (iPhone), ces dernières pastilles
                   se replient derrière « ⋯ » au lieu de déborder. */}
+              <div className="contents tm-h-repli">
               <RepliEntete>
               <BoutonHorsLigne />
               {/* SendPendingButton (avion) : quand il est coloré, des photos ne
@@ -166,6 +186,7 @@ export default function RootLayout({
               <SyncButton />
               <UserMenu />
               </RepliEntete>
+              </div>
             </div>
           </div>
         </header>
@@ -175,6 +196,8 @@ export default function RootLayout({
         </main>
         {/* Assistant IA : le panneau. Il s'ouvre depuis sa pastille de
             l'en-tête (BoutonAssistant) — plus de bouton flottant. */}
+        {/* App iPhone : la barre du bas (rien ailleurs). */}
+        <Suspense fallback={null}><NavigationIos /></Suspense>
         <MajAuto />
         {/* App Apple seulement : coffre natif et envois en arrière-plan. */}
         <PontApple />

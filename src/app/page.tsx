@@ -392,6 +392,19 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
     null
   );
   const count = (m: string) => (projectsData[m]?.length ?? "...");
+  /* App iPhone : la rangée d'onglets laisse place à la barre du bas, qui
+     change de rubrique sans passer par ces onglets — le sous-menu de la
+     rubrique ouverte (Mesures / Montages…, En cours / Terminés) suit donc
+     le mode. Ailleurs, rien ne change. */
+  useEffect(() => {
+    if (document.documentElement.getAttribute("data-app") !== "ios") return;
+    setOpen(
+      mode.startsWith("grossistes") ? "grossistes" :
+      mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
+      mode.startsWith("services") || mode.startsWith("mesures") || mode.startsWith("cmd") || mode.startsWith("sav") ? "services" :
+      mode.startsWith("clients") ? "clients" :
+      null);
+  }, [mode]);
 
   const servicesModes = ["mesures", "cmd", "services", "sav"];
   const servicesLabels: Record<string, string> = { mesures: "Mesures", cmd: "Montages", services: "Services", sav: "SAV" };
@@ -514,7 +527,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
     <div className={`nav-stack space-y-1.5${isSignal ? " sg-nav-stack" : ""}`}>
       {/* Ligne principale — remplacée par le rail dès que celui-ci paraît ;
           elle reste la navigation sur téléphone. */}
-      <div className={`p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain${isSignal ? " sg-onglets" : ""}`}>
+      <div className={`tm-onglets-principaux p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain${isSignal ? " sg-onglets" : ""}`}>
         <div className="flex gap-1">
           <button onClick={() => { handleSelect("dashboard"); setOpen(null); }} className={tabCls(mode === "dashboard")}>
             Dashboard

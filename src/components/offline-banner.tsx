@@ -191,6 +191,9 @@ export function OfflineBanner() {
       }
     };
     window.addEventListener("tm-envoi-progression", surPhoto);
+    /* L'indicateur de synchro de l'app iPhone ouvre ce détail. */
+    const ouvrirDetail = () => setShowDetails(true);
+    window.addEventListener("tm-ouvrir-synchro", ouvrirDetail);
     window.addEventListener("tm-saisie-progression", surSaisie);
     window.addEventListener("tm-reseau", refresh);
     window.addEventListener("online",  handleOnline);
@@ -214,6 +217,7 @@ export function OfflineBanner() {
     return () => {
       cancelled = true;
       window.removeEventListener("tm-envoi-progression", surPhoto);
+      window.removeEventListener("tm-ouvrir-synchro", ouvrirDetail);
       window.removeEventListener("tm-saisie-progression", surSaisie);
       window.removeEventListener("tm-reseau", refresh);
       window.removeEventListener("online",  handleOnline);

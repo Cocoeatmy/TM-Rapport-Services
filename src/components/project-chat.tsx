@@ -153,7 +153,7 @@ export function ProjectChat({ projectId }: { projectId: string }) {
       <button
         onClick={() => setOpen(true)}
         style={fixedStyle}
-        className="w-14 h-14 rounded-full glass-btn text-white flex items-center justify-center shadow-xl"
+        className="tm-chat-projet w-14 h-14 rounded-full glass-btn text-white flex items-center justify-center shadow-xl"
         aria-label={unreadCount > 0 ? `Discussion : ${unreadCount} message(s) non lu(s)` : "Discussion"}
       >
         <MessageCircle className="w-6 h-6" />
@@ -173,7 +173,7 @@ export function ProjectChat({ projectId }: { projectId: string }) {
   }
 
   return createPortal(
-    <div style={{ ...fixedStyle, maxHeight: "60vh" }} className="w-80 sm:w-96 glass-card rounded-2xl shadow-2xl flex flex-col">
+    <div style={{ ...fixedStyle, maxHeight: "60vh" }} className="tm-chat-projet w-80 sm:w-96 glass-card rounded-2xl shadow-2xl flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-2">
