@@ -219,6 +219,12 @@ async function networkFirstFresh(request, cache) {
   return networkPromise;
 }
 
+/** Juste après une écriture, une lecture API attend le réseau (plafonné à
+ *  FRESH_TIMEOUT_MS) plutôt que de rendre la copie au bout de 400 ms : on ne
+ *  relit pas l'état d'avant. Sans réseau, la copie reste servie. */
+const FRAICHEUR_APRES_ECRITURE_MS = 60_000;
+let lectureFraicheJusqua = 0;
+
 /** fetch borné dans le temps : au-delà, on renonce (pas d'attente infinie). */
 function fetchBorne(request, msMax) {
   return new Promise((resolve, reject) => {
@@ -325,7 +331,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       caches.open(API_CACHE).then(async (cache) => {
         try {
-          return isAlwaysFreshApi(url.pathname)
+          return isAlwaysFreshApi(url.pathname) || Date.now() < lectureFraicheJusqua
             ? await networkFirstFresh(request, cache)
             : await networkFirstWithTimeout(request, cache, API_TIMEOUT_MS);
         } catch {
@@ -467,8 +473,19 @@ self.addEventListener("message", (event) => {
     );
   }
 
-  // Purge du cache API sur demande (ex: sync manuelle)
+  // Après une écriture (photo, saisie, synchro) : les lectures qui suivent
+  // attendent le réseau au lieu de servir la copie — mais la copie RESTE.
+  // L'ancien comportement effaçait tout le cache API : une seule photo prise
+  // sans réseau rendait TOUS les chantiers préparés introuvables à la
+  // réouverture (« Projet introuvable », constaté en production sur TEST 5 le
+  // 19.10.2026).
   if (event.data?.type === "INVALIDATE_API_CACHE") {
+    lectureFraicheJusqua = Date.now() + FRAICHEUR_APRES_ECRITURE_MS;
+  }
+
+  // Vidage DÉLIBÉRÉ, depuis le bouton « vider le cache » (qui refuse d'agir
+  // tant qu'il reste du travail à envoyer) : là, on efface vraiment.
+  if (event.data?.type === "VIDER_API_CACHE") {
     event.waitUntil(
       caches.delete(API_CACHE).then(() => caches.open(API_CACHE))
     );

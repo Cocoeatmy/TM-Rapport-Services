@@ -64,6 +64,6 @@ export function viderCachesDeLecture(): number {
 export async function viderCacheServiceWorker(): Promise<void> {
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
-    reg?.active?.postMessage({ type: "INVALIDATE_API_CACHE" });
+    reg?.active?.postMessage({ type: "VIDER_API_CACHE" });
   } catch { /* sans service worker, rien à vider */ }
 }

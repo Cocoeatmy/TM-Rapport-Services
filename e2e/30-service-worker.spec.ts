@@ -11,6 +11,8 @@
  * production, écrit à la main dans `public/sw.js`.
  */
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { brancherFixtures, seConnecter, PROJET_ID } from "./harnais";
 
 /** Attend que le service worker prenne la main sur la page. */
@@ -83,6 +85,43 @@ test.describe("la PWA et son service worker", () => {
        Le détail vient du cache local de l'application. */
     await expect(page.locator("body")).not.toBeEmpty();
     await expect(page.locator("body")).not.toContainText("This site can't be reached", { timeout: 5000 });
+
+    await context.setOffline(false);
+  });
+
+  test("une écriture ne fait pas disparaître la fiche gardée pour le hors-ligne", async ({ page, context }) => {
+    /* Constaté en production sur TEST 5 le 19.10.2026 : chaque photo prise
+       demandait au service worker d'EFFACER tout son cache API. À la
+       réouverture sans réseau : « Projet introuvable », sur tous les
+       chantiers préparés. Une écriture doit rendre les lectures suivantes
+       fraîches, pas détruire la copie hors-ligne. */
+    await seConnecter(context);
+    await brancherFixtures(page);
+
+    await page.goto(`/projet/${PROJET_ID}?mode=cmd`, { waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await attendreLeServiceWorker(page);
+    await page.waitForTimeout(2000);
+
+    /* Le banc sert ses données AVANT le service worker : on dépose donc
+       nous-mêmes, dans la réserve API du worker, la copie qu'il aurait
+       gardée d'une fiche préparée. */
+    const URL_FICHE = `/api/projects/${PROJET_ID}`;
+    const version = /const VERSION = "([^"]+)"/.exec(readFileSync(join(process.cwd(), "public", "sw.js"), "utf8"))![1];
+    await page.evaluate(async ({ u, nom }) => {
+      await (await caches.open(nom)).put(u, new Response(JSON.stringify({ id: "copie" }), { headers: { "Content-Type": "application/json" } }));
+    }, { u: URL_FICHE, nom: `tm-api-${version}` });
+    const copies = () => page.evaluate(async (u) => {
+      let n = 0;
+      for (const nom of await caches.keys()) for (const r of await (await caches.open(nom)).keys()) if (new URL(r.url).pathname === u) n++;
+      return n;
+    }, URL_FICHE);
+    expect(await copies()).toBe(1);
+
+    /* Ce que l'application envoie après chaque photo ou saisie. */
+    await page.evaluate(() => navigator.serviceWorker.controller?.postMessage({ type: "INVALIDATE_API_CACHE" }));
+    await page.waitForTimeout(1500);
+    expect(await copies(), "une écriture ne doit pas effacer la copie hors-ligne").toBe(1);
 
     await context.setOffline(false);
   });
