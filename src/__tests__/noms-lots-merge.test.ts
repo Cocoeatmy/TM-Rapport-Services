@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mergeCabineNoms } from "@/app/api/projects/[id]/route";
+import { mergeCabineNoms } from "@/lib/fusion-cabines";
 
 /**
  * Qui gagne quand deux téléphones envoient les noms des lots.

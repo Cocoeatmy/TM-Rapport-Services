@@ -20,14 +20,31 @@ describe("les saisies en attente reportées sur la fiche", () => {
     expect(p.commentairesMontages).toBe("note");
   });
 
-  it("ne touche ni aux autres fiches, ni aux colonnes « CabN: » fusionnées par le serveur", () => {
+  it("ne touche pas aux autres fiches", () => {
+    file([PATCH("B", { rapportMonteur: "pour B", heureArrivee: "Cab1:09:00" }, 1)]);
+    const original = { id: "A", rapportMonteur: "ancien", heureArrivee: "Cab1:06:00" };
+    expect(avecSaisiesEnAttente(original)).toBe(original);
+  });
+
+  it("colonnes par lot : la fusion du serveur, sans rien perdre des autres lots (cas TEST 5 du 19.10.2026)", () => {
+    // La file réellement relevée en production, lot 4 rempli hors ligne.
     file([
-      PATCH("B", { rapportMonteur: "pour B" }, 1),
-      PATCH("A", { heureArrivee: "Cab1:07:00", interventionsMontageCabines: "Cab2:x", attributionCabines: "Cab1:Javier" }, 2),
+      PATCH("A", { attributionCabines: "Cab4:Micael" }, 1),
+      PATCH("A", { interventionsMontageCabines: "Cab4:2026-10-19~Micael", heureArrivee: "Cab4:", heureDepart: "Cab4:", attributionCabines: "Cab4:Micael" }, 2),
+      PATCH("A", { interventionsMontageCabines: "Cab4:2026-10-19~Micael~13:30", heureArrivee: "Cab4:2026-10-19:13:30", heureDepart: "Cab4:", attributionCabines: "Cab4:Micael" }, 3),
     ]);
-    const original = { id: "A", rapportMonteur: "ancien", heureArrivee: "Cab1:06:00 | Cab2:08:00", interventionsMontageCabines: "Cab1:y" };
-    const p = avecSaisiesEnAttente(original);
-    expect(p).toBe(original); // rien à reporter : la même fiche, intacte
+    const p = avecSaisiesEnAttente({
+      id: "A",
+      heureArrivee: "Cab1:2026-10-14:21:27 | Cab2:2026-10-16:22:03 | Cab3:2026-10-18:22:35",
+      heureDepart: "Cab1:2026-10-14: | Cab2:2026-10-16:22:05 | Cab3:2026-10-18:22:37",
+      attributionCabines: "Cab1:Micael | Cab2:Micael | Cab3:Micael",
+      interventionsMontageCabines: "Cab1:2026-10-14~Micael~21:27 | Cab2:2026-10-16~Micael~22:03~22:05 | Cab3:2026-10-18~Micael~22:35~22:37",
+    });
+    expect(p.heureArrivee).toBe("Cab1:2026-10-14:21:27 | Cab2:2026-10-16:22:03 | Cab3:2026-10-18:22:35 | Cab4:2026-10-19:13:30");
+    expect(p.heureDepart).toBe("Cab1:2026-10-14: | Cab2:2026-10-16:22:05 | Cab3:2026-10-18:22:37");
+    expect(p.attributionCabines).toBe("Cab1:Micael | Cab2:Micael | Cab3:Micael | Cab4:Micael");
+    expect(p.interventionsMontageCabines).toContain("Cab4:2026-10-19~Micael~13:30");
+    expect(p.interventionsMontageCabines).toContain("Cab1:2026-10-14~Micael~21:27");
   });
 
   it("sans file, rend la fiche telle quelle", () => {

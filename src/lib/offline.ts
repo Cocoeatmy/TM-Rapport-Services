@@ -14,6 +14,7 @@
 //     `processQueue()` automatiquement quand la connexion revient.
 //     Un poll de 30 s sert de filet de sécurité.
 
+import { besoinDeFusion, fusionnerAvecExistant, CHAMPS_PAR_LOT } from "./fusion-cabines";
 import { reseauUtilisable, fetchAvecDelai } from "./reseau";
 
 const CACHE_KEY = "tm-rapport-cache";
@@ -271,7 +272,7 @@ export function getQueue(): QueueItem[] {
 }
 
 /**
- * Les textes saisis qui attendent encore dans la file, reportés sur une fiche.
+ * Les saisies qui attendent encore dans la file, reportées sur une fiche.
  *
  * À la réouverture sans réseau, la fiche se construit depuis la copie faite le
  * matin : elle réaffichait l'ancien rapport, et l'enregistrement automatique
@@ -280,9 +281,12 @@ export function getQueue(): QueueItem[] {
  * (scénario 60, test 5, 19.10.2026). Avec réseau, même risque tant que la
  * file n'est pas partie : le serveur rend encore l'ancienne version.
  *
- * Seuls les champs dont la file porte la valeur ENTIÈRE sont reportés. Les
- * colonnes « CabN:valeur » (heures, interventions, SAV…) sont des morceaux que
- * le serveur fusionne : les recopier tels quels effacerait les autres lots.
+ * Même chose pour les colonnes par lot (« Cab4:… ») : constaté en production
+ * sur TEST 5 le 19.10.2026, un lot rempli hors ligne paraissait vide après
+ * réouverture ; en le reprenant, le monteur mettait en file un « Cab4: » vide
+ * qui, rejoué APRÈS l'heure saisie, l'effaçait. Ces colonnes sont fusionnées
+ * avec la fonction même du serveur (`fusionnerAvecExistant`) : la fiche montre
+ * exactement ce que le serveur aura une fois la file passée.
  */
 const TEXTES_ENTIERS = new Set([
   "rapportMonteur", "commentairesMontages", "commentairesMesures",
@@ -292,16 +296,24 @@ const TEXTES_ENTIERS = new Set([
 export function avecSaisiesEnAttente<T extends { id?: string }>(projet: T): T {
   if (!projet?.id) return projet;
   const url = `/api/projects/${projet.id}`;
-  let out: T | null = null;
+  let out: Record<string, unknown> | null = null;
   for (const q of getQueue()) {
     if (q.url !== url || q.method !== "PATCH" || !q.body || typeof q.body !== "object") continue;
-    for (const [cle, valeur] of Object.entries(q.body as Record<string, unknown>)) {
-      if (!TEXTES_ENTIERS.has(cle) || typeof valeur !== "string") continue;
-      out = out ?? { ...projet };
-      (out as Record<string, unknown>)[cle] = valeur; // la file est dans l'ordre : la dernière gagne
+    const corps: Record<string, unknown> = { ...(q.body as Record<string, unknown>) };
+    const fiche: Record<string, unknown> = out ?? { ...(projet as Record<string, unknown>) };
+    let touche = false;
+    if (besoinDeFusion(corps)) {
+      fusionnerAvecExistant(fiche, corps); // la file est dans l'ordre : chaque écriture part de la précédente
+      for (const cle of CHAMPS_PAR_LOT) {
+        if (typeof corps[cle] === "string") { fiche[cle] = corps[cle]; touche = true; }
+      }
     }
+    for (const [cle, valeur] of Object.entries(corps)) {
+      if (TEXTES_ENTIERS.has(cle) && typeof valeur === "string") { fiche[cle] = valeur; touche = true; }
+    }
+    if (touche) out = fiche;
   }
-  return out ?? projet;
+  return (out as T | null) ?? projet;
 }
 
 export function removeFromQueue(id: string) {
