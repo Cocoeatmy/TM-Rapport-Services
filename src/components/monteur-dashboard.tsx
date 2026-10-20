@@ -1740,8 +1740,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     : id === "active" ? voitEquipe
     : true;
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
-  /* « Mes interventions » : le jour dont l'onglet est ouvert (AAAA-MM-JJ). */
-  const [jourInterventions, setJourInterventions] = useState<string | null>(null);
+  /* « Mes interventions » : les jours dépliés (AAAA-MM-JJ) ; null = aujourd'hui. */
+  const [joursInterventions, setJoursInterventions] = useState<Set<string> | null>(null);
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
 
   // Horodatage de l'ordre local courant (pour la réconciliation au chargement).
@@ -3685,109 +3685,98 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </button>
           </div>
 
-          {/* Compte collaborateur : SES interventions d'abord — ce que son
-              ancien tableau de bord mettait en tête (« Cette semaine »). Même
-              ligne Signal que l'agenda ; un appui ouvre l'aperçu du chantier. */}
+          {/* Compte collaborateur : SES interventions de la semaine, une carte
+              repliable par jour du lundi au vendredi — comme les cartes
+              « Aujourd'hui / Demain » de l'agenda — et, dedans, les lignes de
+              chantier telles qu'il les connaît (20.10.2026). Le week-end, on
+              montre la semaine qui vient. Un appui ouvre l'aperçu du chantier. */}
           {restreint && (() => {
             const aujourdhui = getTodayStr();
-            const fin = getWeekEndStr();
-            const dansFenetre = (debut?: string | null, finRdv?: string | null) => {
+            const base = new Date(aujourdhui + "T12:00:00");
+            const dow = base.getDay(); // 0 dimanche … 6 samedi
+            const lundi = new Date(base);
+            lundi.setDate(base.getDate() + (dow === 0 ? 1 : dow === 6 ? 2 : 1 - dow));
+            const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            const semaine = [0, 1, 2, 3, 4].map((i) => { const d = new Date(lundi); d.setDate(lundi.getDate() + i); return iso(d); });
+            /* Un chantier sur plusieurs jours figure chaque jour qu'il occupe. */
+            const couvre = (jour: string, debut?: string | null, finRdv?: string | null) => {
               const d = (debut || "").slice(0, 10);
               const f = (finRdv || debut || "").slice(0, 10);
-              return !!d && d <= fin && f >= aujourdhui;
+              return !!d && d <= jour && f >= jour;
             };
+            const COULEURS: Record<string, string> = { montage: "#1b63ff", mesures: "#0e7490", services: "#6d28d9", sav: "#b45309" };
+            const MODES: Record<string, string> = { montage: "cmd", mesures: "mesures", services: "services", sav: "sav" };
             /* Une ligne par intervention qui lui est confiée : un chantier
                mesuré par lui et monté par un autre n'apparaît que pour sa
                mesure. Même règle d'attribution que l'agenda. */
-            const lignes: { p: Project; source: string; brut: string }[] = [];
-            for (const p of projetsConnus) {
-              const estService = (p.typeServices || []).some((t: string) => t.includes("Services"));
-              if (dansFenetre(p.dateMontage, p.dateMontageEnd) && monMontage(p)) lignes.push({ p, source: estService ? "services" : "montage", brut: p.dateMontage || "" });
-              if (dansFenetre(p.dateMesures) && maMesure(p)) lignes.push({ p, source: "mesures", brut: p.dateMesures || "" });
-              if (p.etatSAV === "RDV fixé" && dansFenetre(p.dateRDVSAV) && monSav(p)) lignes.push({ p, source: "sav", brut: p.dateRDVSAV || "" });
-            }
-            const vues = new Set<string>();
-            const prochaines = lignes
-              .filter((l) => { const k = `${l.source}-${l.p.id}`; if (vues.has(k)) return false; vues.add(k); return true; })
-              .sort((x, y) => x.brut.localeCompare(y.brut));
-            const COULEURS: Record<string, string> = { montage: "#1b63ff", mesures: "#0e7490", services: "#6d28d9", sav: "#b45309" };
-            const MODES: Record<string, string> = { montage: "cmd", mesures: "mesures", services: "services", sav: "sav" };
-            /* Un onglet par jour de travail, comme le tableau de bord de
-               l'administrateur (20.10.2026) : la journée ouverte d'abord —
-               aujourd'hui s'il y a du travail, sinon la prochaine. */
-            const parJour = new Map<string, typeof prochaines>();
-            for (const l of prochaines) {
-              const k = (l.brut || "").slice(0, 10) || "—";
-              parJour.set(k, [...(parJour.get(k) || []), l]);
-            }
-            const jours = [...parJour.keys()];
-            const jourOuvert = jourInterventions && parJour.has(jourInterventions)
-              ? jourInterventions
-              : (parJour.has(aujourdhui) ? aujourdhui : jours[0]);
-            const dateDe = (k: string) => new Date(k + "T12:00:00");
-            const valide = (k: string) => /^\d{4}-\d{2}-\d{2}$/.test(k);
-            const titreJour = (k: string) => valide(k)
-              ? `${dateDe(k).toLocaleDateString("fr-CH", { weekday: "long" })} ${dateDe(k).toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric" })}`
-              : "Date à fixer";
-            const duJour = jourOuvert ? parJour.get(jourOuvert) || [] : [];
-            const cabJour = duJour.reduce((s, l) => s + (l.p.nbCabines || 0), 0);
+            const duJour = (jour: string) => {
+              const lignes: { p: Project; source: string; brut: string }[] = [];
+              for (const p of projetsConnus) {
+                const estService = (p.typeServices || []).some((t: string) => t.includes("Services"));
+                if (couvre(jour, p.dateMontage, p.dateMontageEnd) && monMontage(p)) lignes.push({ p, source: estService ? "services" : "montage", brut: p.dateMontage || "" });
+                if (couvre(jour, p.dateMesures) && maMesure(p)) lignes.push({ p, source: "mesures", brut: p.dateMesures || "" });
+                if (p.etatSAV === "RDV fixé" && couvre(jour, p.dateRDVSAV) && monSav(p)) lignes.push({ p, source: "sav", brut: p.dateRDVSAV || "" });
+              }
+              const vues = new Set<string>();
+              return lignes
+                .filter((l) => { const k = `${l.source}-${l.p.id}`; if (vues.has(k)) return false; vues.add(k); return true; })
+                .sort((x, y) => (x.brut.includes("T") ? x.brut.slice(11) : "").localeCompare(y.brut.includes("T") ? y.brut.slice(11) : ""));
+            };
+            /* Ouvert par défaut : aujourd'hui (ou, hors semaine, le lundi). */
+            const ouverts = joursInterventions ?? new Set([semaine.includes(aujourdhui) ? aujourdhui : semaine[0]]);
             return (
               <div className="sg-section sg-mes-interventions">
                 <div className="sg-section-head">
                   <span>Mes interventions</span>
                   <i className="sg-rule" />
                 </div>
-                {jours.length > 0 && (
-                  <div className="sg-int-onglets" role="tablist" aria-label="Jours de travail">
-                    {jours.map((k) => {
-                      const n = parJour.get(k)?.length || 0;
-                      return (
-                        <button key={k} type="button" role="tab" aria-selected={k === jourOuvert}
-                          className={`sg-int-onglet${k === jourOuvert ? " is-on" : ""}${k === aujourdhui ? " is-auj" : ""}`}
-                          onClick={() => setJourInterventions(k)}>
-                          <span>{valide(k) ? dateDe(k).toLocaleDateString("fr-CH", { weekday: "long" }) : "À fixer"}</span>
-                          <b>{valide(k) ? dateDe(k).toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" }) : "—"}</b>
-                          <i>{n}</i>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                <div className="sg-card">
-                  {prochaines.length === 0 && (
-                    <div className="sg-row sg-row-static"><span className="sg-row-label">Aucune intervention prévue d&apos;ici la fin de la semaine prochaine</span></div>
-                  )}
-                  {jourOuvert && (
-                    <div className="sg-int-tete">
-                      <b>{titreJour(jourOuvert)}</b>
-                      <span>{duJour.length} intervention{duJour.length > 1 ? "s" : ""} · {cabJour} cab.</span>
-                    </div>
-                  )}
-                  {duJour.map(({ p, source, brut }) => {
-                    const quand = brut ? new Date(brut.includes("T") ? brut : brut + "T12:00:00") : null;
-                    const jour = { montage: "Montage", mesures: "Mesures", services: "Service", sav: "SAV" }[source] || "";
-                    const heure = quand && brut.includes("T") ? quand.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" }) : "";
-                    /* Trois colonnes, sans cadre : QUAND (date, puis l'heure
-                       dessous), QUOI (le titre ENTIER, sur deux ou trois
-                       lignes s'il le faut — tronqué, on ne savait plus quel
-                       chantier c'était), OÙ et COMBIEN (l'emplacement des
-                       cabines, puis leur nombre). */
-                    const emplacement = String(p.emplacementCabine || "").trim();
+                <div className="sg-agenda sg-int-semaine">
+                  {semaine.map((jour) => {
+                    const lignes = duJour(jour);
+                    const ouvert = ouverts.has(jour) && lignes.length > 0;
+                    const d = new Date(jour + "T12:00:00");
+                    const nom = d.toLocaleDateString("fr-CH", { weekday: "long" });
+                    const titre = jour === aujourdhui ? "Aujourd'hui" : nom.charAt(0).toUpperCase() + nom.slice(1);
                     return (
-                      <button key={`${source}-${p.id}`} type="button" className="sg-row sg-int"
-                        title={`${p.ofrTM || ""} ${p.projet || ""}`.trim()}
-                        onClick={() => openSignalPreview(p, MODES[source] || "cmd")}>
-                        <span className="sg-row-bar" style={{ background: COULEURS[source] || "var(--sg-line-strong)" }} />
-                        <span className="sg-int-quand">
-                          <span className="sg-int-jour">{heure || "Journée"}</span>
-                          <span className="sg-int-heure" style={{ color: COULEURS[source] }}>{jour}</span>
-                        </span>
-                        <span className="sg-int-titre">{p.projet}</span>
-                        <span className="sg-int-ou">
-                          {emplacement && <span className="sg-int-empl">{emplacement}</span>}
-                          <span className="sg-int-cab"><b>{p.nbCabines || 0}</b> cab.</span>
-                        </span>
-                      </button>
+                      <div key={jour} className={`sg-card${ouvert ? "" : " is-folded"}`}>
+                        <div className="sg-card-head">
+                          <button type="button" className="sg-day-toggle" aria-expanded={ouvert} disabled={lignes.length === 0}
+                            onClick={() => setJoursInterventions(() => {
+                              const next = new Set(ouverts);
+                              if (next.has(jour)) next.delete(jour); else next.add(jour);
+                              return next;
+                            })}>
+                            <span className="sg-card-title" style={{ color: jour === aujourdhui ? "#15803d" : "var(--sg-text)" }}>{titre}</span>
+                            <span className="sg-day-total">{lignes.length}</span>
+                            <span className="sg-card-meta">{d.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</span>
+                            {lignes.length > 0 && (ouvert ? <ChevronUp className="w-4 h-4 sg-day-chev" /> : <ChevronDown className="w-4 h-4 sg-day-chev" />)}
+                          </button>
+                        </div>
+                        {ouvert && lignes.map(({ p, source, brut }) => {
+                          const quand = brut ? new Date(brut.includes("T") ? brut : brut + "T12:00:00") : null;
+                          const jourTxt = d.toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" });
+                          const heure = quand && brut.includes("T") ? quand.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" }) : "";
+                          /* Trois colonnes, sans cadre : QUAND (date, l'heure
+                             dessous), QUOI (le titre ENTIER), OÙ et COMBIEN. */
+                          const emplacement = String(p.emplacementCabine || "").trim();
+                          return (
+                            <button key={`${source}-${p.id}`} type="button" className="sg-row sg-int"
+                              title={`${p.ofrTM || ""} ${p.projet || ""}`.trim()}
+                              onClick={() => openSignalPreview(p, MODES[source] || "cmd")}>
+                              <span className="sg-row-bar" style={{ background: COULEURS[source] || "var(--sg-line-strong)" }} />
+                              <span className="sg-int-quand">
+                                <span className="sg-int-jour">{jourTxt}</span>
+                                {heure && <span className="sg-int-heure">{heure}</span>}
+                              </span>
+                              <span className="sg-int-titre">{p.projet}</span>
+                              <span className="sg-int-ou">
+                                {emplacement && <span className="sg-int-empl">{emplacement}</span>}
+                                <span className="sg-int-cab"><b>{p.nbCabines || 0}</b> cab.</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     );
                   })}
                 </div>

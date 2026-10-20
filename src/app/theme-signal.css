@@ -6254,46 +6254,13 @@ html[data-ui="signal"].dark .sg-plogo { filter: brightness(0) invert(1); }
   html[data-ui="signal"] .sg-plogo { width: 46px; height: 14px; }
 }
 
-/* ── « Mes interventions » par jour (20.10.2026) ──────────────────────────
-   Un onglet par journée de travail ; la carte n'en montre qu'une, sous son
-   titre complet (« mardi 20.10.2026 · 2 interventions · 4 cab. »). La date
-   quitte donc chaque ligne : l'heure prend sa place, la nature (montage,
-   mesures…) en dessous, à sa couleur — et le titre gagne de la largeur. */
-html[data-ui="signal"] .sg-int-onglets {
-  display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; margin: 0 -2px;
-  scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity;
-}
-html[data-ui="signal"] .sg-int-onglets::-webkit-scrollbar { display: none; }
-html[data-ui="signal"] .sg-int-onglet {
-  position: relative; flex: 0 0 auto; scroll-snap-align: start;
-  display: grid; justify-items: start; gap: 1px; min-width: 84px; padding: 8px 30px 8px 12px;
-  border-radius: 14px; text-align: left; cursor: pointer;
-  background: var(--sg-paper); border: 1px solid var(--sg-line); color: var(--sg-text-2);
-  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
-}
-html[data-ui="signal"] .sg-int-onglet:active { transform: scale(0.97); }
-html[data-ui="signal"] .sg-int-onglet span { font-size: 11px; font-weight: 600; text-transform: capitalize; color: var(--sg-text-3); }
-html[data-ui="signal"] .sg-int-onglet b { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--sg-text); }
-html[data-ui="signal"] .sg-int-onglet i {
-  position: absolute; top: 8px; right: 8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
-  display: grid; place-items: center; font-style: normal; font-size: 10.5px; font-weight: 800;
-  background: rgba(27, 99, 255, 0.1); color: #1b63ff;
-}
-html[data-ui="signal"] .sg-int-onglet.is-auj span { color: #16a34a; }
-html[data-ui="signal"] .sg-int-onglet.is-on { background: #0f1b2e; border-color: #0f1b2e; }
-html[data-ui="signal"] .sg-int-onglet.is-on span { color: rgba(255, 255, 255, 0.65); }
-html[data-ui="signal"] .sg-int-onglet.is-on.is-auj span { color: #4ade80; }
-html[data-ui="signal"] .sg-int-onglet.is-on b { color: #fff; }
-html[data-ui="signal"] .sg-int-onglet.is-on i { background: #1b63ff; color: #fff; }
-html[data-ui="signal"] .sg-int-tete {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap;
-  padding: 12px 16px 8px; border-bottom: 1px solid var(--sg-line);
-}
-html[data-ui="signal"] .sg-int-tete b { font-size: 15px; font-weight: 700; color: var(--sg-text); text-transform: capitalize; }
-html[data-ui="signal"] .sg-int-tete span { font-size: 12px; color: var(--sg-text-3); }
-html[data-ui="signal"] .sg-mes-interventions .sg-row.sg-int { grid-template-columns: 4px 58px minmax(0, 1fr) auto; }
-html[data-ui="signal"] .sg-mes-interventions .sg-int-jour { font-family: var(--font-mono); font-size: 14px; font-weight: 700; text-transform: none; }
-html[data-ui="signal"] .sg-mes-interventions .sg-int-heure { font-family: inherit; font-size: 11px; font-weight: 600; }
+/* ── « Mes interventions » : une carte par jour, du lundi au vendredi ─────
+   (20.10.2026) Les cartes de l'agenda, empilées : chacune se déplie sur les
+   lignes de chantier du jour ; un jour vide reste replié, son « 0 » suffit. */
+html[data-ui="signal"] .sg-agenda.sg-int-semaine { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+html[data-ui="signal"] .sg-int-semaine .sg-card { padding-bottom: 6px; }
+html[data-ui="signal"] .sg-int-semaine .sg-card.is-folded { padding-bottom: 10px; }
+html[data-ui="signal"] .sg-int-semaine .sg-card-head { margin-bottom: 4px; }
 
 /* ── Le bouton « Arrivage » de l'accueil (20.10.2026) ─────────────────────
    À droite du titre : le dépôt reçoit des cartons tous les jours. */
@@ -6308,3 +6275,7 @@ html[data-ui="signal"] .sg-arrivage-btn {
 }
 html[data-ui="signal"] .sg-arrivage-btn:hover { box-shadow: 0 8px 22px rgba(27, 99, 255, 0.36); }
 html[data-ui="signal"] .sg-arrivage-btn:active { transform: scale(0.96); }
+@media (max-width: 600px) {
+  html[data-ui="signal"] .sg-arrivage-btn { height: 36px; padding: 0 12px; font-size: 13px; margin-top: 2px; }
+  html[data-ui="signal"] .sg-dash-head .sg-sub { font-size: 13px; }
+}
