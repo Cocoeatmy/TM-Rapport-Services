@@ -60,6 +60,17 @@ export function LienDocument({
   if (autonome !== true) {
     return (
       <main style={{ padding: 24, fontFamily: "system-ui, sans-serif", color: "#475569" }}>
+        {/* Redirection IMMÉDIATE, dès la lecture de la page : sans elle, le
+            navigateur attendait d'avoir chargé tout le code de l'app (qui
+            change à chaque mise en ligne) avant de partir vers le document —
+            plusieurs secondes sur un téléphone, souvent juste après un
+            déploiement. Même règle que l'effet ci-dessous : en fenêtre
+            autonome, on reste sur cette page. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var n=window.navigator,m=window.matchMedia;var seul=n.standalone===true||(m&&(m("(display-mode: standalone)").matches||m("(display-mode: window-controls-overlay)").matches||m("(display-mode: minimal-ui)").matches));if(!seul)window.location.replace(${JSON.stringify(url).replace(/</g, "\\u003c")});}catch(e){}})();`,
+          }}
+        />
         <p>Ouverture du document…</p>
         <noscript>
           <a href={url}>Ouvrir : {titre}</a>

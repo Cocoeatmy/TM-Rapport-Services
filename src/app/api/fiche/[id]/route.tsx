@@ -32,7 +32,9 @@ import ReactPDF, {
 } from "@react-pdf/renderer";
 import React from "react";
 import { GMAPS_ICON, APPLE_MAPS_ICON, WAZE_ICON } from "@/lib/map-icons";
-import { getData, getDataFresh } from "@/lib/kv-store";
+import { getDataFresh } from "@/lib/kv-store";
+import { cachedOrFetch } from "@/lib/server-cache";
+import { chronoPdf } from "@/lib/chrono-pdf";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -1037,6 +1039,7 @@ export async function GET(
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
+  const chrono = chronoPdf();
   try {
     /* Toutes les lectures partent ENSEMBLE (elles se suivaient, cinq de
        suite) : la fiche, les réglages, les commentaires, les signalements,
@@ -1047,15 +1050,20 @@ export async function GET(
     const projetEnRoute = getProject(id);
     const reglagesEnRoute = lireReglagesRapports();
     const commentairesEnRoute = fetchNotionComments(id).catch(() => [] as FicheComment[]);
-    const listesEnRoute = Promise.all([
-      getDataFresh<SigPiece>("pieces").catch(() => getData<SigPiece>("pieces").catch(() => [] as SigPiece[])),
-      getDataFresh<SigDefaut>("defauts").catch(() => getData<SigDefaut>("defauts").catch(() => [] as SigDefaut[])),
-    ]);
+    /* Les listes des signalements et des mesures ne font ici que S'AFFICHER
+       (compteurs, liens). Les relire dans Notion à chaque ouverture coûtait
+       plusieurs secondes — pages de blocs paginées, file de 3 req/s — et
+       c'était le gros du temps d'ouverture du lien du calendrier. Le cache
+       partagé (mémoire + Redis, frais 5 s, revalidé en arrière-plan) suffit
+       à un affichage ; les ÉCRITURES, elles, relisent toujours en direct. */
+    const liste = <T,>(cle: string) => cachedOrFetch<T[]>(`kv-affichage-${cle}`, () => getDataFresh<T>(cle)).catch(() => [] as T[]);
+    const listesEnRoute = Promise.all([liste<SigPiece>("pieces"), liste<SigDefaut>("defauts")]);
     const mesuresEnRoute = projetEnRoute.then((p) => isNewProjectForMesures(p.createdTime)
-      ? getDataFresh<MesureLot>("mesures-map").catch(() => getData<MesureLot>("mesures-map").catch(() => [] as MesureLot[]))
+      ? liste<MesureLot>("mesures-map")
       : ([] as MesureLot[]));
     for (const pr of [reglagesEnRoute, mesuresEnRoute]) pr.catch(() => {});
     const project = await projetEnRoute;
+    chrono.etape("projet");
     /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
        « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
     const avecContacts = contactsVisibles(
@@ -1085,6 +1093,7 @@ export async function GET(
     // Lien vers le PDF « Suivi du chantier » (signé → ouvrable sans login).
     const syntheseUrl = `${req.nextUrl.origin}/api/synthese/${encodeURIComponent(id)}?s=${signSynthese(id)}`;
     const notionComments = await commentairesEnRoute;
+    chrono.etape("commentaires");
     // Signalements OUVERTS (KV) pour le bandeau d'alerte en haut de fiche.
     const [allPieces, allDefauts] = await listesEnRoute;
     const myPieces = allPieces.filter((p) => p.projectId === id);
@@ -1099,6 +1108,7 @@ export async function GET(
         + myDefauts.filter((d) => d.resolved).length,
     };
     // Mesures par cabine (mappage analysé, stocké en KV) → lien signé par lot.
+    chrono.etape("signalements");
     const mesuresMap = (await mesuresEnRoute)
       .filter((e) => e.projectId === id)
       .sort((a, b) => a.cab - b.cab);
@@ -1114,6 +1124,8 @@ export async function GET(
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
     const buffer = Buffer.concat(chunks);
+    chrono.etape("rendu");
+    chrono.journal("fiche", { id: id.slice(0, 8) });
 
     const ofr = asciiFilename((project.ofrTM || "").replace(/-/g, " "));
     const filename = asciiFilename(`Fiche de travail - ${ofr} - ${project.projet || ""}`) + ".pdf";
@@ -1124,6 +1136,7 @@ export async function GET(
         // inline → le lien calendrier ouvre le PDF dans le navigateur.
         "Content-Disposition": `inline; filename="${filename}"`,
         "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Server-Timing": chrono.enTete(),
       },
     });
   } catch (err: any) {
