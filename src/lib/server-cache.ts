@@ -167,12 +167,7 @@ const STATS_KEYS = new Set([
 
 // Toutes les clés servies/persistées via Redis (cache partagé rapide entre
 // instances) : listes de projets + statistiques.
-const REDIS_KEYS = new Set([...SNAPSHOT_KEYS, ...STATS_KEYS,
-  /* L'annuaire de l'assistant IA : toutes les bases Notion hors projets
-     (~2 400 fiches, 9 s de lecture à froid). Partagé, une instance froide
-     répond sans relire Notion. */
-  "ai-annuaire",
-]);
+const REDIS_KEYS = new Set([...SNAPSHOT_KEYS, ...STATS_KEYS]);
 
 // Listes VOLATILES affichées sur le DASHBOARD (panneaux "à fixer", compteurs,
 // planning du jour). L'utilisateur attend une synchro Notion en ~10-30 s. On leur

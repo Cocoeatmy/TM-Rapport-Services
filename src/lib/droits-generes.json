@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-20T16:14:06.377Z",
+  "genereLe": "2026-10-20T16:45:05.158Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -530,6 +530,16 @@
       "url": "/api/cron/export-hebdo",
       "type": "api",
       "fichier": "src/app/api/cron/export-hebdo/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cron/index-ia",
+      "type": "api",
+      "fichier": "src/app/api/cron/index-ia/route.ts",
       "niveau": "cron",
       "gardePage": false,
       "methodes": [
