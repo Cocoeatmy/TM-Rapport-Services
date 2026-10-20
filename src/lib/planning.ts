@@ -36,6 +36,13 @@ export interface RendezVous {
   mode: string;
   /** Jour n sur m d'un montage étalé, sinon null. */
   etape: string | null;
+  /**
+   * Où en est le chantier — la même pastille que la charge de la semaine
+   * (posé, en cours, signalement, souci). Montages et services seulement :
+   * sur un relevé ou un SAV, l'avancement de pose ne veut rien dire.
+   */
+  etat?: import("./etat-lot").EtatLot | null;
+  etatTitre?: string;
 }
 
 export interface ProjetPlanning {

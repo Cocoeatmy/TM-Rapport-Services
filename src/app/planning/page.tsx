@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Loader2, CloudOff } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, CloudOff, AlertTriangle, Box, Check, Clock } from "lucide-react";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import type { RendezVous, TypeRdv } from "@/lib/planning";
 import "./planning.css";
@@ -22,6 +22,8 @@ const TYPES: { id: TypeRdv; label: string; couleur: string }[] = [
   { id: "services", label: "Services", couleur: "#6d28d9" },
   { id: "garantie", label: "Garanties", couleur: "#15803d" },
 ];
+/* Les icônes de la charge de la semaine, une par état (src/lib/etat-lot.ts). */
+const ICONE_ETAT = { souci: AlertTriangle, "souci-regle": AlertTriangle, signale: Box, "signale-regle": Box, pose: Check, encours: Clock } as const;
 const LIBELLE: Record<TypeRdv, string> = { montage: "Montage", mesures: "Relevé de mesures", sav: "SAV", services: "Services", garantie: "Garantie" };
 
 interface Reponse { du: string; au: string; voitTout: boolean; collab: string | null; collaborateurs: string[]; rdv: RendezVous[] }
@@ -161,6 +163,14 @@ export default function PlanningPage() {
                   <span className="tm-planning-corps">
                     <span className="tm-planning-type" style={{ color: t.couleur }}>
                       {LIBELLE[r.type]}{r.etape ? ` · ${r.etape}` : ""}{r.cabines ? ` · ${r.cabines} cab.` : ""}
+                      {r.etat && (() => {
+                        const Icone = ICONE_ETAT[r.etat];
+                        return (
+                          <span className={`tm-planning-etat is-${r.etat}`} title={r.etatTitre} aria-label={r.etatTitre}>
+                            <Icone strokeWidth={3} />
+                          </span>
+                        );
+                      })()}
                     </span>
                     <span className="tm-planning-projet">{r.projet}</span>
                     <span className="tm-planning-meta">{[r.ofr, r.adresse].filter(Boolean).join(" · ")}</span>

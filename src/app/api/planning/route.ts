@@ -20,6 +20,23 @@ import { cachedOrFetch } from "@/lib/server-cache";
 import { filtrerListe } from "@/lib/perimetre-serveur";
 import { construireRendezVous, rendezVousDe, type ProjetPlanning } from "@/lib/planning";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
+import { getData } from "@/lib/kv-store";
+import { etatLot, type SourceEtatLot } from "@/lib/etat-lot";
+import { cabinesPosees } from "@/lib/cabines-posees";
+
+/** Les mots de la pastille, comme sur la charge de la semaine. */
+function titreEtat(etat: string, p: SourceEtatLot): string {
+  const total = p.nbCabines || 0, posees = cabinesPosees(p);
+  const s = (n: number) => (n > 1 ? "s" : "");
+  switch (etat) {
+    case "pose": return `${total} cabine${s(total)} posée${s(total)}`;
+    case "encours": return `${posees} cabine${s(posees)} posée${s(posees)} sur ${total}`;
+    case "souci": return "Soucis de montage";
+    case "souci-regle": return "Soucis de montage réglé";
+    case "signale": return "Pièce manquante ou défaut signalé";
+    default: return "Pièce ou défaut signalé — réglé";
+  }
+}
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -53,6 +70,33 @@ export async function GET(request: NextRequest) {
   let rdv = construireRendezVous(projets, du, au);
   if (!voitTout) rdv = rendezVousDe(rdv, v.user.name);
   else if (collab) rdv = rendezVousDe(rdv, collab);
+
+  /* La pastille d'état : mêmes listes de signalements que le tableau de
+     bord (ouverts / tous réglés), même règle (src/lib/etat-lot.ts). */
+  if (rdv.some((r) => r.type === "montage" || r.type === "services")) {
+    const [pieces, defauts] = await Promise.all([
+      getData<{ projectId?: string; status?: string; resolved?: boolean }>("pieces").catch(() => []),
+      getData<{ projectId?: string; status?: string; resolved?: boolean }>("defauts").catch(() => []),
+    ]);
+    const ouverts = new Set<string>(), tousSignales = new Set<string>();
+    for (const x of pieces) {
+      if (!x.projectId) continue;
+      tousSignales.add(String(x.projectId));
+      if (!(x.status === "recu" || x.resolved === true)) ouverts.add(String(x.projectId));
+    }
+    for (const x of defauts) {
+      if (!x.projectId) continue;
+      tousSignales.add(String(x.projectId));
+      if (!(x.status === "resolu" || x.resolved === true)) ouverts.add(String(x.projectId));
+    }
+    rdv = rdv.map((r) => {
+      if (r.type !== "montage" && r.type !== "services") return r;
+      const p = parId.get(r.projetId) as (SourceEtatLot & ProjetPlanning) | undefined;
+      if (!p) return r;
+      const etat = etatLot(p, ouverts.has(r.projetId), tousSignales.has(r.projetId) && !ouverts.has(r.projetId));
+      return etat ? { ...r, etat, etatTitre: titreEtat(etat, p) } : r;
+    });
+  }
 
   return NextResponse.json(
     { du, au, voitTout, collab: collab || null, collaborateurs: voitTout ? [...COLLABORATEURS_LIST] : [], rdv },
