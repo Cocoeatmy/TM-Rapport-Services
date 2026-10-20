@@ -33,6 +33,16 @@ import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
 import { ZoneTexte } from "@/components/zone-texte";
 
+/* La pastille de chaque état de commande, dans les cartes de « Projets en
+   cours » (écran tactile) : une teinte franche par état, regroupées par
+   étape — mesures (bleu-vert), commande (ambre), montage (bleu, vert). */
+const COULEUR_ETAT: Record<string, string> = {
+  "En attente de mesures": "#06b6d4", "Cabines mesurées": "#14b8a6", "OFR envoyées sans mesures": "#8b5cf6",
+  "Cabines en CMD": "#64748b", "Cabines à recevoir": "#eab308", "Livraison partielle": "#f97316", "Cabine à aller chercher": "#f59e0b",
+  "Récéptionné - RDV à fixer": "#3b82f6", "RDV - fixé": "#22c55e", "RDV - Attendre news": "#a855f7",
+  "Montage partiel": "#fb923c", "Soucis montage": "#ef4444", "Terminé": "#16a34a", "Annulé": "#94a3b8",
+};
+
 /* La condition d'affichage du rail Signal, en un seul endroit.
    Elle est reprise telle quelle dans `theme-signal.css` : si l'une des deux
    changeait sans l'autre, le rail et la barre d'onglets se marcheraient
@@ -5755,17 +5765,33 @@ function HomePage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input placeholder="Rechercher (nom, OFR...)" className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
+            {/* Les états en cartes, sur UNE rangée qui défile : couleur,
+                étape, nom, et le nombre en grand. La carte choisie passe en
+                bleu nuit (la couleur de l'en-tête). */}
             <div className="tm-etats-boutons" role="group" aria-label="Filtrer par état">
-              <button type="button" className={`tm-etat-bouton${etatActif ? "" : " is-actif"}`} aria-pressed={!etatActif} onClick={() => setEtatEnCours(null)}>
-                Tous<b>{calProjects.length}</b>
+              <button type="button" className={`tm-etat-bouton is-tous${etatActif ? "" : " is-actif"}`} aria-pressed={!etatActif} onClick={(ev) => { setEtatEnCours(null); ev.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); }}>
+                <span className="tm-etat-tete"><i />Vue</span>
+                <span className="tm-etat-nom">Tous les projets</span>
+                <b>{calProjects.length}</b>
               </button>
-              {etats.map((e) => (
-                <button key={e} type="button" aria-pressed={etatActif === e}
-                  className={`tm-etat-bouton ${STATUS_CMD_COLORS[e] || "bg-gray-100 text-gray-700"}${etatActif === e ? " is-actif" : ""}`}
-                  onClick={() => setEtatEnCours(etatActif === e ? null : e)}>
-                  {e}<b>{parEtat.get(e)}</b>
-                </button>
-              ))}
+              {etats.map((e) => {
+                const rang = ordre.indexOf(e);
+                const etape = rang < 0 ? "Autre" : rang < 3 ? "Mesures" : rang < 7 ? "Commande" : rang < 12 ? "Montage" : "Fin";
+                return (
+                  <button key={e} type="button" aria-pressed={etatActif === e}
+                    className={`tm-etat-bouton${etatActif === e ? " is-actif" : ""}`}
+                    style={{ ["--tm-etat" as string]: COULEUR_ETAT[e] || "#94a3b8" }}
+                    onClick={(ev) => {
+                      setEtatEnCours(etatActif === e ? null : e);
+                      /* La carte choisie vient au milieu de la rangée. */
+                      ev.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+                    }}>
+                    <span className="tm-etat-tete"><i />{etape}</span>
+                    <span className="tm-etat-nom">{e}</span>
+                    <b>{parEtat.get(e)}</b>
+                  </button>
+                );
+              })}
             </div>
             <p className="text-sm text-gray-500 mb-3">
               {affiches.length} intervention{affiches.length !== 1 ? "s" : ""}{etatActif ? ` · ${etatActif}` : ""}

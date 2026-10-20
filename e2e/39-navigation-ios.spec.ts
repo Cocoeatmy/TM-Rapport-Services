@@ -433,3 +433,13 @@ test.describe("app iPhone : lisibilité", () => {
     await expect(boutons.first()).toHaveClass(/is-actif/);
   });
 });
+
+test.describe("app iPhone : le « + » de la barre", () => {
+  test.use({ userAgent: UA_APP, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test("reste un rond de 46 px (il était écrasé en ovale)", async ({ page, context }) => {
+    await ouvrir(page, context, ADMIN);
+    const r = (await page.locator(".tm-ios-plus-rond").boundingBox())!;
+    expect(Math.round(r.width)).toBe(46);
+    expect(Math.round(r.height)).toBe(46);
+  });
+});

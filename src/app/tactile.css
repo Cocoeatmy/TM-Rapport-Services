@@ -223,36 +223,76 @@
   }
 }
 
-/* ── « Projets en cours » : les états en boutons (écran tactile) ─────────
-   Une longue liste de cartes ne se feuillette pas : on choisit d'abord un
-   état (« En attente de mesures », « Réceptionné - RDV à fixer »…), avec
-   son nombre dans une bulle. Le Mac (pointeur fin) ne les voit pas. */
+/* ── « Projets en cours » : les états en CARTES (écran tactile) ──────────
+   Une rangée qui défile du doigt, aimantée carte par carte : chaque état a
+   sa pastille de couleur, son étape (Mesures, Commande, Montage), son nom
+   et son nombre en grand — les mêmes tuiles claires que le tableau de bord.
+   La carte choisie passe en bleu nuit, la couleur de l'en-tête. Les bords
+   s'estompent : on devine qu'il y en a d'autres. Le Mac (pointeur fin) ne
+   les voit pas. */
 .tm-etats-boutons { display: none; }
 @media (pointer: coarse) {
   .tm-etats-boutons {
-    display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 14px;
+    display: flex; gap: 10px;
+    margin: -2px -16px 16px; padding: 4px 16px 10px;
+    overflow-x: auto; overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory; scroll-padding: 0 16px;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 22px), transparent 100%);
+            mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 22px), transparent 100%);
   }
+  .tm-etats-boutons::-webkit-scrollbar { display: none; }
+
   .tm-etat-bouton {
-    display: inline-flex; align-items: center; gap: 8px;
-    min-height: 38px; padding: 6px 8px 6px 13px; border-radius: 999px;
-    font-size: 13.5px; font-weight: 600; line-height: 1.15; text-align: left;
-    border: 1.5px solid transparent;
+    --tm-etat: #2563eb;
+    position: relative; flex: 0 0 auto; scroll-snap-align: start;
+    width: 128px; min-height: 92px; padding: 10px 12px 11px;
+    display: grid; grid-template-rows: auto 1fr auto; gap: 4px;
+    text-align: left; color: #0f172a;
+    background: var(--sg-paper, #fff);
+    border: 1px solid rgba(15, 23, 42, 0.07);
+    border-radius: 18px;
+    box-shadow: 0 1px 2px rgba(11, 18, 32, 0.05), 0 6px 16px rgba(11, 18, 32, 0.06);
     -webkit-tap-highlight-color: transparent;
-    transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-  }
-  .tm-etat-bouton b {
-    min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 800; background: rgba(255, 255, 255, 0.85); color: #0f172a;
+    transition: transform 0.16s ease, background-color 0.22s ease, box-shadow 0.22s ease, color 0.22s ease;
   }
   .tm-etat-bouton:active { transform: scale(0.96); }
-  .tm-etat-bouton.is-actif {
-    border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+
+  .tm-etat-tete {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: rgba(15, 23, 42, 0.45);
   }
-  /* « Tous » : neutre. Les états gardent la couleur de leur badge
-     (classes STATUS_CMD_COLORS), pour se reconnaître d'un coup d'œil. */
-  .tm-etat-bouton:first-child { background: #eef2f7; color: #334155; }
-  .tm-etat-bouton:first-child.is-actif { background: #1e293b; color: #fff; border-color: #1e293b; box-shadow: none; }
-  .tm-etat-bouton:first-child.is-actif b { background: rgba(255, 255, 255, 0.2); color: #fff; }
-  .dark .tm-etat-bouton:first-child { background: #1e293b; color: #e2e8f0; }
+  .tm-etat-tete i {
+    width: 8px; height: 8px; border-radius: 999px; flex: 0 0 auto;
+    background: var(--tm-etat);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--tm-etat) 18%, transparent);
+  }
+  .tm-etat-bouton.is-tous .tm-etat-tete i { background: linear-gradient(135deg, #22c55e, #3b82f6 55%, #a855f7); }
+
+  .tm-etat-nom {
+    font-size: 13.5px; font-weight: 650; line-height: 1.22;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .tm-etat-bouton b {
+    justify-self: end; font-size: 24px; font-weight: 800; line-height: 1;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+    color: var(--tm-etat);
+  }
+  .tm-etat-bouton.is-tous b { color: #0f172a; }
+
+  /* La carte choisie : bleu nuit, texte clair, le nombre reste coloré. */
+  .tm-etat-bouton.is-actif {
+    background: #0f1b2e; color: #fff; border-color: transparent;
+    box-shadow: 0 8px 22px rgba(15, 27, 46, 0.32);
+  }
+  .tm-etat-bouton.is-actif .tm-etat-tete { color: rgba(255, 255, 255, 0.6); }
+  .tm-etat-bouton.is-actif b { color: color-mix(in srgb, var(--tm-etat) 70%, #fff); }
+  .tm-etat-bouton.is-tous.is-actif b { color: #fff; }
+
+  .dark .tm-etat-bouton { background: #1e293b; color: #e2e8f0; border-color: rgba(255, 255, 255, 0.08); }
+  .dark .tm-etat-tete { color: rgba(226, 232, 240, 0.5); }
+  .dark .tm-etat-bouton.is-tous b { color: #fff; }
+  .dark .tm-etat-bouton.is-actif { background: #2563eb; }
 }
+

@@ -320,7 +320,9 @@ html[data-app="ios"] #tm-ios-barre > .tm-ios-onglet {
   /* Dépli : le plus proche du rond ressort le premier. */
   transition-delay: calc(var(--i, 0) * 45ms);
 }
-html[data-app="ios"] #tm-ios-barre > .tm-ios-onglet span { max-height: 16px; transition: opacity 0.2s ease, max-height 0.3s ease; }
+/* Les LIBELLÉS seulement — pas le rond du « + », qui est aussi un span
+   (limité à 16 px, il devenait un ovale plat). */
+html[data-app="ios"] #tm-ios-barre > .tm-ios-onglet > span:not(.tm-ios-plus-rond) { max-height: 16px; transition: opacity 0.2s ease, max-height 0.3s ease; }
 
 html[data-app="ios"] #tm-ios-barre.tm-ios-barre.is-replie {
   left: 12px;
@@ -347,7 +349,7 @@ html[data-app="ios"] #tm-ios-barre.is-replie > .tm-ios-onglet.is-repr {
   transition-delay: 0ms;
 }
 /* Le libellé s'efface ET libère sa hauteur : l'icône se centre dans le rond. */
-html[data-app="ios"] #tm-ios-barre.is-replie > .tm-ios-onglet span { opacity: 0; max-height: 0; }
+html[data-app="ios"] #tm-ios-barre.is-replie > .tm-ios-onglet > span:not(.tm-ios-plus-rond) { opacity: 0; max-height: 0; }
 html[data-app="ios"] #tm-ios-barre.is-replie > .tm-ios-onglet.is-repr svg { color: #3b82f6; }
 /* Replié, le rond EST le bouton : pas de pastille d'onglet actif dedans. */
 html[data-app="ios"][data-ui="signal"] #tm-ios-barre > .tm-ios-onglet.is-actif::before { transition: opacity 0.25s ease; }
