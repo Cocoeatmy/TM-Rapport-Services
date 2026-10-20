@@ -43,8 +43,14 @@ export function UserMenu() {
   useEffect(() => {
     setIphone(estAppIphone());
     const basculer = () => setOpen((o) => !o);
+    /* Un autre bouton de la barre du bas : le menu se ferme, la page s'ouvre. */
+    const fermer = () => setOpen(false);
     window.addEventListener("tm-basculer-profil", basculer);
-    return () => window.removeEventListener("tm-basculer-profil", basculer);
+    window.addEventListener("tm-fermer-profil", fermer);
+    return () => {
+      window.removeEventListener("tm-basculer-profil", basculer);
+      window.removeEventListener("tm-fermer-profil", fermer);
+    };
   }, []);
   const [vidage, setVidage] = useState(false);
 
@@ -79,6 +85,10 @@ export function UserMenu() {
   };
   const [user, setUser] = useState<UserData | null>(null);
   const [open, setOpen] = useState(false);
+  /* La barre du bas de l'app iPhone suit l'état du menu (bouton actif). */
+  useEffect(() => {
+    try { window.dispatchEvent(new CustomEvent("tm-profil-etat", { detail: { ouvert: open } })); } catch { /* sans effet */ }
+  }, [open]);
   const [darkMode, setDarkMode] = useState(false);
   const [uiMode, setUiMode] = useState<UiMode>("classic");
   const [saveToPhotos, setSaveToPhotos] = useState(false);

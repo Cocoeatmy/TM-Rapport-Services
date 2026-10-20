@@ -95,6 +95,15 @@ export function NavigationIos() {
   const [groupe, setGroupe] = useState<string | null>(null);
   const [signal, setSignal] = useState(false);
   const [modeCourant, setModeCourant] = useState<string>("dashboard");
+  /* Le menu du profil est ouvert : seul « Profil » est actif, et tout autre
+     bouton le referme avant d'ouvrir sa page. */
+  const [profilOuvert, setProfilOuvert] = useState(false);
+  useEffect(() => {
+    const suivre = (e: Event) => setProfilOuvert(!!(e as CustomEvent<{ ouvert: boolean }>).detail?.ouvert);
+    window.addEventListener("tm-profil-etat", suivre);
+    return () => window.removeEventListener("tm-profil-etat", suivre);
+  }, []);
+  const fermerProfil = () => { window.dispatchEvent(new CustomEvent("tm-fermer-profil")); };
 
   useEffect(() => {
     if (!actif) return;
@@ -127,10 +136,12 @@ export function NavigationIos() {
 
   if (!actif) return null;
 
-  const aller = (mode: string) => { setProjetsOuvert(false); setGroupe(null); ouvrirRubrique(router, pathname, mode); };
+  const aller = (mode: string) => { fermerProfil(); setProjetsOuvert(false); setGroupe(null); ouvrirRubrique(router, pathname, mode); };
+  /* Une feuille ouverte (Projets ou Profil) : c'est elle, et elle seule, qui est active. */
+  const feuille = projetsOuvert || profilOuvert;
   const surAccueil = pathname === "/";
   /* Feuille Projets ouverte : c'est elle, et elle seule, qui est active. */
-  const est = (m: string) => !projetsOuvert && surAccueil && modeCourant === m;
+  const est = (m: string) => !feuille && surAccueil && modeCourant === m;
   const projetsActif = surAccueil && modeCourant !== "dashboard";
   const surPlanning = pathname.startsWith("/planning");
   /* Avant la réponse des droits, on attend : un « + » qui s'ouvrirait puis
@@ -140,6 +151,8 @@ export function NavigationIos() {
     (!r.droit || peut(r.droit, "lecture")) && (!r.signal || signal) && (!r.classique || !signal));
 
   const nouveauProjet = () => {
+    fermerProfil();
+    setProjetsOuvert(false);
     if (!peutCreer) {
       toast("La création de projets est réservée aux comptes autorisés.", { id: "tm-nouveau-projet" });
       return;
@@ -195,19 +208,20 @@ export function NavigationIos() {
         <button type="button" className={`tm-ios-onglet${est("dashboard") ? " is-actif" : ""}`} onClick={() => aller("dashboard")}>
           <Home className="w-6 h-6" /><span>Accueil</span>
         </button>
-        <button type="button" className={`tm-ios-onglet${surPlanning && !projetsOuvert ? " is-actif" : ""}`}
-          onClick={() => { setProjetsOuvert(false); setGroupe(null); if (!surPlanning) router.push("/planning"); }}>
+        <button type="button" className={`tm-ios-onglet${surPlanning && !feuille ? " is-actif" : ""}`}
+          onClick={() => { fermerProfil(); setProjetsOuvert(false); setGroupe(null); if (!surPlanning) router.push("/planning"); }}>
           <CalendarDays className="w-6 h-6" /><span>Planning</span>
         </button>
         <button type="button" className={`tm-ios-onglet tm-ios-plus${peutCreer ? "" : " is-inactif"}`}
           aria-label="Nouveau projet" onClick={nouveauProjet}>
           <span className="tm-ios-plus-rond"><Plus className="w-6 h-6" /></span>
         </button>
-        <button type="button" className={`tm-ios-onglet${projetsOuvert || (projetsActif && !surPlanning) ? " is-actif" : ""}`}
-          aria-expanded={projetsOuvert} onClick={() => { setProjetsOuvert((v) => !v); setGroupe(null); }}>
+        <button type="button" className={`tm-ios-onglet${projetsOuvert || (projetsActif && !surPlanning && !profilOuvert) ? " is-actif" : ""}`}
+          aria-expanded={projetsOuvert} onClick={() => { fermerProfil(); setProjetsOuvert((v) => !v); setGroupe(null); }}>
           <FolderOpen className="w-6 h-6" /><span>Projets</span>
         </button>
-        <button type="button" className="tm-ios-onglet" onClick={() => { setProjetsOuvert(false); window.dispatchEvent(new CustomEvent("tm-basculer-profil")); }}>
+        <button type="button" className={`tm-ios-onglet${profilOuvert ? " is-actif" : ""}`} aria-expanded={profilOuvert}
+          onClick={() => { setProjetsOuvert(false); window.dispatchEvent(new CustomEvent("tm-basculer-profil")); }}>
           <User className="w-6 h-6" /><span>Profil</span>
         </button>
       </nav>

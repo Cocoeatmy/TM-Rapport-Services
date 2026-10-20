@@ -117,6 +117,36 @@ test.describe("app iPhone", () => {
   });
 });
 
+test.describe("app iPhone — menu Profil puis un autre bouton", () => {
+  test.use({ userAgent: UA_APP, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("le menu se ferme et la page demandée s'ouvre (Planning, Accueil, Projets)", async ({ page, context }) => {
+    await ouvrir(page, context, ADMIN);
+    const menu = page.locator(".tm-menu-profil");
+    const profil = barre(page).locator(".tm-ios-onglet", { hasText: "Profil" });
+
+    await profil.click();
+    await expect(menu).toBeVisible();
+    await expect(profil).toHaveClass(/is-actif/);
+    await barre(page).getByText("Planning").click();
+    await expect(menu).toHaveCount(0);
+    await expect(page).toHaveURL(/\/planning/);
+    await expect(barre(page).locator(".tm-ios-onglet.is-actif")).toContainText("Planning");
+
+    await profil.click();
+    await expect(menu).toBeVisible();
+    await barre(page).getByText("Accueil").click();
+    await expect(menu).toHaveCount(0);
+    await expect(page).not.toHaveURL(/planning/);
+
+    await profil.click();
+    await expect(menu).toBeVisible();
+    await barre(page).getByText("Projets").click();
+    await expect(menu).toHaveCount(0);
+    await expect(page.locator(".tm-ios-feuille")).toBeVisible();
+  });
+});
+
 test.describe("navigateur ordinaire (Safari iPhone)", () => {
   test.use({ userAgent: UA_SAFARI, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
