@@ -324,7 +324,13 @@ test.describe("app iPhone : barre du bas et tirer pour actualiser", () => {
     const r = (await barre(page).boundingBox())!;
     expect(r.width).toBeLessThan(70);
     expect(r.x).toBeLessThan(20);
-    await expect(barre(page).locator(".tm-ios-onglet:visible")).toHaveCount(1);
+    /* Les autres onglets ont glissé derrière le bouton actif : effacés. */
+    const opacites = await barre(page).locator(".tm-ios-onglet").evaluateAll((els) =>
+      els.map((e) => (e.classList.contains("is-repr") ? "repr" : getComputedStyle(e).opacity)));
+    expect(opacites.filter((o) => o === "repr")).toHaveLength(1);
+    expect(opacites.filter((o) => o !== "repr").every((o) => Number(o) < 0.05)).toBe(true);
+    /* La largeur s'anime (transition sur « right »), elle ne saute pas. */
+    expect(await barre(page).evaluate((el) => getComputedStyle(el).transitionProperty)).toContain("right");
     // Toucher le rond : il déplie, il n'ouvre rien.
     const avant = page.url();
     await barre(page).click();

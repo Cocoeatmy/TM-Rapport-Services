@@ -284,28 +284,77 @@ html[data-app="ios"][data-ui="signal"] .tm-planning-puce.is-on {
 }
 
 /* ── La barre REPLIÉE (défilement vers le bas) ─────────────────────────
-   Comme les barres d'onglets d'iOS 26 : en descendant dans une page, la
-   barre se range dans son bouton actif — un rond, à gauche, au-dessus de la
-   barre d'accueil d'iOS. Elle revient en remontant, ou d'un toucher sur le
-   rond. La page garde toute sa hauteur pendant la lecture. */
-html[data-app="ios"] .tm-ios-barre {
-  transition: right 0.34s cubic-bezier(0.2, 0.8, 0.2, 1), border-radius 0.34s ease, background-color 0.2s ease;
+   En descendant dans une page, la barre se RANGE DERRIÈRE son bouton actif
+   (Accueil le plus souvent) : la capsule se rétracte de droite à gauche
+   avec un léger rebond, pendant que les autres onglets GLISSENT vers ce
+   bouton en rétrécissant et s'effacent, l'un après l'autre. Elle ressort
+   en remontant, ou d'un toucher sur le rond.
+
+   Les colonnes ont une largeur FIXE (--tm-col) : rien ne se tasse pendant
+   que la capsule rétrécit ; chaque onglet se déplace de son rang (--i)
+   vers la première place. Sélecteurs sur #tm-ios-barre : la règle « verre »
+   du thème Signal (qui vise aussi #main-header) écrasait la transition, et
+   la barre passait d'un état à l'autre sans animation (20.10.2026). */
+html[data-app="ios"] #tm-ios-barre.tm-ios-barre {
+  --tm-col: calc((100vw - 8px) / 5);
+  --tm-rond: 60px;
+  grid-template-columns: repeat(5, var(--tm-col));
+  justify-content: start;
+  overflow: hidden;
+  /* Assez lent pour qu'on VOIE la barre se ranger ; un soupçon de rebond
+     à l'arrivée (courbe qui dépasse à peine 1). */
+  transition:
+    right 0.62s cubic-bezier(0.25, 1.12, 0.4, 1),
+    left 0.62s cubic-bezier(0.25, 1.12, 0.4, 1),
+    border-radius 0.62s cubic-bezier(0.25, 1.12, 0.4, 1),
+    background-color 0.2s ease;
 }
-html[data-app="ios"] .tm-ios-barre.is-replie {
+html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre { --tm-col: calc((100vw - 28px) / 5); }
+
+/* Chaque onglet : sa place, et le trajet vers la première. */
+html[data-app="ios"] #tm-ios-barre > .tm-ios-onglet {
+  transform-origin: center;
+  transition:
+    transform 0.56s cubic-bezier(0.25, 1.05, 0.4, 1),
+    opacity 0.38s ease;
+  /* Dépli : le plus proche du rond ressort le premier. */
+  transition-delay: calc(var(--i, 0) * 45ms);
+}
+html[data-app="ios"] #tm-ios-barre > .tm-ios-onglet span { max-height: 16px; transition: opacity 0.2s ease, max-height 0.3s ease; }
+
+html[data-app="ios"] #tm-ios-barre.tm-ios-barre.is-replie {
   left: 12px;
-  right: calc(100% - 12px - var(--tm-barre-ios));
+  right: calc(100% - 12px - var(--tm-rond));
   bottom: var(--tm-bas-ios);
   height: var(--tm-barre-ios);
   padding: 0;
   border-radius: 9999px;
-  grid-template-columns: 1fr;
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
-html[data-app="ios"] .tm-ios-barre.is-replie > .tm-ios-onglet:not(.is-repr) { display: none; }
-html[data-app="ios"] .tm-ios-barre.is-replie > .tm-ios-onglet.is-repr span { display: none; }
-html[data-app="ios"] .tm-ios-barre.is-replie > .tm-ios-onglet.is-repr svg { color: #3b82f6; }
+/* Tous glissent vers la première place, centrés dans le rond. */
+html[data-app="ios"] #tm-ios-barre.is-replie > .tm-ios-onglet {
+  transform: translateX(calc(var(--i, 0) * -1 * var(--tm-col) + (var(--tm-rond) - var(--tm-col)) / 2)) scale(0.55);
+  opacity: 0;
+  pointer-events: none;
+  /* Repli : le plus éloigné part le premier, les autres le suivent. */
+  transition-delay: calc((4 - var(--i, 0)) * 45ms);
+}
+/* …sauf le bouton actif, qui reste net, devant, sans son libellé. */
+html[data-app="ios"] #tm-ios-barre.is-replie > .tm-ios-onglet.is-repr {
+  transform: translateX(calc(var(--i, 0) * -1 * var(--tm-col) + (var(--tm-rond) - var(--tm-col)) / 2 + 1px));
+  opacity: 1;
+  z-index: 1;
+  transition-delay: 0ms;
+}
+/* Le libellé s'efface ET libère sa hauteur : l'icône se centre dans le rond. */
+html[data-app="ios"] #tm-ios-barre.is-replie > .tm-ios-onglet span { opacity: 0; max-height: 0; }
+html[data-app="ios"] #tm-ios-barre.is-replie > .tm-ios-onglet.is-repr svg { color: #3b82f6; }
+/* Replié, le rond EST le bouton : pas de pastille d'onglet actif dedans. */
+html[data-app="ios"][data-ui="signal"] #tm-ios-barre > .tm-ios-onglet.is-actif::before { transition: opacity 0.25s ease; }
+html[data-app="ios"][data-ui="signal"] #tm-ios-barre.is-replie > .tm-ios-onglet::before { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
-  html[data-app="ios"] .tm-ios-barre { transition: none; }
+  html[data-app="ios"] #tm-ios-barre.tm-ios-barre,
+  html[data-app="ios"] #tm-ios-barre > .tm-ios-onglet { transition: none; }
 }
 
 /* ── L'assistant IA dans l'en-tête : en couleur, comme sur le Mac ─────────

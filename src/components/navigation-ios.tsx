@@ -18,7 +18,7 @@
  * Les droits ne sont pas décidés ici : chaque page et chaque route les
  * vérifient comme avant. Masquer une rubrique n'est que du confort.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Home, CalendarDays, Plus, FolderOpen, User, ChevronRight, X, CloudUpload, CloudOff, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -240,26 +240,26 @@ export function NavigationIos() {
         </div>
       )}
 
-      <nav className={`tm-ios-barre glass-header${replieeVisible ? " is-replie" : ""}`} aria-label="Navigation principale" data-nav-ios
+      <nav id="tm-ios-barre" className={`tm-ios-barre glass-header${replieeVisible ? " is-replie" : ""}`} aria-label="Navigation principale" data-nav-ios
         /* Repliée, la barre n'est qu'un rond : le toucher la déplie, il
            n'ouvre rien. */
         onClickCapture={(e) => { if (replieeVisible) { e.preventDefault(); e.stopPropagation(); setReplie(false); } }}>
-        <button type="button" className={`tm-ios-onglet${actifs.accueil ? " is-actif" : ""}${marqueRepr("accueil")}`} onClick={() => aller("dashboard")}>
+        <button type="button" style={{ "--i": 0 } as CSSProperties} className={`tm-ios-onglet${actifs.accueil ? " is-actif" : ""}${marqueRepr("accueil")}`} onClick={() => aller("dashboard")}>
           <Home className="w-6 h-6" /><span>Accueil</span>
         </button>
-        <button type="button" className={`tm-ios-onglet${actifs.planning ? " is-actif" : ""}${marqueRepr("planning")}`}
+        <button type="button" style={{ "--i": 1 } as CSSProperties} className={`tm-ios-onglet${actifs.planning ? " is-actif" : ""}${marqueRepr("planning")}`}
           onClick={() => { fermerProfil(); setProjetsOuvert(false); setGroupe(null); if (!surPlanning) router.push("/planning"); }}>
           <CalendarDays className="w-6 h-6" /><span>Planning</span>
         </button>
-        <button type="button" className={`tm-ios-onglet tm-ios-plus${peutCreer ? "" : " is-inactif"}`}
+        <button type="button" style={{ "--i": 2 } as CSSProperties} className={`tm-ios-onglet tm-ios-plus${peutCreer ? "" : " is-inactif"}`}
           aria-label="Nouveau projet" onClick={nouveauProjet}>
           <span className="tm-ios-plus-rond"><Plus className="w-6 h-6" /></span>
         </button>
-        <button type="button" className={`tm-ios-onglet${actifs.projets ? " is-actif" : ""}${marqueRepr("projets")}`}
+        <button type="button" style={{ "--i": 3 } as CSSProperties} className={`tm-ios-onglet${actifs.projets ? " is-actif" : ""}${marqueRepr("projets")}`}
           aria-expanded={projetsOuvert} onClick={() => { fermerProfil(); setProjetsOuvert((v) => !v); setGroupe(null); }}>
           <FolderOpen className="w-6 h-6" /><span>Projets</span>
         </button>
-        <button type="button" className={`tm-ios-onglet${actifs.profil ? " is-actif" : ""}${marqueRepr("profil")}`} aria-expanded={profilOuvert}
+        <button type="button" style={{ "--i": 4 } as CSSProperties} className={`tm-ios-onglet${actifs.profil ? " is-actif" : ""}${marqueRepr("profil")}`} aria-expanded={profilOuvert}
           onClick={() => { setProjetsOuvert(false); window.dispatchEvent(new CustomEvent("tm-basculer-profil")); }}>
           <User className="w-6 h-6" /><span>Profil</span>
         </button>
