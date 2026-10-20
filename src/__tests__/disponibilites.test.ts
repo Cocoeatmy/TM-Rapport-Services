@@ -169,3 +169,29 @@ describe("tableau de la semaine", () => {
     expect(t[0].jours[0].etat).toBe("plein");
   });
 });
+
+describe("seul, à deux, en équipe", () => {
+  /* L'exemple du 20.10.2026 : Claudio 2 seul, Jacobo 1 seul, et un montage
+     ensemble — 3 pour l'un, 2 pour l'autre, mais pas de la même façon. */
+  const lundi: SegmentJour[] = [
+    { label: "Claudio", cab: 2 },
+    { label: "Jacobo", cab: 1 },
+    { label: "Claudio & Jacobo", cab: 1 },
+    { label: "Team TM", cab: 2 },
+  ];
+  it("range les cabines selon avec qui on les pose, sans en perdre", () => {
+    const c = journeeDe("Claudio", lundi);
+    expect(c.repartition).toEqual({ solo: 2, binome: 1, equipe: 2 });
+    expect(c.cabines).toBe(5);
+    expect(journeeDe("Jacobo", lundi).repartition).toEqual({ solo: 1, binome: 1, equipe: 2 });
+  });
+  it("une Team vaut pour les monteurs, pas pour l'administrateur", () => {
+    expect(journeeDe("Miguel", lundi).repartition).toEqual({ solo: 0, binome: 0, equipe: 2 });
+    expect(journeeDe("Micael", lundi).cabines).toBe(0);
+  });
+  it("la semaine additionne les jours", () => {
+    const [l] = tableauDisponibilites([lundi, lundi], ["Claudio"]);
+    expect(l.repartition).toEqual({ solo: 4, binome: 2, equipe: 4 });
+    expect(l.total).toBe(10);
+  });
+});

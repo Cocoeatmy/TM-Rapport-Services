@@ -18,6 +18,7 @@
  */
 
 import { listeDeNoms } from "@/lib/equipe-intervention";
+import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS } from "@/lib/constants";
 
 /** Cabines posables dans une journée, selon la taille de l'équipe. */
 export const CAPACITE = { solo: 3, binome: 4, groupe: 5 } as const;
@@ -47,7 +48,22 @@ export interface CaseJour {
   chantiers: number;
   /** Absence notée à la main. */
   absent: boolean;
+  /**
+   * Les mêmes cabines, rangées selon AVEC QUI on les pose : seul, à deux,
+   * à trois ou plus (« Team » comprise). Leur somme vaut `cabines` — un
+   * montage en binôme reste entier pour chacun des deux, mais il se lit
+   * comme partagé (20.10.2026).
+   */
+  repartition: Repartition;
 }
+
+export interface Repartition { solo: number; binome: number; equipe: number }
+
+/** « Team TM » & co : tous les monteurs, sauf ceux qui n'en sont pas. */
+export const estTeam = (label: string) => /\bteam\b/i.test(label);
+const MONTEURS_TEAM = COLLABORATEURS_LIST.filter(
+  (n) => !TEAM_EXCLUDED_COLLABORATORS.some((x) => x.toLowerCase() === n.toLowerCase()),
+);
 
 /** Un groupe de la journée, tel que la charge de la semaine le calcule. */
 export interface SegmentJour {
@@ -82,6 +98,8 @@ export interface LigneDispo {
   plafond: number;
   /** Part de la semaine occupée, en pour-cent entiers. */
   pourcent: number;
+  /** La semaine, rangée seul / binôme / équipe. */
+  repartition: Repartition;
 }
 
 const memeNom = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
@@ -105,16 +123,19 @@ export function journeeDe(nom: string, segs: readonly SegmentJour[], absent = fa
   let taille = 1;
   let chantiers = 0;
   const equipes: string[] = [];
+  const repartition: Repartition = { solo: 0, binome: 0, equipe: 0 };
   for (const s of segs) {
-    const noms = listeDeNoms(s.label);
+    /* Une « Team » n'a pas de noms : elle vaut pour tous les monteurs. */
+    const noms = estTeam(s.label) ? [...MONTEURS_TEAM] : listeDeNoms(s.label);
     if (!noms.some((n) => memeNom(n, nom))) continue;
     cabines += s.cab || 0;
+    repartition[noms.length <= 1 ? "solo" : noms.length === 2 ? "binome" : "equipe"] += s.cab || 0;
     chantiers += s.chantiers ?? 1;
     taille = Math.max(taille, noms.length);
     equipes.push(s.label);
   }
   const capacite = capaciteDuJour(taille);
-  const brut: CaseJour = { cabines, capacite, etat: "libre", equipes, chantiers, absent };
+  const brut: CaseJour = { cabines, capacite, etat: "libre", equipes, chantiers, absent, repartition };
   return { ...brut, etat: etatDuJour(brut) };
 }
 
@@ -143,9 +164,16 @@ export function tableauDisponibilites(
     });
     const total = jours.reduce((s, j) => s + j.cabines, 0);
     const plafond = jours.reduce((s, j) => s + (j.absent ? 0 : j.capacite), 0);
+    const repartition: Repartition = { solo: 0, binome: 0, equipe: 0 };
+    for (const j of jours) {
+      repartition.solo += j.repartition.solo;
+      repartition.binome += j.repartition.binome;
+      repartition.equipe += j.repartition.equipe;
+    }
     return {
       nom,
       jours,
+      repartition,
       total,
       plafond,
       pourcent: plafond > 0 ? Math.round((total / plafond) * 100) : 0,

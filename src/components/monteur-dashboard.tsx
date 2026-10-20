@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { prefetchProject } from "@/lib/api-helpers";
-import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText, Check, Mail, Smartphone
+import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText, Check, Mail, Smartphone, User
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
@@ -48,6 +48,32 @@ import { PersonalStats } from "@/components/personal-stats";
 import { useIsSignalTheme } from "@/lib/use-signal-theme";
 import { useDroits } from "@/lib/use-droits";
 import { champNomme, prenomDe } from "@/lib/perimetre-projets";
+
+/* Trois têtes : l'équipe complète (« Team », trois monteurs ou plus). */
+function IconeEquipe(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <circle cx="12" cy="7" r="3" /><circle cx="4.5" cy="9.5" r="2.2" /><circle cx="19.5" cy="9.5" r="2.2" />
+      <path d="M6.5 20v-1.5a5.5 5.5 0 0 1 11 0V20" /><path d="M1 19.5v-.8a3.6 3.6 0 0 1 4.2-3.5" /><path d="M23 19.5v-.8a3.6 3.6 0 0 0-4.2-3.5" />
+    </svg>
+  );
+}
+
+/** Seul, à deux, en équipe : les cabines d'une case ou d'une semaine,
+ *  en petites pastilles — rien pour une catégorie vide (20.10.2026). */
+function PastillesAvecQui({ r }: { r: { solo: number; binome: number; equipe: number } }) {
+  if (r.solo + r.binome + r.equipe === 0) return null;
+  return (
+    <span className="sg-dispo-parts" aria-hidden="true">
+      {r.solo > 0 && <i className="is-solo"><User />{r.solo}</i>}
+      {r.binome > 0 && <i className="is-binome"><Users />{r.binome}</i>}
+      {r.equipe > 0 && <i className="is-equipe"><IconeEquipe />{r.equipe}</i>}
+    </span>
+  );
+}
+
+const detailAvecQui = (r: { solo: number; binome: number; equipe: number }) =>
+  [r.solo && `${r.solo} seul`, r.binome && `${r.binome} en binôme`, r.equipe && `${r.equipe} en équipe`].filter(Boolean).join(", ");
 
 // ─── Citations motivantes quotidiennes (365) ────────────────────────────────
 const DAILY_QUOTES: string[] = [
@@ -4636,6 +4662,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             absence. Le serveur le revérifie de son côté. */}
                         <i className="is-absent" /> absent — cliquez
                       </span>
+                      <span className="sg-dispo-leg is-avec" title="Les cabines de la case, selon avec qui on les pose">
+                        <em className="is-solo"><User /></em> seul
+                        <em className="is-binome"><Users /></em> binôme
+                        <em className="is-equipe"><IconeEquipe /></em> équipe
+                      </span>
                     </div>
                     <div className="sg-dispo-grille" style={{ ["--jours" as string]: bars.length } as React.CSSProperties}>
                       <span className="sg-dispo-coin">Collaborateur</span>
@@ -4660,7 +4691,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               ? `${ligne.nom} — ${jour.d} : absent${j.cabines > 0 ? ` · ${j.cabines} cabine${j.cabines > 1 ? "s" : ""} pourtant prévue${j.cabines > 1 ? "s" : ""}` : ""}`
                               : j.etat === "libre"
                                 ? `${ligne.nom} — ${jour.d} : rien de prévu`
-                                : `${ligne.nom} — ${jour.d} : ${j.cabines} cabine${j.cabines > 1 ? "s" : ""} sur ${j.capacite} · ${j.chantiers} chantier${j.chantiers > 1 ? "s" : ""}${j.equipes.length ? ` · ${j.equipes.join(", ")}` : ""}`;
+                                : `${ligne.nom} — ${jour.d} : ${j.cabines} cabine${j.cabines > 1 ? "s" : ""} sur ${j.capacite} (${detailAvecQui(j.repartition)}) · ${j.chantiers} chantier${j.chantiers > 1 ? "s" : ""}${j.equipes.length ? ` · ${j.equipes.join(", ")}` : ""}`;
                             return (
                               <span key={jour.key} className="sg-dispo-case">
                                 {/* Bouton et non pastille muette : c'est par lui
@@ -4680,12 +4711,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 <b className={j.etat === "absent" && j.cabines > 0 ? "is-conflit" : ""}>
                                   {j.cabines > 0 ? j.cabines : ""}
                                 </b>
+                                {/* Avec qui : seul, à deux, en équipe. */}
+                                <PastillesAvecQui r={j.repartition} />
                               </span>
                             );
                           })}
                           <span className="sg-dispo-total">
                             <b className={ligne.total === 0 ? "is-vide" : ligne.pourcent >= 75 ? "is-plein" : ""}>{ligne.total}</b>
                             <i>/ {ligne.plafond}</i>
+                            <PastillesAvecQui r={ligne.repartition} />
                           </span>
                           <span className="sg-dispo-part">
                             <span className="sg-dispo-barre">
