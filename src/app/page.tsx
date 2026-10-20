@@ -1188,6 +1188,20 @@ function HomePage() {
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
   /* « Projets en cours » sur écran tactile : l'état choisi par bouton (null = tous). */
   const [etatEnCours, setEtatEnCours] = useState<string | null>(null);
+  /* Écran tactile : « Projets en cours » s'ouvre sur les cartes d'état
+     (écran d'accueil), et une carte ouvre SA liste — avec un retour. Le Mac
+     garde la liste directe. */
+  const [tactile, setTactile] = useState(false);
+  useEffect(() => {
+    setTactile(window.matchMedia("(pointer: coarse)").matches);
+    /* Le retour d'iOS (geste ou bouton) ramène aux cartes. */
+    const surRetour = (ev: PopStateEvent) => {
+      const e = (ev.state as { tmEtat?: string } | null)?.tmEtat;
+      setEtatEnCours(e || null);
+    };
+    window.addEventListener("popstate", surRetour);
+    return () => window.removeEventListener("popstate", surRetour);
+  }, []);
   const [rapportSubFilter, setRapportSubFilter] = useState<"en-cours" | "en-attente" | "cloture" | null>(null);
   const [crmTagFilter, setCrmTagFilter] = useState<string | null>(null);
   const [subView, setSubView] = useState<"projets" | "stats">("projets");
@@ -5757,54 +5771,90 @@ function HomePage() {
         const ordre = Object.keys(STATUS_CMD_COLORS);
         const etats = [...parEtat.keys()].sort((a, b) =>
           ((ordre.indexOf(a) + 1) || 99) - ((ordre.indexOf(b) + 1) || 99) || a.localeCompare(b));
-        const etatActif = etatEnCours && parEtat.has(etatEnCours) ? etatEnCours : null;
-        const affiches = etatActif ? calProjects.filter((p: any) => (p.etatCMD || "Sans état") === etatActif) : calProjects;
+        /* « __tous__ » : la liste entière, ouverte depuis la carte « Tous ». */
+        const etatActif = etatEnCours && (etatEnCours === "__tous__" || parEtat.has(etatEnCours)) ? etatEnCours : null;
+        const filtre = etatActif && etatActif !== "__tous__" ? etatActif : null;
+        const affiches = filtre ? calProjects.filter((p: any) => (p.etatCMD || "Sans état") === filtre) : calProjects;
+        /* Écran tactile, rien de choisi : l'écran d'accueil — les cartes seules. */
+        const accueilCartes = tactile && !etatActif;
+        const ouvrir = (e: string) => {
+          setEtatEnCours(e);
+          try { window.history.pushState({ ...(window.history.state || {}), tmEtat: e }, ""); } catch { /* sans historique : le bouton suffit */ }
+          window.scrollTo({ top: 0 });
+        };
+        const revenir = () => {
+          if ((window.history.state as { tmEtat?: string } | null)?.tmEtat) window.history.back();
+          else setEtatEnCours(null);
+        };
+        const etapeDe = (e: string) => {
+          const rang = ordre.indexOf(e);
+          return rang < 0 ? "Autre" : rang < 3 ? "Mesures" : rang < 7 ? "Commande" : rang < 12 ? "Montage" : "Fin";
+        };
+        const carte = (e: string | null, enGrille: boolean) => {
+          const tous = e === null;
+          const cle = tous ? "__tous__" : e;
+          const actif = !enGrille && (tous ? !filtre : filtre === e);
+          return (
+            <button key={cle} type="button" aria-pressed={actif}
+              className={`tm-etat-bouton${tous ? " is-tous" : ""}${actif ? " is-actif" : ""}`}
+              style={tous ? undefined : { ["--tm-etat" as string]: COULEUR_ETAT[e] || "#94a3b8" }}
+              onClick={(ev) => {
+                if (enGrille) { ouvrir(cle); return; }
+                setEtatEnCours(tous ? null : filtre === e ? null : e);
+                ev.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+              }}>
+              <span className="tm-etat-tete"><i />{tous ? "Vue" : etapeDe(e)}</span>
+              <span className="tm-etat-nom">{tous ? "Tous les projets" : e}</span>
+              <b>{tous ? calProjects.length : parEtat.get(e)}</b>
+              {enGrille && <ChevronRight className="tm-etat-fleche" aria-hidden="true" />}
+            </button>
+          );
+        };
         return (
           <div>
+            {/* Liste ouverte depuis une carte : le retour aux cartes, en tête. */}
+            {tactile && etatActif && (
+              <button type="button" className="tm-etats-retour" onClick={revenir}>
+                <ChevronLeft className="w-5 h-5" />
+                <span>États</span>
+                <em style={filtre ? { ["--tm-etat" as string]: COULEUR_ETAT[filtre] || "#94a3b8" } : undefined}>
+                  <i />{filtre || "Tous les projets"}
+                </em>
+              </button>
+            )}
             <div className="relative mb-4 max-w-lg">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input placeholder="Rechercher (nom, OFR...)" className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            {/* Les états en cartes, sur UNE rangée qui défile : couleur,
-                étape, nom, et le nombre en grand. La carte choisie passe en
-                bleu nuit (la couleur de l'en-tête). */}
-            <div className="tm-etats-boutons" role="group" aria-label="Filtrer par état">
-              <button type="button" className={`tm-etat-bouton is-tous${etatActif ? "" : " is-actif"}`} aria-pressed={!etatActif} onClick={(ev) => { setEtatEnCours(null); ev.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); }}>
-                <span className="tm-etat-tete"><i />Vue</span>
-                <span className="tm-etat-nom">Tous les projets</span>
-                <b>{calProjects.length}</b>
-              </button>
-              {etats.map((e) => {
-                const rang = ordre.indexOf(e);
-                const etape = rang < 0 ? "Autre" : rang < 3 ? "Mesures" : rang < 7 ? "Commande" : rang < 12 ? "Montage" : "Fin";
-                return (
-                  <button key={e} type="button" aria-pressed={etatActif === e}
-                    className={`tm-etat-bouton${etatActif === e ? " is-actif" : ""}`}
-                    style={{ ["--tm-etat" as string]: COULEUR_ETAT[e] || "#94a3b8" }}
-                    onClick={(ev) => {
-                      setEtatEnCours(etatActif === e ? null : e);
-                      /* La carte choisie vient au milieu de la rangée. */
-                      ev.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-                    }}>
-                    <span className="tm-etat-tete"><i />{etape}</span>
-                    <span className="tm-etat-nom">{e}</span>
-                    <b>{parEtat.get(e)}</b>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-sm text-gray-500 mb-3">
-              {affiches.length} intervention{affiches.length !== 1 ? "s" : ""}{etatActif ? ` · ${etatActif}` : ""}
-            </p>
+            {accueilCartes ? (
+              /* L'écran d'accueil : toutes les cartes, en grille. */
+              <div className="tm-etats-grille" role="group" aria-label="Choisir un état">
+                {carte(null, true)}
+                {etats.map((e) => carte(e, true))}
+              </div>
+            ) : (
+              <>
+                {/* Mac : la rangée de cartes reste au-dessus de la liste (masquée sur écran tactile, où l'on a les cartes d'accueil). */}
+                {!tactile && (
+                  <div className="tm-etats-boutons" role="group" aria-label="Filtrer par état">
+                    {carte(null, false)}
+                    {etats.map((e) => carte(e, false))}
+                  </div>
+                )}
+                <p className="text-sm text-gray-500 mb-3">
+                  {affiches.length} intervention{affiches.length !== 1 ? "s" : ""}{filtre ? ` · ${filtre}` : ""}
+                </p>
+              </>
+            )}
             {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
-            <div className="space-y-3">
+            {!accueilCartes && <div className="space-y-3">
               {affiches.map((project: any) => (
                 <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
               ))}
               {affiches.length === 0 && !loading && (
                 <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucune intervention planifiée</p></div>
               )}
-            </div>
+            </div>}
           </div>
         );
       })()}

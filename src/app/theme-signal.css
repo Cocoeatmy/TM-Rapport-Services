@@ -5522,12 +5522,24 @@ html[data-ui="signal"] .sg-dispo-pastille:focus-visible {
    Ce changement s'applique AUSSI à macOS, et c'est voulu : un vert qui
    signifierait « libre » sur l'iPad et « complet » sur le Mac serait pire
    que l'ancienne convention. */
+/* Les couleurs des icônes de « Signaux » : un fond pastel et un cœur de
+   la couleur franche — rouge (Soucis), ambre (SAV), vert (À facturer). Les
+   teintes vives d'avant détonnaient dans le thème (20.10.2026). */
 html[data-ui="signal"] .sg-dispo-pastille.is-plein,
-html[data-ui="signal"] .sg-dispo-leg i.is-plein { background: #ef4444; }
+html[data-ui="signal"] .sg-dispo-leg i.is-plein {
+  background: radial-gradient(circle, #c93a3a 0 40%, #fde8e8 44%);
+  box-shadow: inset 0 0 0 1px rgba(185, 28, 28, 0.28);
+}
 html[data-ui="signal"] .sg-dispo-pastille.is-partiel,
-html[data-ui="signal"] .sg-dispo-leg i.is-partiel { background: #f59e0b; }
+html[data-ui="signal"] .sg-dispo-leg i.is-partiel {
+  background: radial-gradient(circle, #c97a1e 0 40%, #fdf0dc 44%);
+  box-shadow: inset 0 0 0 1px rgba(180, 83, 9, 0.28);
+}
 html[data-ui="signal"] .sg-dispo-pastille.is-libre,
-html[data-ui="signal"] .sg-dispo-leg i.is-libre { background: #22c55e; }
+html[data-ui="signal"] .sg-dispo-leg i.is-libre {
+  background: radial-gradient(circle, #2e9455 0 40%, #e7f6ec 44%);
+  box-shadow: inset 0 0 0 1px rgba(21, 128, 61, 0.28);
+}
 html[data-ui="signal"] .sg-dispo-pastille.is-absent,
 html[data-ui="signal"] .sg-dispo-leg i.is-absent { background: #0f172a; }
 html[data-ui="signal"].dark .sg-dispo-pastille.is-absent,

@@ -296,3 +296,60 @@
   .dark .tm-etat-bouton.is-actif { background: #2563eb; }
 }
 
+
+/* ── « Projets en cours » : l'écran d'accueil des cartes, et le retour ───
+   D'abord toutes les cartes en grille (deux colonnes) ; un toucher ouvre la
+   liste de cet état, avec en tête « ‹ États » pour revenir (le geste de
+   retour d'iOS aussi). */
+@media (pointer: coarse) {
+  .tm-etats-grille {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
+    margin-bottom: 18px;
+  }
+  .tm-etats-grille .tm-etat-bouton {
+    width: auto; min-height: 112px; padding: 13px 14px 13px;
+    animation: tm-carte-entree 0.36s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  }
+  .tm-etats-grille .tm-etat-bouton:nth-child(2) { animation-delay: 30ms; }
+  .tm-etats-grille .tm-etat-bouton:nth-child(3) { animation-delay: 60ms; }
+  .tm-etats-grille .tm-etat-bouton:nth-child(4) { animation-delay: 90ms; }
+  .tm-etats-grille .tm-etat-bouton:nth-child(n+5) { animation-delay: 120ms; }
+  .tm-etats-grille .tm-etat-bouton:first-child {
+    grid-column: 1 / -1; min-height: 88px;
+    background: #0f1b2e; color: #fff; border-color: transparent;
+    box-shadow: 0 8px 22px rgba(15, 27, 46, 0.28);
+  }
+  .tm-etats-grille .tm-etat-bouton:first-child .tm-etat-tete { color: rgba(255, 255, 255, 0.6); }
+  .tm-etats-grille .tm-etat-bouton:first-child b { color: #fff; }
+  .tm-etats-grille .tm-etat-nom { font-size: 14.5px; -webkit-line-clamp: 3; padding-right: 6px; }
+  .tm-etats-grille .tm-etat-bouton b { font-size: 28px; }
+  .tm-etat-fleche {
+    position: absolute; left: 13px; bottom: 13px; width: 16px; height: 16px;
+    color: color-mix(in srgb, var(--tm-etat) 60%, #94a3b8);
+  }
+  .tm-etats-grille .tm-etat-bouton:first-child .tm-etat-fleche { color: rgba(255, 255, 255, 0.55); }
+  @keyframes tm-carte-entree { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+  .tm-etats-retour {
+    display: flex; align-items: center; gap: 6px; width: 100%;
+    margin: 0 0 12px; padding: 4px 0;
+    background: none; border: none; color: #1b63ff;
+    font-size: 15px; font-weight: 600; text-align: left;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tm-etats-retour > svg { margin-left: -6px; flex: 0 0 auto; }
+  .tm-etats-retour em {
+    --tm-etat: #0f172a;
+    margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
+    max-width: 62%; padding: 6px 12px; border-radius: 999px;
+    font-style: normal; font-size: 13px; font-weight: 650; color: #0f172a;
+    background: var(--sg-paper, #fff); border: 1px solid rgba(15, 23, 42, 0.08);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tm-etats-retour em i { width: 8px; height: 8px; border-radius: 999px; background: var(--tm-etat); flex: 0 0 auto; }
+  .dark .tm-etats-retour { color: #7fb0ff; }
+  .dark .tm-etats-retour em { background: #1e293b; color: #e2e8f0; border-color: rgba(255, 255, 255, 0.1); }
+}
+@media (pointer: coarse) and (prefers-reduced-motion: reduce) {
+  .tm-etats-grille .tm-etat-bouton { animation: none; }
+}

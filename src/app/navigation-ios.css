@@ -351,8 +351,10 @@ html[data-app="ios"] #tm-ios-barre.tm-ios-barre.is-replie {
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
 /* Tous glissent vers la première place, centrés dans le rond. */
+/* Centrage : le rond mesure --tm-rond bord compris (1 px de chaque côté) —
+   l'intérieur fait donc 2 px de moins ; c'est ce centre-là qu'on vise. */
 html[data-app="ios"] #tm-ios-barre.is-replie > .tm-ios-onglet {
-  transform: translateX(calc(var(--i, 0) * -1 * var(--tm-col) + (var(--tm-rond) - var(--tm-col)) / 2)) scale(0.55);
+  transform: translateX(calc(var(--i, 0) * -1 * var(--tm-col) + (var(--tm-rond) - 2px - var(--tm-col)) / 2)) scale(0.55);
   opacity: 0;
   pointer-events: none;
   /* Repli : le plus éloigné part le premier, les autres le suivent. */
@@ -360,7 +362,8 @@ html[data-app="ios"] #tm-ios-barre.is-replie > .tm-ios-onglet {
 }
 /* …sauf le bouton actif, qui reste net, devant, sans son libellé. */
 html[data-app="ios"] #tm-ios-barre.is-replie > .tm-ios-onglet.is-repr {
-  transform: translateX(calc(var(--i, 0) * -1 * var(--tm-col) + (var(--tm-rond) - var(--tm-col)) / 2 + 1px));
+  transform: translateX(calc(var(--i, 0) * -1 * var(--tm-col) + (var(--tm-rond) - 2px - var(--tm-col)) / 2));
+  gap: 0; /* l'espace sous l'icône (pour le libellé) la décalait vers le haut */
   opacity: 1;
   z-index: 1;
   transition-delay: 0ms;
@@ -416,5 +419,35 @@ html[data-app="ios"][data-ui="signal"] :is(.tm-ios-barre, #main-header) :is(.tm-
 }
 html[data-app="ios"][data-ui="signal"] :is(.tm-ios-barre, #main-header) :is(.tm-ios-onglet, button.w-9.h-9) > svg {
   filter: drop-shadow(0 1px 1.5px rgba(8, 14, 25, calc(0.55 * var(--tm-verre-t))));
+}
+
+/* ── Le verre de la barre sur un calque INTÉRIEUR, découpé en arrondi ─────
+   Safari dessine le flou d'arrière-plan (backdrop-filter) d'un élément qui
+   change de taille SANS son arrondi pendant une image : à la réouverture,
+   des angles droits apparaissaient (capture du 20.10.2026). Le verre passe
+   donc sur un calque ::before, découpé par clip-path — que Safari respecte
+   toujours — ; la barre garde son bord et son ombre. */
+html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre {
+  --tm-rayon: 28px;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  isolation: isolate;
+}
+html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre.is-replie { --tm-rayon: calc(var(--tm-barre-ios) / 2); }
+html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  border-radius: inherit;
+  background: var(--tm-verre-lustre), var(--tm-verre-encre);
+  -webkit-backdrop-filter: var(--tm-verre-flou);
+  backdrop-filter: var(--tm-verre-flou);
+  -webkit-clip-path: inset(0 round var(--tm-rayon));
+  clip-path: inset(0 round var(--tm-rayon));
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre::before { background: var(--sg-ink, #0c1626); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre::before { background: var(--tm-verre-encre-fort); }
 }
 

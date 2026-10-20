@@ -234,8 +234,10 @@ test.describe("Planning", () => {
   test("lisibilité du verre : la barre reste opaque à plus de 50 % et le texte blanc contraste", async ({ page, context }) => {
     await ouvrir(page, context, MONTEUR);
     const style = await page.evaluate(() => {
-      const b = getComputedStyle(document.querySelector("nav.tm-ios-barre")!);
-      return { fond: b.backgroundColor, flou: b.backdropFilter || (b as unknown as { webkitBackdropFilter: string }).webkitBackdropFilter, rayon: b.borderRadius };
+      /* Le verre vit sur le calque intérieur de la barre (::before, découpé en arrondi). */
+      const nav = document.querySelector("nav.tm-ios-barre")!;
+      const b = getComputedStyle(nav, "::before");
+      return { fond: b.backgroundColor, flou: b.backdropFilter || (b as unknown as { webkitBackdropFilter: string }).webkitBackdropFilter, rayon: getComputedStyle(nav).borderRadius };
     });
     const alpha = Number((/rgba?\([^)]*,\s*([0-9.]+)\)/.exec(style.fond) || [])[1] ?? 1);
     expect(alpha).toBeGreaterThanOrEqual(0.5);
@@ -263,7 +265,9 @@ test.describe("app web de l'écran d'accueil (iPhone)", () => {
     const verre = await page.evaluate(() => {
       const lire = (el: Element) => { const c = getComputedStyle(el); return { fond: c.backgroundColor, flou: c.backdropFilter || (c as unknown as { webkitBackdropFilter: string }).webkitBackdropFilter }; };
       const h = document.getElementById("main-header")!;
-      return { haut: lire(h), bas: lire(document.querySelector("nav.tm-ios-barre")!), rayon: getComputedStyle(h).borderBottomLeftRadius };
+      const nav = document.querySelector("nav.tm-ios-barre")!;
+      const verreBas = getComputedStyle(nav, "::before");
+      return { haut: lire(h), bas: { fond: verreBas.backgroundColor, flou: verreBas.backdropFilter || (verreBas as unknown as { webkitBackdropFilter: string }).webkitBackdropFilter }, rayon: getComputedStyle(h).borderBottomLeftRadius };
     });
     expect(verre.haut.fond).toBe(verre.bas.fond);
     expect(verre.haut.flou).toBe(verre.bas.flou);
@@ -405,7 +409,7 @@ test.describe("app iPhone : lisibilité", () => {
     if (await titre.count()) expect(await titre.evaluate((el) => getComputedStyle(el).webkitLineClamp || "none")).toMatch(/none|^$/);
   });
 
-  test("« Projets en cours » : des boutons d'état avec leur nombre filtrent la liste", async ({ page, context }) => {
+  test("« Projets en cours » : d'abord les cartes d'état ; une carte ouvre sa liste ; « États » ramène aux cartes", async ({ page, context }) => {
     await ouvrir(page, context, ADMIN, "/");
     /* Trois projets dans deux états, à partir du projet fictif du banc. */
     const [base] = await page.evaluate(() => fetch("/api/projects").then((r) => r.json()));
@@ -417,21 +421,28 @@ test.describe("app iPhone : lisibilité", () => {
     await page.route("**/api/projects/all-active**", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify(liste) }));
     await page.goto("/?mode=calendrier", { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1500);
-    const boutons = page.locator(".tm-etats-boutons .tm-etat-bouton");
-    await expect(boutons).toHaveCount(3);
-    await expect(boutons.nth(1)).toContainText("En attente de mesures");
-    await expect(boutons.nth(1).locator("b")).toHaveText("2");
-    await expect(boutons.first()).toBeVisible();
-    expect(await boutons.count()).toBeGreaterThan(1);
-    const second = boutons.nth(1);
-    const nombre = Number(await second.locator("b").innerText());
-    await second.click();
-    await expect(second).toHaveClass(/is-actif/);
-    await expect(page.getByText(new RegExp(`^${nombre} intervention`))).toBeVisible();
-    await page.screenshot({ path: "test-results/ios-projets-etats.png" });
-    await second.click();
-    await expect(boutons.first()).toHaveClass(/is-actif/);
+    /* L'écran d'accueil : les cartes, pas de liste. */
+    const cartes = page.locator(".tm-etats-grille .tm-etat-bouton");
+    await expect(cartes).toHaveCount(3);
+    await expect(page.getByText(/^\d+ interventions?/)).toHaveCount(0);
+    await expect(cartes.nth(1)).toContainText("En attente de mesures");
+    await expect(cartes.nth(1).locator("b")).toHaveText("2");
+    await page.screenshot({ path: "test-results/ios-projets-cartes.png" });
+    /* Une carte : sa liste, avec le retour. */
+    await cartes.nth(1).click();
+    await expect(page.locator(".tm-etats-grille")).toHaveCount(0);
+    await expect(page.getByText(/^2 interventions · En attente de mesures/)).toBeVisible();
+    await expect(page.locator(".tm-etats-retour")).toBeVisible();
+    await page.screenshot({ path: "test-results/ios-projets-liste.png" });
+    /* « États » : retour aux cartes. Puis le retour du navigateur fait de même. */
+    await page.locator(".tm-etats-retour").click();
+    await expect(page.locator(".tm-etats-grille .tm-etat-bouton")).toHaveCount(3);
+    await page.locator(".tm-etats-grille .tm-etat-bouton").first().click();
+    await expect(page.getByText(/^3 interventions/)).toBeVisible();
+    await page.goBack();
+    await expect(page.locator(".tm-etats-grille .tm-etat-bouton")).toHaveCount(3);
   });
+
 });
 
 test.describe("app iPhone : le « + » de la barre", () => {
