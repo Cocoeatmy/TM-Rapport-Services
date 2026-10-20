@@ -260,6 +260,11 @@ async function loadDefautsForProject(projectId: string, projetEnRoute?: Project 
 }
 
 export const dynamic = "force-dynamic";
+/* Sans durée déclarée, la route tombait sur la limite par défaut : une
+   génération sur instance FROIDE (modules, fiche, photos à télécharger)
+   mesurait 15,7 s le 20.10.2026 et finissait parfois en erreur. La fiche et
+   le SAV avaient déjà leur marge ; le rapport de montage, non. */
+export const maxDuration = 60;
 
 const styles = StyleSheet.create({
   page: {
