@@ -34,50 +34,72 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ETATS_SAV } from "@/lib/sav-cabines";
 
-/** Les états lus chez Notion, partagés par toutes les lignes de la liste. */
-let etatsConnus: string[] | null = null;
-let lecture: Promise<string[]> | null = null;
+/* Les états lus chez Notion, PAR COLONNE, partagés par toutes les lignes.
+   Le même composant sert « État - SAV », « État - Mesures », « État - CMD ». */
+const etatsConnus: Record<string, string[]> = {};
+const lectures: Record<string, Promise<string[]> | null> = {};
 
-async function lireEtats(frais = false): Promise<string[]> {
-  if (!frais && etatsConnus) return etatsConnus;
-  if (!frais && lecture) return lecture;
+export async function lireEtats(champNom = "État - SAV", repli: readonly string[] = ETATS_SAV, frais = false): Promise<string[]> {
+  if (!frais && etatsConnus[champNom]) return etatsConnus[champNom];
+  if (!frais && lectures[champNom]) return lectures[champNom]!;
   const p = fetch(`/api/notion/schema${frais ? "?frais=1" : ""}`)
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => {
       const champ = (d?.champs || []).find(
-        (c: { nom: string }) => c.nom === "État - SAV",
+        (c: { nom: string }) => c.nom === champNom,
       );
       const noms = (champ?.options || []).map((o: { nom: string }) => o.nom).filter(Boolean);
-      etatsConnus = noms.length ? noms : [...ETATS_SAV];
-      return etatsConnus as string[];
+      etatsConnus[champNom] = noms.length ? noms : [...repli];
+      return etatsConnus[champNom];
     })
-    .catch(() => [...ETATS_SAV] as string[])
-    .finally(() => { lecture = null; });
-  lecture = p;
+    .catch(() => [...repli] as string[])
+    .finally(() => { lectures[champNom] = null; });
+  lectures[champNom] = p;
   return p;
 }
 
-export function EtatSavRapide({
-  projectId, etat, deduit, classe, onChange,
+/** L'état SAV d'un chantier (voir l'en-tête) : EtatRapide sur « État - SAV ». */
+export function EtatSavRapide(props: {
+  projectId: string; etat: string; deduit: boolean; classe: string;
+  onChange: (etat: string | null) => void;
+}) {
+  return <EtatRapide {...props} champ="État - SAV" cle="etatSAV" repli={ETATS_SAV} libelle="État SAV" />;
+}
+
+/**
+ * Un état de chantier changé d'un clic, pour toute colonne « statut » de
+ * Notion. Même pastille qu'un état figé ; le menu liste les valeurs de la
+ * colonne, lues chez Notion (un état ajouté là-bas apparaît tout seul).
+ */
+export function EtatRapide({
+  projectId, etat, deduit = false, classe, onChange, champ, cle, repli = [], libelle,
 }: {
   projectId: string;
   etat: string;
-  /** Vrai = déduit des lots ; la colonne Notion dit encore autre chose. */
-  deduit: boolean;
+  /** Vrai = déduit des lots (SAV) ; la colonne Notion dit encore autre chose. */
+  deduit?: boolean;
   classe: string;
   /** Prévient la liste pour qu'elle affiche la nouvelle valeur. */
   onChange: (etat: string | null) => void;
+  /** La colonne Notion (« État - Mesures »…). */
+  champ: string;
+  /** La clé d'écriture de /api/projects/[id] (etatMesures, etatCMD, etatSAV). */
+  cle: string;
+  /** États connus si la lecture de la colonne échoue. */
+  repli?: readonly string[];
+  /** Le nom dit à l'utilisateur (« État mesures »). */
+  libelle: string;
 }) {
   const [ouvert, setOuvert] = useState(false);
   const [envoi, setEnvoi] = useState(false);
-  const [options, setOptions] = useState<string[]>(() => etatsConnus || [...ETATS_SAV]);
+  const [options, setOptions] = useState<string[]>(() => etatsConnus[champ] || [...repli]);
   const [libre, setLibre] = useState("");
   const [refus, setRefus] = useState("");
   const boite = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (!ouvert) return;
-    lireEtats().then(setOptions).catch(() => {});
+    lireEtats(champ, repli).then(setOptions).catch(() => {});
     const dehors = (e: MouseEvent) => {
       if (boite.current && !boite.current.contains(e.target as Node)) setOuvert(false);
     };
@@ -97,13 +119,13 @@ export function EtatSavRapide({
       const res = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ etatSAV: v }),
+        body: JSON.stringify({ [cle]: v }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(String(d.error || res.status));
       }
-      toast.success(`État SAV : ${v}`);
+      toast.success(`${libelle} : ${v}`);
       setOuvert(false);
       setLibre("");
     } catch (e) {
@@ -113,7 +135,7 @@ export function EtatSavRapide({
         /* Notion n'invente pas une valeur de statut. Plutôt qu'un code
            d'erreur, on dit quoi faire — et on propose de relire la
            colonne, au cas où l'état vient d'y être créé. */
-        setRefus(`« ${v} » n'existe pas dans la colonne « État - SAV » de Notion. Créez-le là-bas, puis relisez les états.`);
+        setRefus(`« ${v} » n'existe pas dans la colonne « ${champ} » de Notion. Créez-le là-bas, puis relisez les états.`);
       } else {
         setRefus("L'état n'a pas pu être enregistré — réessayez.");
       }
@@ -129,7 +151,7 @@ export function EtatSavRapide({
         disabled={envoi}
         title={deduit
           ? "Déduit des douches en SAV — la colonne Notion n'a pas encore suivi. Cliquez pour choisir."
-          : "Cliquez pour changer l'état SAV"}
+          : `Cliquez pour changer : ${libelle}`}
         onClick={(e) => {
           /* La ligne entière est un lien vers le chantier : sans cela, un
              clic sur la pastille l'ouvrirait au lieu de la dérouler. */
@@ -184,7 +206,7 @@ export function EtatSavRapide({
               <button type="button"
                 onClick={(e) => {
                   e.preventDefault(); e.stopPropagation();
-                  lireEtats(true).then((l) => { setOptions(l); setRefus(""); });
+                  lireEtats(champ, repli, true).then((l) => { setOptions(l); setRefus(""); });
                 }}>
                 Relire les états
               </button>

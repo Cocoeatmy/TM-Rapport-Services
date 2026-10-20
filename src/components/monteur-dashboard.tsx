@@ -42,7 +42,7 @@ import {
   etatSavAffiche,
   type SourceSavCabines, type SourceSavProjet,
 } from "@/lib/sav-cabines";
-import { EtatSavRapide } from "@/components/etat-sav-rapide";
+import { EtatSavRapide, EtatRapide, lireEtats } from "@/components/etat-sav-rapide";
 import { PersonalStats } from "@/components/personal-stats";
 import { useIsSignalTheme } from "@/lib/use-signal-theme";
 import { useDroits } from "@/lib/use-droits";
@@ -1639,6 +1639,18 @@ const RDV_STATUS_FIELD: Record<string, (p: Project) => string> = {
   "rdv-services-fixe":    (p) => p.etatCMD || "",
   "rdv-mesures-fixe":     (p) => p.etatMesures || "",
 };
+/* La colonne Notion derrière la pastille « État » de chaque liste — pour la
+   changer d'un clic (EtatRapide) et pour proposer TOUS ses états en filtre.
+   Le droit est celui que le serveur exige pour l'écrire. */
+const PANEL_ETAT_CHAMP: Record<string, { champ: string; cle: string; libelle: string; droit: string; repli: string[] }> = {
+  "rdv-mesures-a-fixer": { champ: "État - Mesures", cle: "etatMesures", libelle: "État mesures", droit: "kanban.mesures", repli: ["Pas contacté", "Contact sans réponse", "RDV - Attendre news", "RDV - Fixé", "Terminé"] },
+  "rdv-mesures-fixe":    { champ: "État - Mesures", cle: "etatMesures", libelle: "État mesures", droit: "kanban.mesures", repli: ["Pas contacté", "Contact sans réponse", "RDV - Attendre news", "RDV - Fixé", "Terminé"] },
+  "rdv-montage-a-fixer": { champ: "État - CMD", cle: "etatCMD", libelle: "État commande", droit: "kanban.cmd", repli: ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "RDV - fixé", "Montage partiel", "Terminé"] },
+  "rdv-services-a-fixer": { champ: "État - CMD", cle: "etatCMD", libelle: "État commande", droit: "kanban.cmd", repli: ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "RDV - fixé", "Montage partiel", "Terminé"] },
+  "rdv-montage-fixe":    { champ: "État - CMD", cle: "etatCMD", libelle: "État commande", droit: "kanban.cmd", repli: ["RDV - fixé", "Montage partiel", "Terminé"] },
+  "rdv-services-fixe":   { champ: "État - CMD", cle: "etatCMD", libelle: "État commande", droit: "kanban.cmd", repli: ["RDV - fixé", "Montage partiel", "Terminé"] },
+};
+
 // Ordre canonique d'affichage des chips d'état par panneau.
 const RDV_STATUS_ORDER: Record<string, string[]> = {
   "rdv-montage-a-fixer":  ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel"],
@@ -2281,6 +2293,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [terminatedLoading, setTerminatedLoading] = useState(false);
   /* États SAV changés depuis la liste, en attendant la relecture. */
   const [etatsSavLocaux, setEtatsSavLocaux] = useState<Record<string, string>>({});
+  /* États changés d'un clic dans une liste (Mesures, CMD) : affichés tout de
+     suite, avant que les listes ne se rafraîchissent. Clé « colonne:projet ». */
+  const [etatsLocaux, setEtatsLocaux] = useState<Record<string, string>>({});
+  /* Toutes les valeurs de la colonne d'état du panneau ouvert, lues chez
+     Notion — pour proposer chaque état en filtre, même absent de la liste. */
+  const [etatsDuChamp, setEtatsDuChamp] = useState<Record<string, string[]>>({});
   const [archivesCount, setArchivesCount] = useState<number | null>(null);
 
   // ── Animation ouverture/fermeture panneau ─────────────────────────────────
@@ -7815,9 +7833,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
            la colonne Notion : sinon masquer « Aucun SAV » ferait
            disparaître des lignes qui affichent « A contacter », et l'on ne
            comprendrait plus ce qu'on filtre. */
+        const etatChamp = showSummaryPanel ? PANEL_ETAT_CHAMP[showSummaryPanel] : undefined;
+        const champBrut = showSummaryPanel ? RDV_STATUS_FIELD[showSummaryPanel] : undefined;
         const rdvStatusFieldFn = vueSav
           ? (p: Project) => etatSavChoisi(p).etat
-          : (showSummaryPanel ? RDV_STATUS_FIELD[showSummaryPanel] : undefined);
+          : (champBrut && etatChamp
+            ? (p: Project) => etatsLocaux[`${etatChamp.champ}:${p.id}`] ?? champBrut(p)
+            : champBrut);
+        if (etatChamp && !etatsDuChamp[etatChamp.champ]) {
+          lireEtats(etatChamp.champ, etatChamp.repli).then((l) =>
+            setEtatsDuChamp((m) => (m[etatChamp.champ] ? m : { ...m, [etatChamp.champ]: l }))).catch(() => {});
+        }
         let rdvStatusOptions: string[] = [];
         let rdvHiddenCount = 0;
         const rdvTotalCount = panelProjects.length;
@@ -7829,8 +7855,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           // projet visible (ex. tous les "RDV à fixer" placés, il ne reste que
           // des "Attendre news" masqués → le filtre doit rester réactivable).
           const present = new Set(panelProjects.map(rdvStatusFieldFn).filter(Boolean));
-          const union = new Set([...present, ...hidden]);
-          const order = (showSummaryPanel && RDV_STATUS_ORDER[showSummaryPanel]) || [];
+          /* Tous les états de la colonne Notion, même ceux qu'aucun projet de
+             la liste ne porte encore : chacun peut servir de filtre. */
+          const tousLesEtats = etatChamp ? (etatsDuChamp[etatChamp.champ] || []) : [];
+          const union = new Set([...tousLesEtats, ...present, ...hidden]);
+          const order = tousLesEtats.length ? tousLesEtats : ((showSummaryPanel && RDV_STATUS_ORDER[showSummaryPanel]) || []);
           rdvStatusOptions = [...union].sort((a, b) => {
             const ia = order.indexOf(a), ib = order.indexOf(b);
             return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
@@ -8360,6 +8389,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   onChange={(v) => setEtatsSavLocaux((m) => {
                                     const n = { ...m };
                                     if (v === null) delete n[p.id]; else n[p.id] = v;
+                                    return n;
+                                  })}
+                                />
+                              ) : etatChamp && peut(etatChamp.droit) ? (
+                                /* L'état se change d'un clic : les valeurs de
+                                   la colonne Notion, et un champ libre. */
+                                <EtatRapide
+                                  projectId={p.id}
+                                  etat={etat}
+                                  classe={cls}
+                                  champ={etatChamp.champ}
+                                  cle={etatChamp.cle}
+                                  repli={etatChamp.repli}
+                                  libelle={etatChamp.libelle}
+                                  onChange={(v) => setEtatsLocaux((m) => {
+                                    const n = { ...m };
+                                    const k = `${etatChamp.champ}:${p.id}`;
+                                    if (v === null) delete n[k]; else n[k] = v;
                                     return n;
                                   })}
                                 />
