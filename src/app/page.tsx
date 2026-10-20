@@ -2910,7 +2910,7 @@ function HomePage() {
             { mode: "grossistes-dubat", label: "Dubat", logo: "/logos/fournisseurs/Dubat-Logo.png" },
             { mode: "grossistes-tema", label: "Tema Sàrl", logo: "/logos/fournisseurs/Tema-Logo.png", inverse: true },
             { mode: "grossistes-matway", label: "MatWay", logo: "/logos/fournisseurs/Matway-Logo.png", inverse: true },
-            { mode: "grossistes-bringhen", label: "Bringhen", logo: "/logos/fournisseurs/Bringhen-logo.png", zoom: 2.1 },
+            { mode: "grossistes-bringhen", label: "Bringhen", logo: "/logos/fournisseurs/Bringhen-logo.png", zoom: 2.1, voile: true },
           ]} />
       )}
       {mode === "fournisseurs-accueil" && (

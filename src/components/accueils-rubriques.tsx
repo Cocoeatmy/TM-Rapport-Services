@@ -89,7 +89,7 @@ export function AccueilCrm({ onOuvrir }: { onOuvrir: (mode: string) => void }) {
 }
 
 /* ── Partenaires (grossistes, fournisseurs) : les logos ──────────────── */
-export interface EntreeLogo { mode: string; label: string; logo?: string; inverse?: boolean; /** Logo au fichier très marginé : agrandi dans sa carte. */ zoom?: number }
+export interface EntreeLogo { mode: string; label: string; logo?: string; inverse?: boolean; /** Logo au fichier très marginé : agrandi dans sa carte. */ zoom?: number; /** Dessin posé sur un voile semi-transparent. */ voile?: boolean }
 
 export function AccueilLogos({ titre, aide, famille, entrees, onOuvrir }: {
   titre: string; aide: string; famille: "grossistes" | "fournisseurs";
@@ -117,7 +117,7 @@ export function AccueilLogos({ titre, aide, famille, entrees, onOuvrir }: {
             onClick={() => onOuvrir(e.mode)} aria-label={e.label} title={e.label}>
             <span className="tm-etat-logo">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={e.logo} alt="" className={e.inverse ? "is-inverse" : undefined}
+              <img src={e.logo} alt="" className={e.voile ? "is-voile" : undefined}
                 style={e.zoom ? { transform: `scale(${e.zoom})` } : undefined} />
             </span>
             <span className="tm-etat-nom">{e.label}</span>
