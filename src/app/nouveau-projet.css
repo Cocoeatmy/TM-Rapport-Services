@@ -307,6 +307,75 @@
   .np-champ input, .np-titre input { font-size: 16px; } /* pas de zoom iOS au focus */
 }
 
+
+/* ── Familles de contacts : une case, puis ses champs (20.10.2026) ───────── */
+.np-familles { display: grid; gap: 8px; }
+.np-famille { border-radius: 16px; border: 1.5px solid var(--np-ligne); background: #fff; transition: border-color 0.18s ease, box-shadow 0.18s ease; }
+.np-famille.is-on { border-color: rgba(27, 99, 255, 0.35); box-shadow: 0 6px 18px rgba(27, 99, 255, 0.08); }
+.np-famille-case {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px;
+  background: none; border: 0; cursor: pointer; text-align: left; font-size: 14px; font-weight: 650; color: var(--np-texte);
+}
+.np-famille-case > i {
+  width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; flex: 0 0 auto;
+  border: 1.5px solid #cbd5e1; background: #fff; color: #fff; transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+.np-famille.is-on .np-famille-case > i { background: var(--np-bleu); border-color: var(--np-bleu); }
+.np-famille-case > em {
+  margin-left: auto; font-style: normal; font-size: 11px; font-weight: 800; min-width: 22px; text-align: center;
+  padding: 2px 7px; border-radius: 999px; background: rgba(27, 99, 255, 0.12); color: var(--np-bleu);
+}
+.np-famille-champs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0 14px 14px; animation: np-glisse 0.22s ease both; }
+.np-famille-champs > .np-lie:only-child { grid-column: 1 / -1; }
+
+/* ── Choisir dans une base liée ──────────────────────────────────────────── */
+.np-lie { position: relative; }
+.np-lie-choisis { display: flex; flex-wrap: wrap; gap: 6px; }
+.np-lie-choisis em {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 6px 5px 11px; border-radius: 999px;
+  font-style: normal; font-size: 12.5px; font-weight: 650; background: var(--np-nuit); color: #fff;
+}
+.np-lie-choisis button {
+  width: 20px; height: 20px; border-radius: 999px; display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.15); color: #fff; border: 0; cursor: pointer;
+}
+.np-lie-saisie {
+  display: flex; align-items: center; gap: 8px; padding: 0 12px; min-height: 42px; border-radius: 12px;
+  background: var(--np-champ); border: 1.5px solid transparent; color: var(--np-doux);
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+.np-lie-saisie:focus-within { background: #fff; border-color: var(--np-bleu); box-shadow: 0 0 0 4px rgba(27, 99, 255, 0.12); }
+.np-champ .np-lie-saisie input {
+  flex: 1; min-width: 0; min-height: 0; padding: 0; border: 0; background: transparent; box-shadow: none; outline: none;
+}
+.np-lie-liste {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 20; margin-top: 6px; max-height: 260px; overflow-y: auto;
+  display: grid; padding: 6px; border-radius: 14px; background: #fff;
+  border: 1px solid var(--np-ligne); box-shadow: 0 18px 40px rgba(11, 18, 32, 0.18);
+}
+.np-lie-liste p { padding: 10px; font-size: 13px; color: var(--np-doux); }
+.np-lie-liste button {
+  text-align: left; padding: 9px 11px; border-radius: 10px; font-size: 13.5px; font-weight: 550; color: var(--np-texte);
+  background: none; border: 0; cursor: pointer;
+}
+.np-lie-liste button.is-actif { background: rgba(27, 99, 255, 0.08); color: var(--np-bleu); }
+
+.dark .np-famille, .dark .np-lie-liste { background: #0f172a; }
+.dark .np-famille-case > i { background: #0b1220; border-color: #334155; }
+.dark .np-lie-saisie:focus-within { background: #0b1220; }
+
+@media (max-width: 760px) {
+  .np-famille-champs { grid-template-columns: 1fr; }
+  .np-etapes { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; }
+  .np-etape b { font-size: 9.5px; letter-spacing: -0.01em; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .np-etape > i { width: 24px; height: 24px; font-size: 11px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .np-fond, .np, .np-contenu { animation: none; }
+}
+
+/* Le thème Signal cerne chaque champ au focus : ici, c'est la saisie entière qui s'allume. */
+.np .np-lie-saisie input, .np .np-lie-saisie input:focus, .np .np-lie-saisie input:focus-visible {
+  border: 0 !important; box-shadow: none !important; outline: none !important; background: transparent !important; padding: 0 !important;
 }

@@ -1951,6 +1951,12 @@ async function rafraichirFichiersNotion(
   }
 }
 
+/** Les colonnes-relations que la création de projet peut remplir (20.10.2026). */
+export const RELATIONS_CREATION = [
+  "Fournisseurs", "Séries Cabines", "Grossistes", "Contact Grossiste", "Sanitaire", "Contacts Sanitaire",
+  "DT", "Contacts DT", "Architecte", "Contacts Architecte", "Contacts Clients finaux", "Contacts Locataires", "Contacts Autres",
+];
+
 export async function createProject(data: {
   projet: string;
   ofrTM?: string;
@@ -1979,6 +1985,10 @@ export async function createProject(data: {
   servMesuresFournisseurs?: string;
   servCmdFournisseurs?: string;
   emplacementCabine?: string;
+  /** Relations choisies à la création (fournisseur, séries, contacts…),
+   *  par NOM de colonne Notion → identifiants des fiches liées. Seules les
+   *  colonnes de RELATIONS_CREATION passent. */
+  relations?: Record<string, string[]>;
 }): Promise<string> {
   const properties: any = {
     Projet: {
@@ -2009,6 +2019,11 @@ export async function createProject(data: {
       : { select: { name: data.typeClient } };
   }
   if (data.commentairesMontages) properties["Commentaires Montages"] = { rich_text: toRichText(data.commentairesMontages) };
+  for (const [nom, ids] of Object.entries(data.relations || {})) {
+    if (!RELATIONS_CREATION.includes(nom) || !Array.isArray(ids)) continue;
+    const propres = [...new Set(ids.map(String).filter((id) => /^[0-9a-f-]{32,36}$/i.test(id)))];
+    if (propres.length) properties[nom] = { relation: propres.map((id) => ({ id })) };
+  }
   if (data.ofrGrossiste) properties["N° OFR Grossiste"] = { rich_text: toRichText(data.ofrGrossiste) };
   if (data.cmdGrossiste) properties["N° CMD Grossiste"] = { rich_text: toRichText(data.cmdGrossiste) };
   if (data.cmdFournisseurs) properties["n° CMD Fournisseurs"] = { rich_text: toRichText(data.cmdFournisseurs) };

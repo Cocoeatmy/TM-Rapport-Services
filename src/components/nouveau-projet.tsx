@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   X, Loader2, Check, ChevronLeft, ChevronRight, FileText, Hash, CalendarDays, Box,
-  Minus, Plus, Ruler, Wrench, Building2, Factory, Warehouse, Sparkles, AlertCircle,
+  Minus, Plus, Ruler, Wrench, Building2, Factory, Warehouse, Sparkles, AlertCircle, Users, MapPin, Layers, Search,
 } from "lucide-react";
 import { COLLABORATEURS_LIST, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import { getCollaboratorColor } from "@/lib/collaborators";
@@ -38,15 +38,33 @@ const VIDE = {
   typeClient: "", contactsRDV: "", commentairesMesures: "", commentairesMontages: "",
   dateMontage: "", dateMesures: "", collaborateurs: [] as string[], mesuresTraiteePar: [] as string[],
   status: "",
+  /** Colonne-relation Notion → fiches choisies. */
+  relations: {} as Record<string, Lien[]>,
+  /** Les familles de contacts cochées (étape Contacts). */
+  familles: [] as string[],
 };
+interface Lien { id: string; titre: string }
 type Form = typeof VIDE;
 
 const ETAPES = [
   { id: "projet", label: "Projet", aide: "Le client et le chantier", Icon: FileText },
   { id: "refs", label: "Références", aide: "Offres et commandes", Icon: Hash },
+  { id: "cabines", label: "Cabines", aide: "Nombre, fournisseur, séries", Icon: Box },
+  { id: "contacts", label: "Contacts", aide: "Type de client, interlocuteurs", Icon: Users },
   { id: "planning", label: "Planning", aide: "Statut, dates et équipe", Icon: CalendarDays },
-  { id: "chantier", label: "Chantier", aide: "Cabines, contacts, notes", Icon: Box },
+  { id: "chantier", label: "Chantier", aide: "Emplacement, RDV, notes", Icon: MapPin },
 ] as const;
+
+/** Les familles de contacts : une case, puis seulement ses champs (20.10.2026). */
+const FAMILLES: { id: string; label: string; champs: { nom: string; label: string }[] }[] = [
+  { id: "grossiste", label: "Grossiste", champs: [{ nom: "Grossistes", label: "Grossiste" }, { nom: "Contact Grossiste", label: "Contact grossiste" }] },
+  { id: "sanitaire", label: "Sanitaire", champs: [{ nom: "Sanitaire", label: "Sanitaire" }, { nom: "Contacts Sanitaire", label: "Contacts sanitaire" }] },
+  { id: "dt", label: "DT", champs: [{ nom: "DT", label: "Direction des travaux" }, { nom: "Contacts DT", label: "Contacts DT" }] },
+  { id: "architecte", label: "Architecte", champs: [{ nom: "Architecte", label: "Architecte" }, { nom: "Contacts Architecte", label: "Contacts architecte" }] },
+  { id: "final", label: "Client final", champs: [{ nom: "Contacts Clients finaux", label: "Contacts clients finaux" }] },
+  { id: "locataire", label: "Locataires", champs: [{ nom: "Contacts Locataires", label: "Contacts locataires" }] },
+  { id: "autres", label: "Autres", champs: [{ nom: "Contacts Autres", label: "Contacts autres" }] },
+];
 type Etape = (typeof ETAPES)[number]["id"];
 
 /** Les maisons dont l'app connaît le logo : proposées en saisie du client. */
@@ -76,6 +94,8 @@ export function NouveauProjet({ open, onClose, onCreated, currentMode, onTousLes
   const [depart, setDepart] = useState<"mesures" | "commande">(currentMode.startsWith("mesures") ? "mesures" : "commande");
   const [typesClient, setTypesClient] = useState<string[]>([]);
   const [emplacements, setEmplacements] = useState<string[]>([]);
+  /** Colonne-relation → la base Notion où chercher. */
+  const [bases, setBases] = useState<Record<string, string>>({});
   const [nouvelEmplacement, setNouvelEmplacement] = useState("");
   const titreRef = useRef<HTMLInputElement>(null);
 
@@ -93,10 +113,11 @@ export function NouveauProjet({ open, onClose, onCreated, currentMode, onTousLes
   useEffect(() => {
     if (!open || typesClient.length) return;
     fetch("/api/notion/schema").then((r) => (r.ok ? r.json() : null)).then((d) => {
-      const champs: { nom: string; options?: { nom: string }[] }[] = d?.champs || [];
+      const champs: { nom: string; options?: { nom: string }[]; baseLiee?: string }[] = d?.champs || [];
       const opts = (nom: string) => (champs.find((c) => c.nom === nom)?.options || []).map((o) => o.nom).filter(Boolean);
       setTypesClient(opts("Type de client"));
       setEmplacements(opts("Emplacement de cabine"));
+      setBases(Object.fromEntries(champs.filter((c) => c.baseLiee).map((c) => [c.nom, c.baseLiee as string])));
     }).catch(() => {});
   }, [open, typesClient.length]);
 
@@ -133,6 +154,14 @@ export function NouveauProjet({ open, onClose, onCreated, currentMode, onTousLes
       if (f.emplacementCabine.length) body.emplacementCabine = f.emplacementCabine.join(", ");
       if (f.collaborateurs.length) body.collaborateurs = f.collaborateurs.join(" & ");
       if (f.mesuresTraiteePar.length) body.mesuresTraiteePar = f.mesuresTraiteePar.join(" & ");
+      /* Les relations : fournisseur et séries toujours ; les contacts
+         seulement pour les familles cochées — décocher, c'est retirer. */
+      const permises = new Set(["Fournisseurs", "Séries Cabines",
+        ...FAMILLES.filter((x) => f.familles.includes(x.id)).flatMap((x) => x.champs.map((c) => c.nom))]);
+      const relations = Object.fromEntries(Object.entries(f.relations)
+        .filter(([nom, l]) => permises.has(nom) && l.length)
+        .map(([nom, l]) => [nom, l.map((x) => x.id)]));
+      if (Object.keys(relations).length) body.relations = relations;
       if (f.status) {
         if (depart === "mesures") { body.etatMesures = f.status; body.etatCMD = "En attente de mesures"; }
         else body.etatCMD = f.status;
@@ -168,11 +197,14 @@ export function NouveauProjet({ open, onClose, onCreated, currentMode, onTousLes
   if (!open || typeof document === "undefined") return null;
 
   const idx = ETAPES.findIndex((e) => e.id === etape);
+  const nbLiens = (noms: string[]) => noms.reduce((n, nom) => n + (f.relations[nom]?.length || 0), 0);
   const remplis: Record<Etape, number> = {
-    projet: [titre, f.typeClient, f.nomChantier, f.adresseChantier].filter((x) => String(x).trim()).length,
+    projet: [titre, f.nomChantier, f.adresseChantier].filter((x) => String(x).trim()).length,
+    cabines: (f.nbCabines ? 1 : 0) + nbLiens(["Fournisseurs", "Séries Cabines"]),
+    contacts: (f.typeClient ? 1 : 0) + nbLiens(FAMILLES.filter((x) => f.familles.includes(x.id)).flatMap((x) => x.champs.map((c) => c.nom))),
     refs: [f.ofrTM, f.cmdTM, f.cmdTMUsine, f.ofrGrossiste, f.cmdGrossiste, f.cmdFournisseurs, f.servMesuresFournisseurs, f.servCmdFournisseurs].filter((x) => x.trim()).length,
     planning: [f.status, f.dateMesures, f.dateMontage].filter(Boolean).length + (f.collaborateurs.length ? 1 : 0) + (f.mesuresTraiteePar.length ? 1 : 0),
-    chantier: (f.nbCabines ? 1 : 0) + (f.emplacementCabine.length ? 1 : 0) + [f.contactsRDV, f.commentairesMesures, f.commentairesMontages].filter((x) => x.trim()).length,
+    chantier: (f.emplacementCabine.length ? 1 : 0) + [f.contactsRDV, f.commentairesMesures, f.commentairesMontages].filter((x) => x.trim()).length,
   };
   const logo = supplierLogo(f.client || titre);
 
@@ -219,6 +251,7 @@ export function NouveauProjet({ open, onClose, onCreated, currentMode, onTousLes
             <p className={`np-apercu-titre${titre ? "" : " is-vide"}`}>{titre || "Le titre se compose ici"}</p>
             <div className="np-apercu-puces">
               {f.typeClient && <em>{f.typeClient}</em>}
+              {(f.relations["Fournisseurs"] || []).map((x) => <em key={x.id}>{x.titre}</em>)}
               {f.nbCabines > 0 && <em>{f.nbCabines} cabine{f.nbCabines > 1 ? "s" : ""}</em>}
               {f.status && <em>{f.status}</em>}
             </div>
@@ -285,17 +318,6 @@ export function NouveauProjet({ open, onClose, onCreated, currentMode, onTousLes
                   {champ("adresseChantier", "Adresse du chantier", { placeholder: "Rue des Cygnes 4 à 1400 Yverdon" })}
                 </div>
                 {champ("nomChantier", "Nom du chantier", { placeholder: "Facultatif — PPE Les Cèdres, Villa A…" })}
-                {typesClient.length > 0 && (
-                  <div className="np-groupe">
-                    <p className="np-groupe-titre">Type de client</p>
-                    <div className="np-pastilles">
-                      {typesClient.map((t) => (
-                        <button key={t} type="button" className={`np-pastille${f.typeClient === t ? " is-on" : ""}`}
-                          onClick={() => set("typeClient", f.typeClient === t ? "" : t)}>{t}</button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </>
             )}
 
@@ -319,6 +341,67 @@ export function NouveauProjet({ open, onClose, onCreated, currentMode, onTousLes
                   {champ("servCmdFournisseurs", "N° CMD Services", { mono: true })}
                 </div>
               </div>
+            )}
+
+            {etape === "cabines" && (
+              <>
+                <div className="np-groupe np-cabines">
+                  <p className="np-groupe-titre">Nombre de cabines</p>
+                  <div className="np-compteur">
+                    <button type="button" aria-label="Une de moins" onClick={() => set("nbCabines", Math.max(0, f.nbCabines - 1))}><Minus className="w-4 h-4" /></button>
+                    <input type="number" min={0} inputMode="numeric" value={f.nbCabines || ""} placeholder="0"
+                      onChange={(e) => set("nbCabines", Math.max(0, parseInt(e.target.value || "0", 10) || 0))} />
+                    <button type="button" aria-label="Une de plus" onClick={() => set("nbCabines", f.nbCabines + 1)}><Plus className="w-4 h-4" /></button>
+                  </div>
+                </div>
+                <ChoixLie label="Fournisseurs" icone={<Factory className="w-3.5 h-3.5" />} base={bases["Fournisseurs"]}
+                  valeur={f.relations["Fournisseurs"] || []} onChange={(l) => set("relations", { ...f.relations, Fournisseurs: l })} />
+                <ChoixLie label="Séries de cabines" icone={<Layers className="w-3.5 h-3.5" />} base={bases["Séries Cabines"]}
+                  valeur={f.relations["Séries Cabines"] || []} onChange={(l) => set("relations", { ...f.relations, "Séries Cabines": l })} />
+              </>
+            )}
+
+            {etape === "contacts" && (
+              <>
+                {typesClient.length > 0 && (
+                  <div className="np-groupe">
+                    <p className="np-groupe-titre">Type de client</p>
+                    <div className="np-pastilles">
+                      {typesClient.map((t) => (
+                        <button key={t} type="button" className={`np-pastille${f.typeClient === t ? " is-on" : ""}`}
+                          onClick={() => set("typeClient", f.typeClient === t ? "" : t)}>{t}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="np-groupe">
+                  <p className="np-groupe-titre">Interlocuteurs du projet</p>
+                  <div className="np-familles">
+                    {FAMILLES.map((fam) => {
+                      const on = f.familles.includes(fam.id);
+                      const n = fam.champs.reduce((k, c) => k + (f.relations[c.nom]?.length || 0), 0);
+                      return (
+                        <div key={fam.id} className={`np-famille${on ? " is-on" : ""}`}>
+                          <button type="button" className="np-famille-case" aria-pressed={on}
+                            onClick={() => set("familles", on ? f.familles.filter((x) => x !== fam.id) : [...f.familles, fam.id])}>
+                            <i>{on && <Check className="w-3.5 h-3.5" />}</i>
+                            <span>{fam.label}</span>
+                            {on && n > 0 && <em>{n}</em>}
+                          </button>
+                          {on && (
+                            <div className="np-famille-champs">
+                              {fam.champs.map((c) => (
+                                <ChoixLie key={c.nom} label={c.label} base={bases[c.nom]} valeur={f.relations[c.nom] || []}
+                                  onChange={(l) => set("relations", { ...f.relations, [c.nom]: l })} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
             )}
 
             {etape === "planning" && (
@@ -366,15 +449,6 @@ export function NouveauProjet({ open, onClose, onCreated, currentMode, onTousLes
 
             {etape === "chantier" && (
               <>
-                <div className="np-groupe np-cabines">
-                  <p className="np-groupe-titre">Nombre de cabines</p>
-                  <div className="np-compteur">
-                    <button type="button" aria-label="Une de moins" onClick={() => set("nbCabines", Math.max(0, f.nbCabines - 1))}><Minus className="w-4 h-4" /></button>
-                    <input type="number" min={0} inputMode="numeric" value={f.nbCabines || ""} placeholder="0"
-                      onChange={(e) => set("nbCabines", Math.max(0, parseInt(e.target.value || "0", 10) || 0))} />
-                    <button type="button" aria-label="Une de plus" onClick={() => set("nbCabines", f.nbCabines + 1)}><Plus className="w-4 h-4" /></button>
-                  </div>
-                </div>
                 <div className="np-groupe">
                   <p className="np-groupe-titre">Emplacement des cabines</p>
                   <div className="np-pastilles">
@@ -434,5 +508,70 @@ export function NouveauProjet({ open, onClose, onCreated, currentMode, onTousLes
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * Choisir des fiches d'une base liée (contacts, entreprises, fournisseurs…).
+ * Rien ne s'affiche tant qu'on n'a rien tapé ; dès la première lettre, la
+ * base entière est interrogée chez Notion (voir /api/notion/relations).
+ */
+function ChoixLie({ label, icone, base, valeur, onChange }: {
+  label: string; icone?: React.ReactNode; base?: string; valeur: Lien[]; onChange: (l: Lien[]) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [liste, setListe] = useState<Lien[]>([]);
+  const [charge, setCharge] = useState(false);
+  const [actif, setActif] = useState(0);
+  useEffect(() => {
+    const t = q.trim();
+    if (!t || !base) return;
+    const minuterie = setTimeout(() => {
+      setCharge(true);
+      fetch(`/api/notion/relations?base=${encodeURIComponent(base)}&q=${encodeURIComponent(t)}`)
+        .then((r) => (r.ok ? r.json() : { entrees: [] }))
+        .then((d) => { setListe((d.entrees || []).slice(0, 12)); setActif(0); })
+        .catch(() => setListe([]))
+        .finally(() => setCharge(false));
+    }, 220);
+    return () => clearTimeout(minuterie);
+  }, [q, base]);
+  const choisir = (x: Lien) => {
+    if (!valeur.some((v) => v.id === x.id)) onChange([...valeur, x]);
+    setQ(""); setListe([]);
+  };
+  const proposes = liste.filter((x) => !valeur.some((v) => v.id === x.id));
+  return (
+    <div className="np-champ np-lie">
+      <span>{icone}{label}</span>
+      {valeur.length > 0 && (
+        <div className="np-lie-choisis">
+          {valeur.map((v) => (
+            <em key={v.id}>{v.titre}<button type="button" aria-label={`Retirer ${v.titre}`} onClick={() => onChange(valeur.filter((x) => x.id !== v.id))}><X className="w-3 h-3" /></button></em>
+          ))}
+        </div>
+      )}
+      <div className="np-lie-saisie">
+        <Search className="w-4 h-4" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={base ? "Tape les premières lettres…" : "Base indisponible"} disabled={!base}
+          autoComplete="off"
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") { e.preventDefault(); setActif((i) => Math.min(i + 1, proposes.length - 1)); }
+            if (e.key === "ArrowUp") { e.preventDefault(); setActif((i) => Math.max(i - 1, 0)); }
+            if (e.key === "Enter" && proposes[actif]) { e.preventDefault(); choisir(proposes[actif]); }
+            if (e.key === "Escape" && q) { e.stopPropagation(); setQ(""); }
+          }} />
+        {charge && <Loader2 className="w-4 h-4 animate-spin" />}
+      </div>
+      {q.trim() && !charge && (
+        <div className="np-lie-liste" role="listbox">
+          {proposes.length === 0 && <p>Aucune fiche ne correspond.</p>}
+          {proposes.map((x, i) => (
+            <button key={x.id} type="button" role="option" aria-selected={i === actif} className={i === actif ? "is-actif" : undefined}
+              onMouseEnter={() => setActif(i)} onClick={() => choisir(x)}>{x.titre}</button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

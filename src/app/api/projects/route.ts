@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
       servMesuresFournisseurs: body.servMesuresFournisseurs,
       servCmdFournisseurs: body.servCmdFournisseurs,
       emplacementCabine: body.emplacementCabine,
+      relations: body.relations && typeof body.relations === "object" ? body.relations : undefined,
     });
 
     // Invalider tous les caches projets

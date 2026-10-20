@@ -26,6 +26,21 @@ function titreDe(page: Record<string, unknown>): string {
   return "(sans titre)";
 }
 
+/** Le nom de la colonne-titre d'une base (mis en mémoire : il ne change guère). */
+const titres = new Map<string, string | null>();
+async function proprieteTitre(base: string): Promise<string | null> {
+  if (titres.has(base)) return titres.get(base) ?? null;
+  try {
+    const db = await notion.databases.retrieve({ database_id: base });
+    const props = (db as unknown as { properties?: Record<string, { type: string }> }).properties || {};
+    const nom = Object.entries(props).find(([, v]) => v?.type === "title")?.[0] ?? null;
+    titres.set(base, nom);
+    return nom;
+  } catch {
+    return null; // repli : les cinquante premières fiches, filtrées ici
+  }
+}
+
 export async function GET(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
   if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -57,9 +72,15 @@ export async function GET(request: NextRequest) {
     const vu = cache.get(cle);
     if (vu && Date.now() - vu.quand < DUREE_CACHE_MS) return NextResponse.json({ entrees: vu.entrees });
 
+    /* Avec une saisie, la recherche se fait CHEZ NOTION, sur toute la base :
+       filtrer les cinquante premières fiches en ignorait l'essentiel — le
+       carnet compte plus de trois cents contacts (corrigé le 20.10.2026).
+       Ce qui COMMENCE par la saisie passe devant ce qui la contient. */
+    const titreProp = q ? await proprieteTitre(base as string) : null;
     const res = await notion.databases.query({
       database_id: base as string,
-      page_size: 50,
+      page_size: q ? 30 : 50,
+      ...(titreProp ? { filter: { property: titreProp, title: { contains: q } } } : {}),
     } as never);
 
     let entrees = ((res as unknown as { results?: Record<string, unknown>[] }).results || [])
@@ -68,7 +89,8 @@ export async function GET(request: NextRequest) {
       const n = q.toLowerCase();
       entrees = entrees.filter((e) => e.titre.toLowerCase().includes(n));
     }
-    entrees.sort((a, b) => a.titre.localeCompare(b.titre, "fr"));
+    const debut = (t: string) => (q && t.toLowerCase().startsWith(q.toLowerCase()) ? 0 : 1);
+    entrees.sort((a, b) => debut(a.titre) - debut(b.titre) || a.titre.localeCompare(b.titre, "fr"));
     cache.set(cle, { quand: Date.now(), entrees });
     return NextResponse.json({ entrees });
   } catch (err) {
