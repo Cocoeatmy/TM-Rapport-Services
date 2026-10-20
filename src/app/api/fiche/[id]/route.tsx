@@ -1048,7 +1048,8 @@ export async function GET(
     type SigDefaut = { projectId: string; phase?: string; resolved?: boolean };
     type MesureLot = { projectId: string; cab: number; serie?: string; ref?: string; fileName: string; pageStart: number | null; pageEnd: number | null };
     const projetEnRoute = getProject(id);
-    const reglagesEnRoute = lireReglagesRapports();
+    /* Réglages des rapports : changés quelques fois par an — même cache. */
+    const reglagesEnRoute = cachedOrFetch("kv-affichage-reglages-rapports", lireReglagesRapports);
     const commentairesEnRoute = fetchNotionComments(id).catch(() => [] as FicheComment[]);
     /* Les listes des signalements et des mesures ne font ici que S'AFFICHER
        (compteurs, liens). Les relire dans Notion à chaque ouverture coûtait

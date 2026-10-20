@@ -851,12 +851,26 @@ async function resolveRelationNames(ids: string[]): Promise<Record<string, strin
  * `phone_number` — pas besoin de connaître leurs noms exacts. Le nom vient du
  * titre de la page (repli : concat Prénom + Nom si présents).
  */
+/**
+ * Une fiche de contact ou de société, par le cache partagé (mémoire + Redis,
+ * fraîche quelques secondes, revalidée en arrière-plan). Elles étaient relues
+ * dans Notion à CHAQUE ouverture de projet et de fiche de travail — une
+ * lecture par contact, dans la file de 3 req/s partagée avec toute l'app :
+ * c'était l'essentiel de l'attente du lien du calendrier (relevé du
+ * 20.10.2026 : 12 appels, jusqu'à 6,7 s d'attente cumulée). Une modification
+ * dans Notion se voit à l'ouverture suivante.
+ */
+async function pageCoordonnees(id: string) {
+  const { cachedOrFetch } = await import("./server-cache");
+  return cachedOrFetch(`notion-coordonnees-${id}`, () => notionRetrieveWithRetry(id));
+}
+
 export async function resolveContactDetails(ids: string[]): Promise<Record<string, ContactDetail>> {
   const uniq = [...new Set(ids)].filter(Boolean);
   const out: Record<string, ContactDetail> = {};
   await Promise.all(uniq.map(async (id) => {
     try {
-      const page = await notionRetrieveWithRetry(id);
+      const page = await pageCoordonnees(id);
       const props: Record<string, any> = page.properties || {};
       let name = "", email = "", phone = "", prenom = "", nom = "", address = "", tag = "";
       // Reconnaissance par la FORME de la valeur (dernier recours, si le nom de
@@ -1274,7 +1288,7 @@ async function resolveContactsDeSocietes(ids: string[]): Promise<ContactDetail[]
     const vu = contactsSocieteCache[id];
     if (vu) return vu;
     try {
-      const page = await notionRetrieveWithRetry(id);
+      const page = await pageCoordonnees(id);
       const props: Record<string, any> = page.properties || {};
       /* La colonne s'appelle « Contacts » ou « Contacts dans l'entreprise »
          selon les bases : on prend toute relation dont le nom le dit, plutôt
