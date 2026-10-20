@@ -507,6 +507,9 @@ test.describe("app iPhone : rubriques en cartes, logos compris", () => {
     await page.screenshot({ path: "test-results/ios-grossistes.png" });
     await page.locator(".tm-etat-bouton.is-logo[aria-label='Dubat']").click();
     await expect(page).toHaveURL(/mode=grossistes-dubat/);
+    /* La rangée de logos ne double plus la page d'accueil en logos. */
+    await page.waitForTimeout(300);
+    await expect(page.locator(".nav-submenu img")).toHaveCount(0);
     await page.locator(".tm-etats-retour", { hasText: "Grossistes" }).click();
     await expect(page).toHaveURL(/mode=grossistes-accueil/);
     await barre(page).getByText("Projets").click();

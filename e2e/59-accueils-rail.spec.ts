@@ -54,6 +54,9 @@ test.describe("rail Signal : pages d'accueil en cartes", () => {
     await page.screenshot({ path: "test-results/mac-grossistes.png" });
     await page.locator(".tm-etat-bouton.is-logo[aria-label='Dubat']").click();
     await expect(page).toHaveURL(/mode=grossistes-dubat/);
+    /* La rangée de logos ne double plus la page d'accueil en logos. */
+    await page.waitForTimeout(300);
+    await expect(page.locator(".nav-submenu img")).toHaveCount(0);
     await rail(page, "Fournisseurs").click();
     await expect(page.locator(".tm-etat-bouton.is-logo")).toHaveCount(9);
     await page.waitForTimeout(700);

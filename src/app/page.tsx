@@ -413,14 +413,19 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
     /* Partout (et plus seulement sur iPhone) : une vue ouverte depuis une
        page d'accueil en cartes doit retrouver son sous-menu ; une page
        d'accueil, elle, n'en a pas. */
+    /* La rangée de LOGOS (grossistes, fournisseurs) fait doublon avec la
+       page d'accueil en logos d'où l'on vient (rail Signal, app iPhone) :
+       elle ne s'ouvre plus là (20.10.2026). Le thème Classique, sans ces
+       pages, la garde — c'est sa seule façon de choisir. */
+    const sansLogos = !!isSignal || document.documentElement.getAttribute("data-app") === "ios";
     setOpen(
       mode.endsWith("-accueil") ? null :
-      mode.startsWith("grossistes") ? "grossistes" :
-      mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
+      mode.startsWith("grossistes") ? (sansLogos ? null : "grossistes") :
+      mode.startsWith("fournisseurs") ? (sansLogos ? null : "fournisseurs-menu") :
       mode.startsWith("services") || mode.startsWith("mesures") || mode.startsWith("cmd") || mode.startsWith("sav") ? "services" :
       mode.startsWith("clients") ? "clients" :
       null);
-  }, [mode]);
+  }, [mode, isSignal]);
 
   const servicesModes = ["mesures", "cmd", "services", "sav"];
   const servicesLabels: Record<string, string> = { mesures: "Mesures", cmd: "Montages", services: "Services", sav: "SAV" };
