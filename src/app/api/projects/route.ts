@@ -48,6 +48,14 @@ export async function POST(request: NextRequest) {
       contacts: body.contacts,
       contactsRDV: body.contactsRDV,
       typeClient: body.typeClient,
+      commentairesMesures: body.commentairesMesures,
+      commentairesMontages: body.commentairesMontages,
+      ofrGrossiste: body.ofrGrossiste,
+      cmdGrossiste: body.cmdGrossiste,
+      cmdFournisseurs: body.cmdFournisseurs,
+      servMesuresFournisseurs: body.servMesuresFournisseurs,
+      servCmdFournisseurs: body.servCmdFournisseurs,
+      emplacementCabine: body.emplacementCabine,
     });
 
     // Invalider tous les caches projets

@@ -25,10 +25,14 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ChampsNotion, type SchemaAffichable } from "@/components/champs-notion";
 import type { ValeurChamp } from "@/lib/notion-valeurs";
+import { NouveauProjet } from "@/components/nouveau-projet";
 
 export function CreateProjectButton() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
+  /* La création en quatre étapes d'abord (20.10.2026) ; le formulaire
+     complet, construit sur le schéma, reste à un lien. */
+  const [rapide, setRapide] = useState(false);
   const [ouvert, setOuvert] = useState(false);
   const [schema, setSchema] = useState<SchemaAffichable | null>(null);
   const [erreurSchema, setErreurSchema] = useState("");
@@ -106,7 +110,7 @@ export function CreateProjectButton() {
   /* La barre du bas de l'app iPhone ouvre la même création. */
   useEffect(() => {
     if (!isAdmin) return;
-    const ouvrir = () => setOuvert(true);
+    const ouvrir = () => setRapide(true);
     window.addEventListener("tm-nouveau-projet", ouvrir);
     return () => window.removeEventListener("tm-nouveau-projet", ouvrir);
   }, [isAdmin]);
@@ -116,13 +120,21 @@ export function CreateProjectButton() {
   return (
     <>
       <button
-        onClick={() => setOuvert(true)}
+        onClick={() => setRapide(true)}
         aria-label="Créer un nouveau projet"
         title="Nouveau projet"
         className="app-hdr-new w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 active:scale-95 transition-all"
       >
         <Plus className="w-4 h-4" />
       </button>
+
+      <NouveauProjet
+        open={rapide}
+        currentMode=""
+        onClose={() => setRapide(false)}
+        onCreated={(id) => { if (id) router.push(`/projet/${id}?mode=cmd`); }}
+        onTousLesChamps={() => { setRapide(false); setOuvert(true); }}
+      />
 
       {ouvert && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[200] flex justify-end">

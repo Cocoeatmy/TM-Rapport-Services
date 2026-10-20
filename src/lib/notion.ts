@@ -1969,6 +1969,16 @@ export async function createProject(data: {
   contactsRDV?: string;
   typeClient?: string;
   commentairesMesures?: string;
+  /* Ces sept champs étaient proposés par le formulaire de création, mais
+     jamais écrits : ce qu'on y tapait disparaissait (corrigé le 20.10.2026).
+     Mêmes colonnes et mêmes types que la modification d'un projet. */
+  commentairesMontages?: string;
+  ofrGrossiste?: string;
+  cmdGrossiste?: string;
+  cmdFournisseurs?: string;
+  servMesuresFournisseurs?: string;
+  servCmdFournisseurs?: string;
+  emplacementCabine?: string;
 }): Promise<string> {
   const properties: any = {
     Projet: {
@@ -1992,8 +2002,21 @@ export async function createProject(data: {
     properties["Contacts pour RDV"] = { rich_text: toRichText(data.contactsRDV) };
   }
   if (data.typeClient) {
-    // Essaie select par défaut — adapté dynamiquement si nécessaire
-    properties["Type de client"] = { select: { name: data.typeClient } };
+    // Select, status ou texte selon la base — comme à la modification.
+    const tcType = await getPropertyType("Type de client");
+    properties["Type de client"] = tcType === "status" ? { status: { name: data.typeClient } }
+      : tcType === "rich_text" ? { rich_text: toRichText(data.typeClient) }
+      : { select: { name: data.typeClient } };
+  }
+  if (data.commentairesMontages) properties["Commentaires Montages"] = { rich_text: toRichText(data.commentairesMontages) };
+  if (data.ofrGrossiste) properties["N° OFR Grossiste"] = { rich_text: toRichText(data.ofrGrossiste) };
+  if (data.cmdGrossiste) properties["N° CMD Grossiste"] = { rich_text: toRichText(data.cmdGrossiste) };
+  if (data.cmdFournisseurs) properties["n° CMD Fournisseurs"] = { rich_text: toRichText(data.cmdFournisseurs) };
+  if (data.servMesuresFournisseurs) properties["N° Serv. Mesures Fournisseurs"] = { rich_text: toRichText(data.servMesuresFournisseurs) };
+  if (data.servCmdFournisseurs) properties["N° Serv. CMD Fournisseurs"] = { rich_text: toRichText(data.servCmdFournisseurs) };
+  if (data.emplacementCabine) {
+    const items = data.emplacementCabine.split(",").map((s) => s.trim()).filter(Boolean).map((name) => ({ name }));
+    if (items.length) properties["Emplacement de cabine"] = { multi_select: items };
   }
   if (data.adresseChantier) {
     properties["Adresse chantier"] = {
