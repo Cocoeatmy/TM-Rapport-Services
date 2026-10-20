@@ -6233,3 +6233,23 @@ html[data-ui="signal"] .sg-dispo-leg.is-avec em svg { width: 9px; height: 9px; s
   html[data-ui="signal"] .sg-dispo-parts i svg { display: none; }
   html[data-ui="signal"] .sg-dispo-case > .sg-dispo-parts { margin-top: -6px; }
 }
+
+/* ── Le logo du client au bout du titre (listes Projets et RDV, 20.10.2026) ──
+   En noir, comme sur les pages d'accueil : il se reconnaît sans crier. Le
+   titre garde ses points de suspension, le logo ne rétrécit jamais. */
+html[data-ui="signal"] .sg-pname.has-logo { display: flex; align-items: center; gap: 12px; }
+html[data-ui="signal"] .sg-pname-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+html[data-ui="signal"] .sg-plogo {
+  flex: 0 0 auto; margin-left: auto; width: 58px; height: 16px; object-fit: contain; object-position: right center;
+  filter: brightness(0); opacity: 0.72;
+}
+html[data-ui="signal"] .sg-plogo.is-voile { filter: grayscale(1) contrast(4) brightness(1.2); opacity: 1; mix-blend-mode: multiply; transform: scale(3.4); transform-origin: right center; }
+html[data-ui="signal"] .sg-prow:hover .sg-plogo { opacity: 0.9; }
+html[data-ui="signal"].dark .sg-plogo { filter: brightness(0) invert(1); }
+@media (max-width: 1279px) {
+  html[data-ui="signal"] .sg-pname.has-logo { align-items: flex-start; }
+  html[data-ui="signal"] .sg-plogo { margin-top: 1px; }
+}
+@media (max-width: 767px) {
+  html[data-ui="signal"] .sg-plogo { width: 46px; height: 14px; }
+}

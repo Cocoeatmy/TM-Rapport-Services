@@ -518,6 +518,22 @@ function getClientLogo(projectName: string): string | null {
  * Retourne le logo uniquement si le titre du projet COMMENCE par un préfixe connu.
  * Les clients finaux et sanitaires n'ont pas de logo.
  */
+/**
+ * Le logo du CLIENT d'une ligne de liste, en noir (20.10.2026).
+ * Le titre d'un projet commence toujours par le client — « TM-xxxx - Dubat -
+ * Gestims Sàrl - Dupont, … » — : c'est lui qui désigne la maison, et non la
+ * marque des cabines. On reprend les fichiers détourés des pages d'accueil
+ * (les .jpg ont un fond blanc, que le noircissement peindrait en noir).
+ */
+function logoClientNoir(projet: string): { src: string; voile: boolean } | null {
+  const src = getClientLogo(String(projet || "").replace(/^\s*TM-?\s*\d+\s*[-–—]\s*/i, ""));
+  if (!src) return null;
+  const png = src.replace(/\.jpg$/, ".png")
+    .replace("duka.ch-logo.png", "Duka-logo.png")
+    .replace("ronal-logo-v2.png", "ronal-logo.png");
+  return { src: png, voile: png.includes("Bringhen") };
+}
+
 function getBestLogo(projectName: string, _fournisseurs?: string[]): string | null {
   return getClientLogo(projectName);
 }
@@ -8443,7 +8459,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   return refs.length ? refs.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—";
                                 })()}
                               </span>
-                              <span className="sg-pname">{p.projet}</span>
+                              {(() => {
+                                /* Le client en logo, au bout du titre : on
+                                   reconnaît Dubat ou Duka avant de lire. */
+                                const logo = logoClientNoir(p.projet);
+                                return logo ? (
+                                  <span className="sg-pname has-logo">
+                                    <span className="sg-pname-txt">{p.projet}</span>
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img className={`sg-plogo${logo.voile ? " is-voile" : ""}`} src={logo.src} alt="" aria-hidden="true" />
+                                  </span>
+                                ) : <span className="sg-pname">{p.projet}</span>;
+                              })()}
                               {etatSav ? (
                                 <EtatSavRapide
                                   projectId={p.id}
