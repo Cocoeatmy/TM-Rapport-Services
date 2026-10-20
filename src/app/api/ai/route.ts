@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getAllProjectsRaw } from "@/lib/notion";
-import { getCached, setCache, cachedOrFetch } from "@/lib/server-cache";
+import { getCached, setCache, cachedOrFetch, cachedOrFetchLong } from "@/lib/server-cache";
+import type { Project } from "@/lib/notion";
+import {
+  chargerAnnuaire, estQuestionArgent, REFUS_ARGENT, numerosDans, fichesParNumero, fichesParMots,
+  sansMontants, cleTelephone, LIBELLE_SORTE, type FicheAnnuaire,
+} from "@/lib/annuaire-ia";
 import { getStats } from "@/lib/stats-data";
 import { computeMonteurCabStats } from "@/lib/monteur-stats";
 import { parseInterventions, minutesInterventions, type InterventionSav } from "@/lib/sav-interventions";
@@ -188,6 +193,7 @@ function minutesSavDe(p: any): number {
 }
 
 interface MiniProject {
+  id: string;
   ofrTM: string;
   projet: string;
   nomChantier: string;
@@ -207,6 +213,104 @@ interface MiniProject {
   /** Passages datés, pour répartir les heures par année et par collaborateur. */
   savPassages: InterventionSav[];
   hay: string; // texte normalisé pour la recherche (mêmes champs que la recherche de l'app)
+  /** Numéros notés en clair sur le dossier (contacts, commentaires…), en clés. */
+  tels: string[];
+  /** Fiches du carnet d'adresses rattachées au dossier : id → rôle. */
+  liens: [string, string][];
+}
+
+/** Les relations d'un dossier vers le carnet d'adresses, avec le rôle de chacune. */
+function liensDuProjet(p: Project): [string, string][] {
+  const paires: [string[] | undefined, string][] = [
+    [p.grossistesRelation, "Grossiste"], [p.fournisseursRelation, "Fournisseur"], [p.sanitaireRelation, "Sanitaire"],
+    [p.dtRelation, "Direction des travaux"], [p.architecteRelation, "Architecte"],
+    [p.contactsProjetRelation, "Contact grossiste"], [p.contactsSanitaireRelation, "Contact sanitaire"],
+    [p.contactsDTRelation, "Contact DT"], [p.contactsArchitecteRelation, "Contact architecte"],
+    [p.contactsClientsFinauxRelation, "Client final"], [p.contactsLocatairesRelation, "Locataire"],
+    [p.contactsAutresRelation, "Autre contact"],
+  ];
+  const out: [string, string][] = [];
+  for (const [ids, role] of paires) for (const id of ids || []) out.push([id, role]);
+  return out;
+}
+
+/** Les textes libres d'un dossier où un numéro peut être noté à la main. */
+const textesLibres = (p: Project): string[] => [
+  p.contacts, p.contactsRDV, p.diversInfosChantier, p.journalEchanges, p.commentairesMontages,
+  p.commentairesMesures, p.commentairesSav, p.commentaireLivraison, p.noteInterneMontage, p.emplacementCabine,
+].map((x) => String(x || ""));
+
+/**
+ * Le dossier COMPLET, pour les projets que la question désigne : tout ce
+ * qu'un collaborateur peut lire sur la fiche — sauf l'argent (montant de
+ * l'offre, facturation, relances commerciales), qui n'est jamais transmis.
+ */
+function dossierDetaille(p: Project, annuaire: Map<string, FicheAnnuaire>): string {
+  const court = (v: unknown, max = 500): string => {
+    const t = sansMontants(String(v ?? "").replace(/\s+/g, " ").trim());
+    return t.length > max ? `${t.slice(0, max)}…` : t;
+  };
+  const lignes: string[] = [];
+  const ajoute = (libelle: string, v: unknown, max?: number) => {
+    const t = Array.isArray(v) ? v.filter(Boolean).join(", ") : v;
+    const c = court(t, max);
+    if (c && c !== "false") lignes.push(`  ${libelle} : ${c}`);
+  };
+  ajoute("Chantier", p.nomChantier);
+  ajoute("Adresse du chantier", p.adresseChantier);
+  ajoute("Emplacement", p.emplacementCabine);
+  ajoute("Type de client", p.typeClient);
+  ajoute("Type de services", p.typeServices);
+  ajoute("Priorité", p.priorite);
+  ajoute("Cabines", [p.nbCabines != null ? `${p.nbCabines}` : "", p.nomsCabines].filter(Boolean).join(" — "));
+  ajoute("Fournisseurs / séries", [...(p.fournisseurs || []), ...(p.seriesCabines || [])]);
+  ajoute("États", [
+    p.etatCMD && `commande ${p.etatCMD}`, p.etatMesures && `mesures ${p.etatMesures}`,
+    p.etatSAV && `SAV ${p.etatSAV}`, p.etatMontage && `montage ${p.etatMontage}`,
+  ].filter(Boolean));
+  ajoute("Dates", [
+    p.dateDemandeProjet && `demande ${p.dateDemandeProjet}`, p.dateMesures && `mesures ${p.dateMesures}`,
+    p.dateMesuresRecue && `mesures reçues ${p.dateMesuresRecue}`, p.dateCMDRecue && `commande reçue ${p.dateCMDRecue}`,
+    p.dateCMDUsine && `commande usine ${p.dateCMDUsine}`, p.previsionLivraison && `livraison prévue ${p.previsionLivraison}`,
+    p.arrivageTM && `arrivage TM ${p.arrivageTM}`, p.arrivageGrossiste && `arrivage grossiste ${p.arrivageGrossiste}`,
+    p.dateMontage && `montage ${p.dateMontage}${p.dateMontageEnd ? ` → ${p.dateMontageEnd}` : ""}`,
+    p.dateDemontage && `démontage ${p.dateDemontage}`, p.dateSAVRecu && `SAV reçu ${p.dateSAVRecu}`,
+    p.dateRDVSAV && `RDV SAV ${p.dateRDVSAV}`, p.datesRdvSavCabines && `RDV SAV par lot ${p.datesRdvSavCabines}`,
+    p.dateSavClotureLe && `SAV clôturé ${p.dateSavClotureLe}`, p.dateRDVGarantie && `RDV garantie ${p.dateRDVGarantie}`,
+  ].filter(Boolean), 900);
+  ajoute("Collaborateurs", [
+    p.collaborateurs && `montage ${p.collaborateurs}`, p.nbCollaborateursMontage && `(${p.nbCollaborateursMontage})`,
+    p.attributionCabines && `par lot ${p.attributionCabines}`, p.monteursSousTraitance && `sous-traitance ${p.monteursSousTraitance}`,
+    p.mesuresTraiteePar && `mesures ${p.mesuresTraiteePar}`, p.collaborateursSAV && `SAV ${p.collaborateursSAV}`,
+    p.collaborateursDemontage && `démontage ${p.collaborateursDemontage}`, p.collaborateurGarantie && `garantie ${p.collaborateurGarantie}`,
+  ].filter(Boolean));
+  ajoute("Numéros de commande", [
+    p.ofrGrossiste && `OFR grossiste ${p.ofrGrossiste}`, p.cmdGrossiste && `CMD grossiste ${p.cmdGrossiste}`,
+    p.cmdTM && `CMD TM ${p.cmdTM}`, p.cmdTMUsine && `CMD TM usine ${p.cmdTMUsine}`,
+    p.ofrFournisseurs && `OFR fournisseur ${p.ofrFournisseurs}`, p.cmdFournisseurs && `CMD fournisseur ${p.cmdFournisseurs}`,
+    p.servCmdFournisseurs && `serv. CMD ${p.servCmdFournisseurs}`, p.servMesuresFournisseurs && `serv. mesures ${p.servMesuresFournisseurs}`,
+    p.bonLivraison && `bon de livraison ${p.bonLivraison}`, p.nbCartons != null && `${p.nbCartons} cartons`,
+  ].filter(Boolean));
+  // Le carnet d'adresses rattaché : rôle, nom, numéros, e-mails.
+  const contacts = liensDuProjet(p).map(([id, role]) => {
+    const f = annuaire.get(id);
+    if (!f) return "";
+    return `${role} : ${f.nom}${f.telephones.length ? ` — tél. ${f.telephones.join(" / ")}` : ""}${f.emails.length ? ` — ${f.emails.join(" / ")}` : ""}`;
+  }).filter(Boolean);
+  if (contacts.length) lignes.push(`  Carnet d'adresses : ${[...new Set(contacts)].join(" · ")}`);
+  ajoute("Contacts (notés sur le dossier)", p.contacts);
+  ajoute("Contacts pour les RDV", p.contactsRDV);
+  ajoute("Infos chantier", p.diversInfosChantier);
+  ajoute("Commentaires montage", p.commentairesMontages);
+  ajoute("Rapport monteur", p.rapportMonteur);
+  ajoute("Commentaires mesures", p.commentairesMesures);
+  ajoute("Livraison", p.commentaireLivraison);
+  ajoute("Pièces manquantes", p.infoPiecesManquantes);
+  ajoute("Défauts signalés", p.infoDefautsSignale);
+  if (p.soucisMontage) ajoute("Souci de montage", `${p.causeSoucis || "oui"}${p.soucisMontageCloture ? " (clôturé)" : ""}`);
+  ajoute("SAV", [p.causeSAV, p.causeSavCabines, p.explicationsTravaux, p.commentairesSav, p.savRetouchesCabines].filter(Boolean).join(" — "), 700);
+  ajoute("Journal des échanges", p.journalEchanges, 900);
+  return lignes.join("\n");
 }
 
 export async function POST(request: NextRequest) {
@@ -217,6 +321,10 @@ export async function POST(request: NextRequest) {
 
   const { message } = await request.json();
   if (!message) return NextResponse.json({ error: "Message requis" }, { status: 400 });
+
+  /* L'argent : jamais. Refus décidé ici, avant le modèle et avant toute
+     lecture — chiffre d'affaires, prix, montants, factures, paiements. */
+  if (estQuestionArgent(message)) return NextResponse.json({ answer: REFUS_ARGENT });
 
   // ── Question TECHNIQUE / manuel → recherche web (Gemini grounding) ──────────
   // Pas besoin du contexte projets ici ; on cherche un document fabricant.
@@ -267,11 +375,20 @@ Règles :
     // Liste compacte de TOUS les projets (mise en cache 5 min). On y pioche
     // ensuite le sous-ensemble PERTINENT à la question, pour ne pas dépasser
     // les limites de tokens.
-    let cachedMini = getCached<MiniProject[]>("ai-projects-all");
+    // Snapshot Redis PARTAGÉ (rapide, ~100 ms sur instance froide) au lieu de
+    // paginer Notion (~20-30 s → timeout 504 → « Erreur de connexion »).
+    // L'annuaire (carnet d'adresses) se lit en même temps ; s'il manque, on
+    // répond quand même avec les projets.
+    const [projects, annuaireListe] = await Promise.all([
+      cachedOrFetch("projects-all-raw", getAllProjectsRaw),
+      cachedOrFetchLong("ai-annuaire", chargerAnnuaire).catch((e) => {
+        console.error("AI annuaire error", e);
+        return [] as FicheAnnuaire[];
+      }),
+    ]);
+    const annuaire = new Map(annuaireListe.map((f) => [f.id, f]));
+    let cachedMini = getCached<MiniProject[]>("ai-projects-all-v2");
     if (!cachedMini) {
-      // Snapshot Redis PARTAGÉ (rapide, ~100 ms sur instance froide) au lieu de
-      // paginer Notion (~20-30 s → timeout 504 → « Erreur de connexion »).
-      const projects = await cachedOrFetch("projects-all-raw", getAllProjectsRaw);
       cachedMini = projects.map((p) => {
         const names = [
           ...(p.grossistesNames || []),
@@ -296,6 +413,7 @@ Règles :
         if (savMinutes > 0) bouts.push(duree(savMinutes));
         const sav = bouts.length > 0 ? ` | SAV: ${bouts.join(", ")}` : "";
         return {
+          id: p.id,
           ofrTM: p.ofrTM,
           projet: p.projet,
           nomChantier: p.nomChantier,
@@ -323,9 +441,11 @@ Règles :
             ...(p.grossistesNames || []), ...(p.sanitaireNames || []),
             ...(p.seriesCabines || []),
           ].filter(Boolean).join(" ")),
+          tels: [...new Set(textesLibres(p).flatMap(numerosDans))],
+          liens: liensDuProjet(p),
         };
       });
-      setCache("ai-projects-all", cachedMini);
+      setCache("ai-projects-all-v2", cachedMini);
     }
     const mini: MiniProject[] = cachedMini;
 
@@ -340,9 +460,27 @@ Règles :
 
     // 1) Projets correspondant aux mots-clés de la question (ex. « MMT », « Duka »).
     const keywords = [...new Set(norm(message).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w)))];
-    const matched = keywords.length
+    const motsSansNumeros = keywords.filter((w) => !/^\d+$/.test(w));
+    // Les numéros restent des mots-clés : un N° de commande retrouve son dossier.
+    const matchedMots = keywords.length
       ? mini.filter((p) => keywords.some((w) => p.hay.includes(w)))
       : [];
+
+    /* Un NUMÉRO dans la question (« qui est le 0798396817 ? ») : on le
+       cherche dans le carnet d'adresses (contacts, entreprises, fournisseurs,
+       grossistes) et dans ce qui est noté en clair sur les dossiers. */
+    const numeros = numerosDans(message);
+    const fichesNumero = fichesParNumero(annuaireListe, numeros);
+    // Une personne ou une société nommée (« le numéro de M. Rossier »).
+    const fichesNom = fichesParMots(annuaireListe, motsSansNumeros);
+    const fichesVues = new Set([...fichesNumero, ...fichesNom].map((f) => f.id));
+    // Les entreprises d'un contact trouvé comptent aussi : ses dossiers passent par elles.
+    for (const f of [...fichesNumero, ...fichesNom]) for (const e of f.entreprises) if (annuaire.has(e)) fichesVues.add(e);
+    const projetsParNumero = numeros.length
+      ? mini.filter((p) => p.tels.some((t) => numeros.includes(t)) || p.liens.some(([id]) => fichesNumero.some((f) => f.id === id)))
+      : [];
+    const projetsParFiche = mini.filter((p) => p.liens.some(([id]) => fichesVues.has(id)));
+    const matched = [...projetsParNumero, ...projetsParFiche, ...matchedMots];
 
     // 2) Montages à venir (triés par date croissante).
     const upcoming = mini
@@ -381,6 +519,44 @@ Règles :
     };
     // Lignes COURTES : le nom du projet contient déjà client + lot + adresse.
     // Les lignes longues faisaient dépasser la limite de taille de Groq (413).
+    /* Les dossiers que la question désigne, EN DÉTAIL (adresse, contacts,
+       états, dates, commandes, commentaires…). Les autres restent sur une
+       ligne. Plafond : au-delà, la question est trop large pour le détail. */
+    const parId = new Map(projects.map((p) => [p.id, p]));
+    const detailles = [...new Map(matched.map((p) => [p.id, p])).values()].slice(0, 25);
+    const dossiersDetail = detailles.map((m) => {
+      const p = parId.get(m.id);
+      return p ? `### ${p.ofrTM || "—"} — ${p.projet}\n${dossierDetaille(p, annuaire)}` : "";
+    }).filter(Boolean).join("\n\n");
+
+    /* L'annuaire : les fiches trouvées par numéro ou par nom, avec les
+       dossiers où elles apparaissent. */
+    const nomDe = (id: string) => annuaire.get(id)?.nom || "";
+    const ficheTexte = (f: FicheAnnuaire, pourquoi: string) => {
+      const dossiers = mini.filter((p) => p.liens.some(([id]) => id === f.id || f.entreprises.includes(id)))
+        .slice(0, 15).map((p) => `${p.ofrTM || "—"} ${p.projet}`);
+      return `- ${LIBELLE_SORTE[f.sorte]} : **${f.nom}** (${pourquoi})`
+        + (f.entreprises.length ? ` | Entreprise : ${f.entreprises.map(nomDe).filter(Boolean).join(", ")}` : "")
+        + (f.telephones.length ? ` | Tél. : ${f.telephones.join(" / ")}` : "")
+        + (f.emails.length ? ` | E-mail : ${f.emails.join(" / ")}` : "")
+        + (f.etiquette ? ` | Étiquette : ${f.etiquette}` : "")
+        + (f.role ? ` | ${sansMontants(f.role)}` : "")
+        + (f.adresse ? ` | Adresse : ${f.adresse}` : "")
+        + (dossiers.length ? ` | Dossiers : ${dossiers.join(" ; ")}` : "");
+    };
+    const lignesNumero = numeros.map((n) => {
+      const fiches = fichesNumero.filter((f) => f.telephones.some((t) => cleTelephone(t) === n));
+      const dossiers = mini.filter((p) => p.tels.includes(n));
+      const affiche = `0${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5, 7)} ${n.slice(7)}`;
+      return `Numéro ${affiche} : ${fiches.length} fiche(s) du carnet d'adresses, noté en clair sur ${dossiers.length} dossier(s)`
+        + (dossiers.length ? ` (${dossiers.slice(0, 10).map((p) => `${p.ofrTM || "—"} ${p.projet}`).join(" ; ")})` : "");
+    });
+    const annuaireTexte = [
+      ...lignesNumero,
+      ...fichesNumero.map((f) => ficheTexte(f, "numéro demandé")),
+      ...fichesNom.filter((f) => !fichesNumero.includes(f)).map((f) => ficheTexte(f, "nom cité")),
+    ].join("\n");
+
     const projectsContext = selected
       .map((p) =>
         `- ${p.ofrTM} | ${p.projet} | Statut: ${p.etatCMD} | Collab: ${p.collaborateurs || "—"} | Montage: ${fmtDate(p.dateMontage)}${p.sav}`
@@ -436,7 +612,7 @@ ${refCalendar}
 
 UTILISATEUR CONNECTÉ : ${user.name} (${user.email})
 
-${statsSummary ? statsSummary + "\n\n" : ""}${monteurSummary ? monteurSummary + "\n\n" : ""}${savSummary ? savSummary + "\n\n" : ""}TOUS LES PROJETS (base entière, les plus pertinents d'abord ; chaque date de montage est suivie de son jour de la semaine ; « SAV: » n'apparaît que sur les chantiers qui en ont un) :
+${annuaireTexte ? `CARNET D'ADRESSES — résultats de la recherche (numéros, noms) :\n${annuaireTexte}\n\n` : ""}${dossiersDetail ? `DOSSIERS CONCERNÉS PAR LA QUESTION — détail complet :\n${dossiersDetail}\n\n` : ""}${statsSummary ? statsSummary + "\n\n" : ""}${monteurSummary ? monteurSummary + "\n\n" : ""}${savSummary ? savSummary + "\n\n" : ""}TOUS LES PROJETS (base entière, les plus pertinents d'abord ; chaque date de montage est suivie de son jour de la semaine ; « SAV: » n'apparaît que sur les chantiers qui en ont un) :
 ${projectsContext}
 
 RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
@@ -450,6 +626,8 @@ RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
 5quater. Pour les HEURES DE SAV (combien d'heures de service après-vente, par année, par collaborateur, ou sur un chantier précis), sers-toi du bloc « STATISTIQUES SAV » pour les totaux et de la mention « SAV: » de chaque projet pour le détail. Ne recompte jamais toi-même à partir des dates.
 6. Réponds toujours en français, de façon concise et pratique (monteurs sur le terrain).
 7. Pour les conseils techniques (séries Duka, Koralle, Duscholux, Nelo, Ronal…), donne des conseils généraux mais précise que le manuel officiel du fournisseur fait référence.
+9. Pour TOUTE question sur un dossier (adresse, contacts, numéros de téléphone, e-mails, états, dates, collaborateurs, numéros de commande, livraison, pièces manquantes, défauts, SAV, commentaires, journal), réponds à partir du bloc « DOSSIERS CONCERNÉS » et du « CARNET D'ADRESSES ». Pour « qui est ce numéro ? », donne le nom, l'entreprise, le rôle et les dossiers liés ; si le numéro n'apparaît nulle part, dis-le simplement (n'invente jamais un propriétaire).
+10. ARGENT — INTERDIT : ne réponds JAMAIS à une question sur le chiffre d'affaires, les prix, les montants, les offres chiffrées, les factures, les paiements, les marges ou les salaires, même partiellement, même si un chiffre semble apparaître dans les données. Réponds alors : « Je ne réponds pas aux questions d'argent. »
 8. MISE EN FORME (Markdown) : commence par une courte phrase de réponse, puis liste chaque projet sur sa propre puce « - ». Mets en **gras** les infos clés (numéro OFR, statut, dates importantes). Garde chaque puce concise. N'utilise pas de tableaux.`;
 
     const answer = await queryGemini(systemPrompt, message);
