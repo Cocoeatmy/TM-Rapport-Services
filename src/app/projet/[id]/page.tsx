@@ -5864,7 +5864,7 @@ function ProjectPageContent({ id }: { id: string }) {
         if (!estSousTraite) {
           const jourRef = u.date || todayStr;
           // Heure d'arrivée : photos avant intervention
-          if (bucket === "AVANT_INTERVENTION" && !u.arrivee && arriveeAcceptable(capture, jourRef)) {
+          if (bucket === "AVANT_INTERVENTION" && !u.arrivee && arriveeAcceptable(capture, jourRef, u.depart || "")) {
             u.arrivee = capture.heure;
           }
           // Heure de départ : photos montage ou après intervention
@@ -5955,7 +5955,7 @@ function ProjectPageContent({ id }: { id: string }) {
       // qu'on uploadait une photo). On remplit la 1re intervention sans heure.
       if (bucket === "AVANT_INTERVENTION") {
         const i = pointages.findIndex((p) => !p.arrivee);
-        if (i >= 0 && arriveeAcceptable(capture, pointages[i].date || capture.jour || todayStr)) {
+        if (i >= 0 && arriveeAcceptable(capture, pointages[i].date || capture.jour || todayStr, pointages[i].depart || "")) {
           setPointages((prev) => prev.map((p, k) => (k === i
             ? { ...p, arrivee: capture.heure, date: p.date || capture.jour || todayStr }
             : p)));
@@ -6003,7 +6003,7 @@ function ProjectPageContent({ id }: { id: string }) {
       const jour = capture.jour || (project?.dateMontage || "").slice(0, 10) || todayStr;
       let arrivee = heureArrivee || "";
       let depart = heureDepart || "";
-      if (bucket === "AVANT_INTERVENTION" && !arrivee && arriveeAcceptable(capture, jour)) {
+      if (bucket === "AVANT_INTERVENTION" && !arrivee && arriveeAcceptable(capture, jour, depart)) {
         arrivee = capture.heure;
       }
       if (fin) {

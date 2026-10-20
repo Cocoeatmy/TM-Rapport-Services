@@ -85,9 +85,16 @@ export async function heureDesPhotos(
 /**
  * Peut-on poser cette heure d'arrivée telle quelle ? Une photo prise un autre
  * jour appartient à un autre passage, pas à celui-ci.
+ *
+ * Ni après le départ déjà noté : le 20 octobre 2026, une photo « avant
+ * intervention » ajoutée à 13 h 12 sur un lot terminé à 11 h 33 est devenue
+ * son heure d'arrivée — le rapport annonçait une équipe arrivée après être
+ * repartie. Une photo d'avant, prise après la fin, ne dit rien de l'arrivée.
  */
-export function arriveeAcceptable(c: HeurePhoto, jourRef: string): boolean {
+export function arriveeAcceptable(c: HeurePhoto, jourRef: string, depart = ""): boolean {
   if (c.jour && jourRef && c.jour !== jourRef) return false;
+  const d = minutesDe(depart), a = minutesDe(c.heure);
+  if (d >= 0 && a >= 0 && a > d) return false;
   return true;
 }
 

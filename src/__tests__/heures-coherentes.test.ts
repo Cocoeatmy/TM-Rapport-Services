@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   minutesDeLHeure, departAvantArrivee, incoherencesHeures, messageIncoherence,
-  verifierHeuresEntrantes, toucheDesHeures,
+  verifierHeuresEntrantes, toucheDesHeures, incoherencesPassages,
 } from "@/lib/heures-coherentes";
 
 /**
@@ -139,5 +139,30 @@ describe("refus côté serveur", () => {
   it("ne juge rien quand l'écriture ne touche pas aux heures", () => {
     expect(toucheDesHeures({ etatCMD: "Terminé" })).toBe(false);
     expect(verifierHeuresEntrantes({ etatCMD: "Terminé" }, { heureArrivee: "09:00", heureDepart: "08:00" })).toBeNull();
+  });
+});
+
+describe("listes de passages (celles que lit le PDF)", () => {
+  const existant = "Cab1:2026-10-20~Jean-Marc & Miguel~08:34~11:31 | Cab2:2026-10-20~Miguel~08:12~11:33";
+
+  it("refuse un passage arrivé après son départ (TM-2600797, 20.10.2026)", () => {
+    const corps = { interventionsMontageCabines: "Cab1:2026-10-20~Jean-Marc & Miguel~08:34~11:31 | Cab2:2026-10-20~Miguel~13:12~11:33" };
+    expect(toucheDesHeures(corps)).toBe(true);
+    expect(verifierHeuresEntrantes(corps, { interventionsMontageCabines: existant })).toMatch(/Cabine 2.*départ 11:33 avant l'arrivée 13:12/);
+  });
+
+  it("vaut aussi pour les passages SAV, plusieurs par lot", () => {
+    expect(incoherencesPassages("Cab3:2026-10-01~Claudio~09:00~10:00 ; 2026-10-09~Claudio~15:00~14:00", "")).toHaveLength(1);
+  });
+
+  it("laisse passer un passage juste, ou incomplet", () => {
+    expect(verifierHeuresEntrantes({ interventionsMontageCabines: existant }, { interventionsMontageCabines: "" })).toBeNull();
+    expect(incoherencesPassages("Cab2:2026-10-20~Miguel~13:12", "")).toHaveLength(0);
+  });
+
+  it("ne bloque pas un lot à cause d'une erreur ANCIENNE sur un autre lot", () => {
+    const ancien = "Cab1:2026-10-01~Loïc~10:00~09:00";
+    const corps = { interventionsMontageCabines: `${ancien} | Cab2:2026-10-20~Miguel~08:12~11:33` };
+    expect(verifierHeuresEntrantes(corps, { interventionsMontageCabines: ancien })).toBeNull();
   });
 });

@@ -78,6 +78,12 @@ describe("heure d'arrivée acceptable", () => {
   it("refuse une photo prise un autre jour (c'est un autre passage)", () => {
     expect(arriveeAcceptable(exif("2026-10-07", "16:00"), "2026-10-08")).toBe(false);
   });
+
+  it("refuse une photo d'avant prise APRÈS le départ noté (TM-2600797, 20.10.2026)", () => {
+    expect(arriveeAcceptable(exif("2026-10-20", "13:12"), "2026-10-20", "11:33")).toBe(false);
+    expect(arriveeAcceptable(exif("2026-10-20", "08:12"), "2026-10-20", "11:33")).toBe(true);
+    expect(arriveeAcceptable(exif("2026-10-20", "13:12"), "2026-10-20", "")).toBe(true);
+  });
 });
 
 /* Le départ, lui, n'est plus jamais refusé : tout refus ouvrait une fenêtre

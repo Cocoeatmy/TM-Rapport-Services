@@ -137,9 +137,48 @@ export const COUPLES_HEURES: [string, string][] = [
   ["heureArriveeSav", "heureDepartSav"],
 ];
 
+/**
+ * Les colonnes de PASSAGES : « Cab2:2026-10-20~Miguel~08:12~11:33 ; … ».
+ *
+ * C'est elles que lit le rapport PDF. Le 20 octobre 2026, un lot y portait
+ * « arrivée 13:12, départ 11:33 » : l'écran envoyait la liste des passages
+ * et les colonnes d'heures dans DEUX requêtes ; le serveur refusait la
+ * seconde, mais la première — qu'il ne contrôlait pas — était passée.
+ */
+export const COLONNES_PASSAGES = ["interventionsMontageCabines", "interventionsSavCabines"];
+
+/** Les passages d'une colonne « CabN:p ; p | CabM:… », lot par lot. */
+function passagesParLot(valeur?: string | null): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [n, v] of Object.entries(parCabine(valeur))) {
+    out[n] = v.split(";").map((x) => x.trim()).filter(Boolean);
+  }
+  return out;
+}
+
+/**
+ * Les passages impossibles (départ avant l'arrivée) d'une colonne de
+ * passages. Ceux qui figurent déjà, à l'identique, dans la valeur en base ne
+ * sont pas jugés : une erreur ancienne sur un autre lot ne doit pas bloquer
+ * l'enregistrement du lot qu'on est en train de remplir.
+ */
+export function incoherencesPassages(valeur?: string | null, existante?: string | null): IncoherenceHeures[] {
+  const avant = passagesParLot(existante);
+  const out: IncoherenceHeures[] = [];
+  for (const [n, liste] of Object.entries(passagesParLot(valeur))) {
+    for (const bloc of liste) {
+      if ((avant[n] || []).includes(bloc)) continue;
+      const [, , arrivee = "", depart = ""] = bloc.split("~").map((x) => x.trim());
+      if (departAvantArrivee(arrivee, depart)) out.push({ ou: `Cabine ${n}`, arrivee, depart });
+    }
+  }
+  return out;
+}
+
 /** Une écriture touche-t-elle des heures ? (sinon, rien à vérifier) */
 export function toucheDesHeures(corps: Record<string, unknown>): boolean {
-  return COUPLES_HEURES.some(([a, d]) => corps[a] !== undefined || corps[d] !== undefined);
+  return COUPLES_HEURES.some(([a, d]) => corps[a] !== undefined || corps[d] !== undefined)
+    || COLONNES_PASSAGES.some((c) => corps[c] !== undefined);
 }
 
 /**
@@ -162,6 +201,12 @@ export function verifierHeuresEntrantes(
       typeof arrivee === "string" ? arrivee : "",
       typeof depart === "string" ? depart : "",
     );
+    if (fautes.length > 0) return messageIncoherence(fautes);
+  }
+  for (const col of COLONNES_PASSAGES) {
+    if (typeof corps[col] !== "string") continue;
+    const existante = existant?.[col];
+    const fautes = incoherencesPassages(corps[col] as string, typeof existante === "string" ? existante : "");
     if (fautes.length > 0) return messageIncoherence(fautes);
   }
   return null;
