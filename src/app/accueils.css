@@ -101,8 +101,11 @@
   grid-template-rows: 1fr auto; min-height: 132px; padding: 16px; justify-items: center; text-align: center;
 }
 .tm-etat-logo { display: flex; align-items: center; justify-content: center; width: 100%; height: 72px; overflow: hidden; }
-.tm-etat-logo img { max-width: 82%; max-height: 64px; object-fit: contain; }
-.tm-etat-logo img.is-inverse { filter: invert(1); }
+/* Tous les logos en noir (20.10.2026) : une planche monochrome, plus calme
+   que dix couleurs de marque côte à côte. Les fichiers sont tous détourés
+   (fond transparent) : `brightness(0)` noircit le dessin sans toucher au
+   fond — y compris les logos blancs, qu'on inversait jusqu'ici. */
+.tm-etat-logo img { max-width: 82%; max-height: 64px; object-fit: contain; filter: brightness(0); opacity: 0.86; }
 .tm-etat-bouton.is-logo .tm-etat-nom { font-size: 13px; font-weight: 600; color: #475569; -webkit-line-clamp: 1; padding: 0; }
 
 .dark .tm-etat-bouton { background: #1e293b; color: #e2e8f0; border-color: rgba(255, 255, 255, 0.08); }
