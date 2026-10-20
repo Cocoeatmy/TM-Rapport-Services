@@ -82,7 +82,7 @@ async function queryGemini(systemPrompt: string, userMessage: string, opts?: { s
   // Active la recherche Google (grounding) pour les questions techniques/manuels.
   if (opts?.search) body.tools = [{ google_search: {} }];
 
-  const res = await fetch(
+  const appel = () => fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
     {
       method: "POST",
@@ -90,6 +90,13 @@ async function queryGemini(systemPrompt: string, userMessage: string, opts?: { s
       body: JSON.stringify(body),
     }
   );
+  let res = await appel();
+  /* Google surchargé (500/503) : un second essai, une seconde et demie plus
+     tard, passe le plus souvent. Le quota épuisé (429), lui, ne se rattrape pas. */
+  if (res.status === 500 || res.status === 503) {
+    await new Promise((r) => setTimeout(r, 1500));
+    res = await appel();
+  }
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => "");

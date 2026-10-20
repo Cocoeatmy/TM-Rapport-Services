@@ -88,7 +88,13 @@ export function resumeResultats(resultats: Resultat[], ctx: ContexteReponse, mot
   if (resultats.length === 0) {
     return `${motif}\n\nLa recherche n'a rien trouvé dans : ${ctx.couverture}.`;
   }
-  const lignes = resultats.slice(0, 10).map((r) =>
-    `- **${r.doc.titre}** (${base(r.doc.source)}${r.exact ? "" : r.approche ? ", ressemblance à vérifier" : ""})`);
-  return `${motif}\n\nVoici ce que la recherche a trouvé :\n${lignes.join("\n")}`;
+  const lignes: string[] = [];
+  for (const [i, r] of resultats.slice(0, 10).entries()) {
+    lignes.push(`- **${r.doc.titre}** (${base(r.doc.source)}${r.exact ? "" : r.approche ? ", ressemblance à vérifier" : ""})`);
+    // Les trois premières fiches hors projets : de quoi agir sans le modèle.
+    if (i < 3 && r.doc.source !== "Projets") {
+      for (const l of detailsFiche(r.doc, ctx, "").slice(0, 5)) lignes.push(`  ${l}`);
+    }
+  }
+  return `${motif} Voici ce que la recherche a trouvé :\n${lignes.join("\n")}`;
 }
