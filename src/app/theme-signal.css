@@ -6279,3 +6279,22 @@ html[data-ui="signal"] .sg-arrivage-btn:active { transform: scale(0.96); }
   html[data-ui="signal"] .sg-arrivage-btn { height: 36px; padding: 0 12px; font-size: 13px; margin-top: 2px; }
   html[data-ui="signal"] .sg-dash-head .sg-sub { font-size: 13px; }
 }
+
+/* ── Grille des disponibilités : lignes droites (20.10.2026) ──────────────
+   Les cases étaient CENTRÉES dans leur ligne : une case sans pastilles,
+   plus courte, voyait son filet descendre — toute la colonne du lundi
+   paraissait décalée. Chaque case prend désormais la hauteur de sa ligne,
+   et centre son contenu en elle-même. Toutes plateformes. */
+html[data-ui="signal"] .sg-dispo-grille > :is(.sg-dispo-nom, .sg-dispo-case, .sg-dispo-total, .sg-dispo-part) { align-self: stretch; }
+html[data-ui="signal"] .sg-dispo-case { align-content: center; }
+/* La semaine des interventions, sous leur titre — comme le faisait l'agenda. */
+html[data-ui="signal"] .sg-int-sem {
+  margin: -4px 2px 10px; font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.04em; color: var(--sg-text-3);
+}
+/* Une case SANS pastilles garde leur place : les anneaux d'une même ligne
+   restent alignés, qu'il y ait des pastilles dessous ou non. */
+html[data-ui="signal"] .sg-dispo-case:not(:has(> .sg-dispo-parts))::after { content: ""; grid-area: parts; height: 7px; }
+@media (max-width: 767px) {
+  html[data-ui="signal"] .sg-dispo-case:not(:has(> .sg-dispo-parts))::after { height: 6px; }
+}

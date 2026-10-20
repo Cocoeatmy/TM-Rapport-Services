@@ -3730,6 +3730,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   <span>Mes interventions</span>
                   <i className="sg-rule" />
                 </div>
+                <p className="sg-int-sem">semaine {numeroSemaine(semaine[0])} · {semaine[0].slice(0, 4)}</p>
                 <div className="sg-agenda sg-int-semaine">
                   {semaine.map((jour) => {
                     const lignes = duJour(jour);
@@ -3790,6 +3791,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               collaborateur assigné y apparaissait à 0. Ici on compte sur TOUS
               les projets — mêmes prédicats de type, périmètre corrigé. */}
           {(() => { return null; })()}
+          {/* Collaborateur : ses cinq jours, juste au-dessus, disent déjà tout
+              (20.10.2026) — l'agenda de trois jours ferait doublon. */}
+          {!restreint && (<>
           {/* Navigation des trois jours : pas de trois jours, saut libre par le
               sélecteur de date, et retour à aujourd'hui. */}
           <div className="sg-agenda-nav">
@@ -3984,6 +3988,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               );
             })}
           </div>
+          </>)}
 
           {/* À planifier */}
           <div className="sg-section">
