@@ -5522,28 +5522,60 @@ html[data-ui="signal"] .sg-dispo-pastille:focus-visible {
    Ce changement s'applique AUSSI à macOS, et c'est voulu : un vert qui
    signifierait « libre » sur l'iPad et « complet » sur le Mac serait pire
    que l'ancienne convention. */
-/* Des pastilles PLEINES, dans les tons des boutons de « Signaux » : la
-   couleur de l'icône adoucie par son fond pastel (moitié-moitié) — rouge
-   (Soucis), ambre (SAV), vert (À facturer). Ni teinte vive, ni cercle dans
-   le cercle (trop chargé, 20.10.2026) ; un liseré à peine visible les
-   détache du blanc. Le noir (absent) ne change pas. */
-html[data-ui="signal"] .sg-dispo-pastille.is-plein,
-html[data-ui="signal"] .sg-dispo-leg i.is-plein {
-  background: #e08585;
-  box-shadow: inset 0 0 0 1px rgba(185, 28, 28, 0.18);
+/* ── Les ANNEAUX DE CHARGE (20.10.2026) ─────────────────────────────────
+   Comme les anneaux d'activité d'Apple : chaque case est un anneau qui se
+   remplit de la charge réelle du jour (--p = cabines ÷ capacité), dans un
+   dégradé lumineux — corail→rose pour une journée pleine, ambre→or pour
+   une journée entamée. Libre : l'anneau vide, teinté de vert, et un point
+   vert au cœur. Au-delà de la capacité, un halo. L'anneau est dessiné sur
+   ::before (conic-gradient découpé en couronne par un masque) ; le cœur et
+   le halo vivent hors du masque. Aucune animation en boucle (batterie). */
+html[data-ui="signal"] .sg-dispo-pastille {
+  --p: 0; --c1: #ff375f; --c2: #ff8aa0; --piste: rgba(15, 23, 42, 0.08);
+  position: relative; width: 20px; height: 20px;
+  background: transparent; box-shadow: none; border-radius: 999px;
 }
-html[data-ui="signal"] .sg-dispo-pastille.is-partiel,
-html[data-ui="signal"] .sg-dispo-leg i.is-partiel {
-  background: #e3ad73;
-  box-shadow: inset 0 0 0 1px rgba(180, 83, 9, 0.18);
+html[data-ui="signal"] .sg-dispo-pastille::before,
+html[data-ui="signal"] .sg-dispo-leg i::before {
+  content: ""; position: absolute; inset: 0; border-radius: 999px;
+  background: conic-gradient(var(--c1) 0deg, var(--c2) calc(var(--p) * 360deg), var(--piste) calc(var(--p) * 360deg) 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4.5px), #000 calc(100% - 4px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 4.5px), #000 calc(100% - 4px));
 }
-html[data-ui="signal"] .sg-dispo-pastille.is-libre,
-html[data-ui="signal"] .sg-dispo-leg i.is-libre {
-  background: #86c39d;
-  box-shadow: inset 0 0 0 1px rgba(21, 128, 61, 0.18);
+html[data-ui="signal"] .sg-dispo-pastille.is-plein { --c1: #ff375f; --c2: #ff7a93; }
+html[data-ui="signal"] .sg-dispo-pastille.is-partiel { --c1: #ff9f0a; --c2: #ffd426; }
+html[data-ui="signal"] .sg-dispo-pastille.is-libre { --p: 0; --piste: rgba(48, 209, 88, 0.28); }
+/* Le cœur vert du jour libre. */
+html[data-ui="signal"] .sg-dispo-pastille.is-libre::after,
+html[data-ui="signal"] .sg-dispo-leg i.is-libre::after {
+  content: ""; position: absolute; inset: 31%; border-radius: 999px;
+  background: linear-gradient(135deg, #30d158, #66e08a);
+  box-shadow: 0 0 6px rgba(48, 209, 88, 0.45);
 }
+/* Surcharge : un halo rose autour de l'anneau complet. */
+html[data-ui="signal"] .sg-dispo-pastille.is-surcharge {
+  box-shadow: 0 0 0 3px rgba(255, 55, 95, 0.16), 0 0 10px rgba(255, 55, 95, 0.45);
+}
+html[data-ui="signal"] .sg-dispo-pastille:hover { transform: scale(1.18); }
+
+/* La légende : les mêmes anneaux, en petit. */
+html[data-ui="signal"] .sg-dispo-leg i {
+  --p: 0; --c1: #ff375f; --c2: #ff8aa0; --piste: rgba(15, 23, 42, 0.08);
+  position: relative; display: inline-block; width: 12px; height: 12px; vertical-align: -2px; background: transparent; box-shadow: none;
+}
+html[data-ui="signal"] .sg-dispo-leg i::before { -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); }
+html[data-ui="signal"] .sg-dispo-leg i.is-plein { --p: 1; --c1: #ff375f; --c2: #ff7a93; }
+html[data-ui="signal"] .sg-dispo-leg i.is-partiel { --p: 0.55; --c1: #ff9f0a; --c2: #ffd426; --piste: rgba(15, 23, 42, 0.08); }
+html[data-ui="signal"] .sg-dispo-leg i.is-libre { --p: 0; --piste: rgba(48, 209, 88, 0.28); }
+
+html[data-ui="signal"].dark .sg-dispo-pastille { --piste: rgba(255, 255, 255, 0.1); }
+html[data-ui="signal"].dark .sg-dispo-pastille.is-libre,
+html[data-ui="signal"].dark .sg-dispo-leg i.is-libre { --piste: rgba(48, 209, 88, 0.3); }
+
 html[data-ui="signal"] .sg-dispo-pastille.is-absent,
 html[data-ui="signal"] .sg-dispo-leg i.is-absent { background: #0f172a; }
+html[data-ui="signal"] .sg-dispo-pastille.is-absent::before,
+html[data-ui="signal"] .sg-dispo-leg i.is-absent::before { display: none; }
 html[data-ui="signal"].dark .sg-dispo-pastille.is-absent,
 html[data-ui="signal"].dark .sg-dispo-leg i.is-absent {
   background: #0f172a; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);

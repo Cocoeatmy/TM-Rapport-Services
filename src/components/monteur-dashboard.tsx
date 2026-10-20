@@ -4666,8 +4666,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 {/* Bouton et non pastille muette : c'est par lui
                                     qu'on note une absence, et le clavier doit y
                                     accéder comme la souris. */}
+                                {/* L'anneau se remplit de la charge RÉELLE du jour
+                                   (cabines ÷ capacité) ; au-delà, un halo. */}
                                 <button type="button"
-                                  className={`sg-dispo-pastille is-${j.etat}`}
+                                  className={`sg-dispo-pastille is-${j.etat}${j.etat !== "absent" && j.capacite > 0 && j.cabines > j.capacite ? " is-surcharge" : ""}`}
+                                  style={{ ["--p" as string]: j.etat === "absent" || !j.capacite ? 0 : Math.min(1, j.cabines / j.capacite).toFixed(3) } as React.CSSProperties}
                                   aria-label={`${detail} — cliquez pour marquer une absence`}
                                   title={`${detail} — cliquez pour marquer une absence`}
                                   onClick={() => basculerAbsence(ligne.nom, jour.key)} />
