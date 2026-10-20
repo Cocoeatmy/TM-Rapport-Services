@@ -305,3 +305,62 @@ test.describe("iPad en mode écran d'accueil", () => {
     await expect(barre(page)).toHaveCount(0);
   });
 });
+
+/* 20.10.2026 — iPhone 18 Pro Max : angles de la barre coupés par l'écran,
+   barre qui doit se replier en descendant, « tirer pour actualiser » qui
+   rechargeait la page sur un simple défilement rapide. */
+test.describe("app iPhone : barre du bas et tirer pour actualiser", () => {
+  test.use({ userAgent: UA_APP, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("la barre garde 22 px sous elle, se replie en descendant, revient en remontant ou au toucher", async ({ page, context }) => {
+    await ouvrir(page, context, ADMIN);
+    const b = (await barre(page).boundingBox())!;
+    expect(844 - (b.y + b.height)).toBeGreaterThanOrEqual(21.5); // au-dessus des coins de l'écran
+    // Une page assez longue pour défiler.
+    await page.evaluate(() => { document.body.style.minHeight = "4000px"; });
+    for (const y of [200, 600, 1000]) { await page.evaluate((v) => window.scrollTo(0, v), y); await page.waitForTimeout(60); }
+    await expect(barre(page)).toHaveClass(/is-replie/);
+    await page.waitForTimeout(450); // fin de l'animation
+    const r = (await barre(page).boundingBox())!;
+    expect(r.width).toBeLessThan(70);
+    expect(r.x).toBeLessThan(20);
+    await expect(barre(page).locator(".tm-ios-onglet:visible")).toHaveCount(1);
+    // Toucher le rond : il déplie, il n'ouvre rien.
+    const avant = page.url();
+    await barre(page).click();
+    await expect(barre(page)).not.toHaveClass(/is-replie/);
+    expect(page.url()).toBe(avant);
+    // Repliée de nouveau, puis remonter : elle revient.
+    for (const y of [1300, 1700]) { await page.evaluate((v) => window.scrollTo(0, v), y); await page.waitForTimeout(60); }
+    await expect(barre(page)).toHaveClass(/is-replie/);
+    for (const y of [1500, 1300]) { await page.evaluate((v) => window.scrollTo(0, v), y); await page.waitForTimeout(60); }
+    await expect(barre(page)).not.toHaveClass(/is-replie/);
+  });
+
+  test("tirer pour actualiser : rien sur un glissement ordinaire ni juste après un défilement ; un tirer franc arme le rechargement", async ({ page, context }) => {
+    await ouvrir(page, context, ADMIN);
+    /* Un geste tactile complet, de y0 à y1, sur le milieu de la page. */
+    const geste = (y0: number, y1: number, relacher = false) => page.evaluate(async ([a, b, fin]) => {
+      const cible = document.querySelector("main") || document.body;
+      const t = (y: number) => new Touch({ identifier: 1, target: cible, clientX: 200, clientY: y });
+      cible.dispatchEvent(new TouchEvent("touchstart", { touches: [t(a)], bubbles: true }));
+      for (let y = a; y <= b; y += 20) cible.dispatchEvent(new TouchEvent("touchmove", { touches: [t(y)], bubbles: true }));
+      if (fin) cible.dispatchEvent(new TouchEvent("touchend", { touches: [], bubbles: true }));
+      await new Promise((r) => setTimeout(r, 150)); // le temps que React redessine
+      return !!document.querySelector(".z-\\[100\\] .bg-green-500");
+    }, [y0, y1, relacher] as const);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(600);
+    // 200 px : l'ancien seuil — n'arme plus.
+    expect(await geste(150, 350, true)).toBe(false);
+    // Juste après un défilement (la page remonte sur son élan) : rien.
+    await page.evaluate(() => { document.body.style.minHeight = "4000px"; window.scrollTo(0, 300); });
+    await page.waitForTimeout(100);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    expect(await geste(150, 500)).toBe(false);
+    await page.evaluate(() => document.dispatchEvent(new TouchEvent("touchend", { bubbles: true })));
+    // Page immobile, tirer franc (~320 px) : la pastille passe au vert (on ne relâche pas : pas de rechargement).
+    await page.waitForTimeout(600);
+    expect(await geste(120, 440)).toBe(true);
+  });
+});

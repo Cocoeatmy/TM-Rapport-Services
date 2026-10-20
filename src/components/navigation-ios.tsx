@@ -105,6 +105,32 @@ export function NavigationIos() {
   }, []);
   const fermerProfil = () => { window.dispatchEvent(new CustomEvent("tm-fermer-profil")); };
 
+  /* Barre repliée en descendant, dépliée en remontant ou près du haut.
+     Écoute en phase de capture : certaines pages défilent dans leur propre
+     zone, pas dans la fenêtre. */
+  const [replie, setReplie] = useState(false);
+  useEffect(() => {
+    if (!actif) return;
+    const derniers = new WeakMap<object, number>();
+    const surDefilement = (ev: Event) => {
+      const cible = ev.target;
+      if (!cible || (cible instanceof Element && cible.closest("[data-nav-ios], .tm-chatbot-panneau, [role='dialog']"))) return;
+      const y = cible === document || cible === document.documentElement ? window.scrollY : (cible as Element).scrollTop;
+      const avant = derniers.get(cible) ?? y;
+      derniers.set(cible, y);
+      if (y < 40) { setReplie(false); return; }
+      if (y - avant > 6) setReplie(true);
+      else if (avant - y > 6) setReplie(false);
+    };
+    document.addEventListener("scroll", surDefilement, { capture: true, passive: true });
+    return () => document.removeEventListener("scroll", surDefilement, { capture: true } as EventListenerOptions);
+  }, [actif]);
+  /* Changer de page : la barre revient entière (ajusté pendant le rendu,
+     sans effet — la règle de React pour un état dérivé d'une prop). */
+  const clePage = `${pathname}?${params?.toString() || ""}`;
+  const [pageVue, setPageVue] = useState(clePage);
+  if (pageVue !== clePage) { setPageVue(clePage); setReplie(false); }
+
   useEffect(() => {
     if (!actif) return;
     const lire = () => setSignal(document.documentElement.getAttribute("data-ui") === "signal");
@@ -147,6 +173,16 @@ export function NavigationIos() {
   /* Avant la réponse des droits, on attend : un « + » qui s'ouvrirait puis
      se refuserait serait pire qu'un instant d'hésitation. */
   const peutCreer = !!mes && peut("projets.creer");
+  /* Le bouton qui représente la barre repliée : l'actif, sinon Accueil. */
+  const actifs = {
+    accueil: est("dashboard"),
+    planning: surPlanning && !feuille,
+    projets: projetsOuvert || (projetsActif && !surPlanning && !profilOuvert),
+    profil: profilOuvert,
+  };
+  const repr = (Object.keys(actifs) as (keyof typeof actifs)[]).find((k) => actifs[k]) || "accueil";
+  const marqueRepr = (k: keyof typeof actifs) => (repr === k ? " is-repr" : "");
+  const replieeVisible = replie && !feuille;
   const rubriques = RUBRIQUES.filter((r) =>
     (!r.droit || peut(r.droit, "lecture")) && (!r.signal || signal) && (!r.classique || !signal));
 
@@ -204,11 +240,14 @@ export function NavigationIos() {
         </div>
       )}
 
-      <nav className="tm-ios-barre glass-header" aria-label="Navigation principale" data-nav-ios>
-        <button type="button" className={`tm-ios-onglet${est("dashboard") ? " is-actif" : ""}`} onClick={() => aller("dashboard")}>
+      <nav className={`tm-ios-barre glass-header${replieeVisible ? " is-replie" : ""}`} aria-label="Navigation principale" data-nav-ios
+        /* Repliée, la barre n'est qu'un rond : le toucher la déplie, il
+           n'ouvre rien. */
+        onClickCapture={(e) => { if (replieeVisible) { e.preventDefault(); e.stopPropagation(); setReplie(false); } }}>
+        <button type="button" className={`tm-ios-onglet${actifs.accueil ? " is-actif" : ""}${marqueRepr("accueil")}`} onClick={() => aller("dashboard")}>
           <Home className="w-6 h-6" /><span>Accueil</span>
         </button>
-        <button type="button" className={`tm-ios-onglet${surPlanning && !feuille ? " is-actif" : ""}`}
+        <button type="button" className={`tm-ios-onglet${actifs.planning ? " is-actif" : ""}${marqueRepr("planning")}`}
           onClick={() => { fermerProfil(); setProjetsOuvert(false); setGroupe(null); if (!surPlanning) router.push("/planning"); }}>
           <CalendarDays className="w-6 h-6" /><span>Planning</span>
         </button>
@@ -216,11 +255,11 @@ export function NavigationIos() {
           aria-label="Nouveau projet" onClick={nouveauProjet}>
           <span className="tm-ios-plus-rond"><Plus className="w-6 h-6" /></span>
         </button>
-        <button type="button" className={`tm-ios-onglet${projetsOuvert || (projetsActif && !surPlanning && !profilOuvert) ? " is-actif" : ""}`}
+        <button type="button" className={`tm-ios-onglet${actifs.projets ? " is-actif" : ""}${marqueRepr("projets")}`}
           aria-expanded={projetsOuvert} onClick={() => { fermerProfil(); setProjetsOuvert((v) => !v); setGroupe(null); }}>
           <FolderOpen className="w-6 h-6" /><span>Projets</span>
         </button>
-        <button type="button" className={`tm-ios-onglet${profilOuvert ? " is-actif" : ""}`} aria-expanded={profilOuvert}
+        <button type="button" className={`tm-ios-onglet${actifs.profil ? " is-actif" : ""}${marqueRepr("profil")}`} aria-expanded={profilOuvert}
           onClick={() => { setProjetsOuvert(false); window.dispatchEvent(new CustomEvent("tm-basculer-profil")); }}>
           <User className="w-6 h-6" /><span>Profil</span>
         </button>

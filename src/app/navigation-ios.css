@@ -6,14 +6,14 @@
    La barre reprend le fond de l'en-tête (`glass-header`) : elle a donc
    l'apparence du thème choisi — Signal compris — sans règle de couleur. */
 
+/* 22 px au moins sous la barre, PARTOUT. L'app native ne transmet pas la
+   zone de sécurité du bas à la page (la vue web va jusqu'au bord, avec
+   `contentInsetAdjustmentBehavior = .never`) : la barre se posait à 8 px du
+   bord, et les coins arrondis de l'iPhone en mangeaient les angles (iPhone
+   18 Pro Max, 20.10.2026). L'app web de l'écran d'accueil gardait déjà ses
+   22 px — c'est elle qui s'affichait juste. */
 html[data-app="ios"] {
   --tm-barre-ios: 60px;
-  --tm-bas-ios: max(env(safe-area-inset-bottom, 0px), 8px);
-}
-/* App web de l'écran d'accueil : la zone de sécurité n'y est pas exposée
-   (pas de `viewport-fit`) — on laisse d'office la place de la barre
-   d'accueil d'iOS. */
-html[data-app="ios"][data-app-source="ecran-accueil"] {
   --tm-bas-ios: max(env(safe-area-inset-bottom, 0px), 22px);
 }
 
@@ -281,4 +281,29 @@ html[data-app="ios"][data-ui="signal"] .tm-planning-puce.is-on {
   html[data-app="ios"][data-ui="signal"] :is(.tm-ios-barre, #main-header) { background: var(--tm-verre-encre-fort); }
   html[data-app="ios"][data-ui="signal"] .tm-ios-feuille-corps,
   html[data-app="ios"][data-ui="signal"] .tm-menu-profil { background: rgba(255, 255, 255, 0.96) !important; }
+}
+
+/* ── La barre REPLIÉE (défilement vers le bas) ─────────────────────────
+   Comme les barres d'onglets d'iOS 26 : en descendant dans une page, la
+   barre se range dans son bouton actif — un rond, à gauche, au-dessus de la
+   barre d'accueil d'iOS. Elle revient en remontant, ou d'un toucher sur le
+   rond. La page garde toute sa hauteur pendant la lecture. */
+html[data-app="ios"] .tm-ios-barre {
+  transition: right 0.34s cubic-bezier(0.2, 0.8, 0.2, 1), border-radius 0.34s ease, background-color 0.2s ease;
+}
+html[data-app="ios"] .tm-ios-barre.is-replie {
+  left: 12px;
+  right: calc(100% - 12px - var(--tm-barre-ios));
+  bottom: var(--tm-bas-ios);
+  height: var(--tm-barre-ios);
+  padding: 0;
+  border-radius: 9999px;
+  grid-template-columns: 1fr;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+html[data-app="ios"] .tm-ios-barre.is-replie > .tm-ios-onglet:not(.is-repr) { display: none; }
+html[data-app="ios"] .tm-ios-barre.is-replie > .tm-ios-onglet.is-repr span { display: none; }
+html[data-app="ios"] .tm-ios-barre.is-replie > .tm-ios-onglet.is-repr svg { color: #3b82f6; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-app="ios"] .tm-ios-barre { transition: none; }
 }
