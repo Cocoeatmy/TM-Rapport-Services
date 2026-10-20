@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-19T21:00:16.315Z",
+  "genereLe": "2026-10-20T16:14:06.377Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -203,6 +203,26 @@
       "gardePage": false,
       "methodes": [
         "POST"
+      ]
+    },
+    {
+      "url": "/api/ai/conversations",
+      "type": "api",
+      "fichier": "src/app/api/ai/conversations/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/ai/conversations/[id]",
+      "type": "api",
+      "fichier": "src/app/api/ai/conversations/[id]/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
       ]
     },
     {

@@ -90,7 +90,7 @@ export function sansMontants(texte: string): string {
 
 /* ── L'annuaire ───────────────────────────────────────────────────────── */
 
-export type SorteFiche = "contact" | "entreprise" | "fournisseur" | "grossiste";
+export type SorteFiche = "contact" | "entreprise" | "fournisseur" | "grossiste" | "projet-crm" | "serie" | "stats-clients" | "stats-marques" | "stats-services";
 
 export interface FicheAnnuaire {
   id: string;
@@ -104,6 +104,19 @@ export interface FicheAnnuaire {
   adresse: string;
   /** Fonction, rôle, remarque courte — ce qui dit « qui est-ce ». */
   role: string;
+  /** Toutes les autres colonnes lisibles (« Poste : Fondateur »…), SAUF l'argent. */
+  details: string;
+  /** Toutes les fiches et tous les projets reliés (identifiants Notion). */
+  liens: string[];
+}
+
+/**
+ * Une colonne d'ARGENT, d'après son nom : elle n'est jamais lue. « Rabais
+ * cabines », « Escompte », « Mail de facturations », « Montant OFR »… Le
+ * nom suffit : dans ces bases, une colonne d'argent dit ce qu'elle est.
+ */
+export function colonneArgent(nom: string): boolean {
+  return /prix|montant|tarif|factur|chiffre|rabais|remise|marge|escompte|co[uû]t|paiement|\bchf\b|budget|valeur|b[ée]n[ée]fice|salaire|acompte|cr[ée]dit|bexio/i.test(nom);
 }
 
 const BASES: { sorte: SorteFiche; id: string }[] = [
@@ -111,6 +124,13 @@ const BASES: { sorte: SorteFiche; id: string }[] = [
   { sorte: "entreprise", id: "28a1895b9179811fb736eca6c8e2ffb3" },
   { sorte: "fournisseur", id: "2d11895b9179807b988df489cfdc469d" },
   { sorte: "grossiste", id: "2d11895b917980a1a202fa866102e0e5" },
+  /* Le reste de la base Notion — tout ce que l'intégration peut lire, hors
+     projets (lus à part) : l'assistant doit pouvoir répondre sur tout. */
+  { sorte: "projet-crm", id: "28a1895b917981e19d59f6f8ea33468c" },
+  { sorte: "serie", id: "2e21895b917980428d1ecc45b0c29c78" },
+  { sorte: "stats-clients", id: "17e1895b9179812093cfca36bba18aba" },
+  { sorte: "stats-marques", id: "17e1895b91798130bd39e0a3a5302b80" },
+  { sorte: "stats-services", id: "17e1895b9179818281b2ec39f258a516" },
 ];
 
 const texteDe = (pr: any): string => {
@@ -124,7 +144,15 @@ const texteDe = (pr: any): string => {
     case "phone_number": return pr.phone_number || "";
     case "email": return pr.email || "";
     case "url": return pr.url || "";
-    case "formula": return pr.formula?.type === "string" ? (pr.formula.string || "").trim() : "";
+    case "formula":
+      if (pr.formula?.type === "string") return (pr.formula.string || "").trim();
+      if (pr.formula?.type === "number" && pr.formula.number != null) return String(pr.formula.number);
+      return "";
+    case "number": return pr.number != null ? String(pr.number) : "";
+    case "date": return pr.date?.start ? `${pr.date.start}${pr.date.end ? ` → ${pr.date.end}` : ""}` : "";
+    case "checkbox": return pr.checkbox ? "oui" : "";
+    case "rollup": return pr.rollup?.type === "number" && pr.rollup.number != null ? String(pr.rollup.number) : "";
+    case "place": return [pr.place?.name, pr.place?.address].filter(Boolean).join(", ");
     default: return "";
   }
 };
@@ -134,12 +162,16 @@ export function ficheDePage(page: any, sorte: SorteFiche): FicheAnnuaire | null 
   const props: Record<string, any> = page?.properties || {};
   let nom = "", prenom = "", nomFamille = "", etiquette = "", adresse = "";
   const telephones = new Set<string>(), emails = new Set<string>(), entreprises: string[] = [], role: string[] = [];
+  const details: string[] = [], liens: string[] = [];
   for (const [cle, pr] of Object.entries(props)) {
     if (!pr) continue;
     const k = cle.toLowerCase();
     if (pr.type === "title") { nom = texteDe(pr); continue; }
+    if (colonneArgent(cle)) continue; // l'argent n'est jamais lu
     if (pr.type === "relation") {
-      if (/entreprise|soci[ée]t[ée]|client|fournisseur|grossiste/.test(k)) entreprises.push(...(pr.relation || []).map((r: any) => r.id));
+      const ids = (pr.relation || []).map((r: any) => r.id);
+      liens.push(...ids);
+      if (/entreprise|soci[ée]t[ée]|client|fournisseur|grossiste/.test(k)) entreprises.push(...ids);
       continue;
     }
     const v = texteDe(pr);
@@ -158,7 +190,8 @@ export function ficheDePage(page: any, sorte: SorteFiche): FicheAnnuaire | null 
       continue;
     }
     // Un numéro rangé dans une colonne au nom quelconque.
-    if (pr.type === "rich_text" && /^[+(]?\d[\d\s().\/-]{7,}$/.test(v) && cleTelephone(v)) telephones.add(v);
+    if (pr.type === "rich_text" && /^[+(]?\d[\d\s().\/-]{7,}$/.test(v) && cleTelephone(v)) { telephones.add(v); continue; }
+    details.push(`${cle} : ${v.slice(0, 200)}`);
   }
   const nomComplet = nom || [prenom, nomFamille].filter(Boolean).join(" ");
   if (!nomComplet.trim()) return null;
@@ -166,6 +199,7 @@ export function ficheDePage(page: any, sorte: SorteFiche): FicheAnnuaire | null 
     id: page.id, sorte, nom: nomComplet.trim(),
     telephones: [...telephones], emails: [...emails], entreprises,
     etiquette, adresse, role: role.join(" · "),
+    details: sansMontants(details.join(" · ")), liens: [...new Set(liens)],
   };
 }
 
@@ -212,7 +246,7 @@ export function fichesParNumero(annuaire: FicheAnnuaire[], cles: string[]): Fich
 export function fichesParMots(annuaire: FicheAnnuaire[], mots: string[], max = 12): FicheAnnuaire[] {
   if (mots.length === 0) return [];
   const notes = annuaire.map((f) => {
-    const texte = normal(`${f.nom} ${f.emails.join(" ")}`);
+    const texte = normal(`${f.nom} ${f.emails.join(" ")} ${f.etiquette}`);
     const n = mots.filter((m) => new RegExp(`(^|[^a-z0-9])${m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(texte)).length;
     return { f, n };
   }).filter((x) => x.n > 0);
@@ -221,7 +255,27 @@ export function fichesParMots(annuaire: FicheAnnuaire[], mots: string[], max = 1
   return notes.filter((x) => x.n === meilleur).slice(0, max).map((x) => x.f);
 }
 
+/**
+ * Deux numéros qui ne diffèrent que d'UN chiffre — une faute de frappe, ou
+ * un numéro mal recopié. « 076 818 55 56 » et le « 078 818 55 56 » de la
+ * fiche de Thierry Jacquaz (20.10.2026) : l'assistant disait « inconnu ».
+ * Il propose désormais le numéro proche, en le disant.
+ */
+export function numerosVoisins(a: string, b: string): boolean {
+  if (a.length !== b.length || a === b) return false;
+  let ecarts = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i] && ++ecarts > 1) return false;
+  return ecarts === 1;
+}
+
+/** « 078 818 55 56 » à partir d'une clé de neuf chiffres. */
+export function afficherCle(n: string): string {
+  return `0${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5, 7)} ${n.slice(7)}`;
+}
+
 /** « Contact » / « Entreprise »… pour l'affichage. */
 export const LIBELLE_SORTE: Record<SorteFiche, string> = {
   contact: "Contact", entreprise: "Entreprise", fournisseur: "Fournisseur", grossiste: "Grossiste",
+  "projet-crm": "Projet CRM", serie: "Série de cabines", "stats-clients": "Stats mensuelles par client",
+  "stats-marques": "Stats mensuelles par marque", "stats-services": "Stats quotidiennes par service",
 };

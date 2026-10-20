@@ -261,6 +261,16 @@ export async function redisSetTexteJSON(key: string, json: string, ttlSec = 3600
   try { await command(["SET", key, encoderValeur(json), "EX", ttlSec]); } catch { /* best-effort */ }
 }
 
+/**
+ * Écrit un JSON SANS expiration — pour ce qui doit durer (l'historique des
+ * conversations de l'assistant), pas pour un cache. Lève en cas d'échec :
+ * l'appelant doit savoir que rien n'a été gardé.
+ */
+export async function redisSetJSONDurable(key: string, data: unknown): Promise<void> {
+  if (!redisEnabled) throw new Error("Redis indisponible");
+  await command(["SET", key, encoderValeur(JSON.stringify(data))]);
+}
+
 export async function redisSetJSON(key: string, data: unknown, ttlSec = 3600): Promise<void> {
   if (!redisEnabled) return;
   try {

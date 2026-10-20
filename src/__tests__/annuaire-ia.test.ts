@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   cleTelephone, numerosDans, estQuestionArgent, sansMontants, ficheDePage, fichesParNumero, fichesParMots,
+  numerosVoisins, colonneArgent, afficherCle,
 } from "@/lib/annuaire-ia";
 
 describe("numéros de téléphone", () => {
@@ -84,5 +85,36 @@ describe("annuaire", () => {
   it("retrouve par le nom, le plus de mots l'emporte", () => {
     expect(fichesParMots([jean, regie], ["rossier"])).toEqual([jean]);
     expect(fichesParMots([jean, regie], ["regie", "lac"])).toEqual([regie]);
+  });
+});
+
+describe("numéro à un chiffre près (Thierry Jacquaz, 20.10.2026)", () => {
+  it("076 818 55 56 demandé, 078 818 55 56 dans Notion : voisins", () => {
+    const demande = cleTelephone("076 818 55 56")!, fiche = cleTelephone("+41 78 818 55 56")!;
+    expect(numerosVoisins(demande, fiche)).toBe(true);
+    expect(afficherCle(fiche)).toBe("078 818 55 56");
+  });
+  it("deux chiffres d'écart, ou le même numéro : pas voisins", () => {
+    expect(numerosVoisins("768185556", "788185557")).toBe(false);
+    expect(numerosVoisins("768185556", "768185556")).toBe(false);
+  });
+});
+
+describe("colonnes d'argent jamais lues", () => {
+  it.each(["Rabais cabines", "Escompte", "Mail de facturations", "Montant OFR", "Coût soucis montage", "Rabais services"])("%s", (c) =>
+    expect(colonneArgent(c)).toBe(true));
+  it.each(["Poste", "Portable", "Étiquettes", "Adresse", "Nb. Projets"])("garde %s", (c) => expect(colonneArgent(c)).toBe(false));
+
+  it("une fiche d'entreprise garde le reste, sans l'argent", () => {
+    const f = ficheDePage({ id: "e9", properties: {
+      Clients: { type: "title", title: [{ plain_text: "T. Jacquaz Sanitech" }] },
+      "Rabais cabines": { type: "number", number: 12 },
+      "Mail de facturations": { type: "email", email: "compta@exemple.ch" },
+      "Nb. Projets": { type: "rollup", rollup: { type: "number", number: 22 } },
+      "Contacts dans l’entreprise": { type: "relation", relation: [{ id: "c7" }] },
+    } }, "entreprise")!;
+    expect(f.details).toContain("Nb. Projets : 22");
+    expect(f.liens).toEqual(["c7"]);
+    expect(JSON.stringify(f)).not.toMatch(/compta@|Rabais|: 12/);
   });
 });

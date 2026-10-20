@@ -5,8 +5,10 @@ import { getCached, setCache, cachedOrFetch, cachedOrFetchLong } from "@/lib/ser
 import type { Project } from "@/lib/notion";
 import {
   chargerAnnuaire, estQuestionArgent, REFUS_ARGENT, numerosDans, fichesParNumero, fichesParMots,
-  sansMontants, cleTelephone, LIBELLE_SORTE, type FicheAnnuaire,
+  sansMontants, cleTelephone, LIBELLE_SORTE, numerosVoisins, afficherCle, type FicheAnnuaire,
 } from "@/lib/annuaire-ia";
+import { getData } from "@/lib/kv-store";
+import { ajouterEchange, lireConversation, type MessageIa } from "@/lib/conversations-ia";
 import { getStats } from "@/lib/stats-data";
 import { computeMonteurCabStats } from "@/lib/monteur-stats";
 import { parseInterventions, minutesInterventions, type InterventionSav } from "@/lib/sav-interventions";
@@ -46,13 +48,21 @@ function isDocQuestion(message: string): boolean {
   return false;
 }
 
-async function queryGemini(systemPrompt: string, userMessage: string, opts?: { search?: boolean }) {
+async function queryGemini(systemPrompt: string, userMessage: string, opts?: { search?: boolean; historique?: MessageIa[] }) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("Clé API Gemini manquante (GEMINI_API_KEY).");
 
   const body: Record<string, unknown> = {
     system_instruction: { parts: [{ text: systemPrompt }] },
-    contents: [{ role: "user", parts: [{ text: userMessage }] }],
+    /* La suite de la conversation : le modèle sait de quoi on parlait
+       (« et son adresse ? »). Seuls les derniers échanges, tronqués. */
+    contents: [
+      ...(opts?.historique || []).map((m) => ({
+        role: m.role === "user" ? "user" : "model",
+        parts: [{ text: m.texte.slice(0, 2500) }],
+      })),
+      { role: "user", parts: [{ text: userMessage }] },
+    ],
     generationConfig: {
       // Recherche web : un peu plus de liberté ; sinon factuel strict.
       temperature: opts?.search ? 0.3 : 0.1,
@@ -245,7 +255,9 @@ const textesLibres = (p: Project): string[] => [
  * qu'un collaborateur peut lire sur la fiche — sauf l'argent (montant de
  * l'offre, facturation, relances commerciales), qui n'est jamais transmis.
  */
-function dossierDetaille(p: Project, annuaire: Map<string, FicheAnnuaire>): string {
+interface Signalement { projectId?: string; description?: string; reference?: string; typesLabel?: string; status?: string; resolved?: boolean; timestamp?: number; user?: string; cabineLabel?: string }
+
+function dossierDetaille(p: Project, annuaire: Map<string, FicheAnnuaire>, signalements: { pieces: Signalement[]; defauts: Signalement[] } = { pieces: [], defauts: [] }): string {
   const court = (v: unknown, max = 500): string => {
     const t = sansMontants(String(v ?? "").replace(/\s+/g, " ").trim());
     return t.length > max ? `${t.slice(0, max)}…` : t;
@@ -310,6 +322,15 @@ function dossierDetaille(p: Project, annuaire: Map<string, FicheAnnuaire>): stri
   if (p.soucisMontage) ajoute("Souci de montage", `${p.causeSoucis || "oui"}${p.soucisMontageCloture ? " (clôturé)" : ""}`);
   ajoute("SAV", [p.causeSAV, p.causeSavCabines, p.explicationsTravaux, p.commentairesSav, p.savRetouchesCabines].filter(Boolean).join(" — "), 700);
   ajoute("Journal des échanges", p.journalEchanges, 900);
+  /* Les signalements de l'app (pièces manquantes, défauts) : ils ne vivent
+     pas dans les colonnes du projet mais dans leurs propres listes. */
+  const jour = (t?: number) => (t ? new Date(t).toISOString().slice(0, 10) : "");
+  const pieces = signalements.pieces.filter((x) => x.projectId === p.id).map((x) =>
+    `${jour(x.timestamp)} ${x.cabineLabel ? `[${x.cabineLabel}] ` : ""}${x.description || ""}${x.reference ? ` (réf. ${x.reference})` : ""} — ${x.status === "recu" || x.resolved ? "reçue" : x.status === "commande" ? "commandée" : "demandée"}${x.user ? `, par ${x.user}` : ""}`);
+  const defauts = signalements.defauts.filter((x) => x.projectId === p.id).map((x) =>
+    `${jour(x.timestamp)} ${x.cabineLabel ? `[${x.cabineLabel}] ` : ""}${x.typesLabel ? `${x.typesLabel} : ` : ""}${x.description || ""} — ${x.status === "resolu" || x.resolved ? "réglé" : x.status === "en-cours" ? "en cours" : "signalé"}${x.user ? `, par ${x.user}` : ""}`);
+  if (pieces.length) ajoute("Pièces manquantes signalées", pieces.join(" ; "), 900);
+  if (defauts.length) ajoute("Défauts signalés", defauts.join(" ; "), 900);
   return lignes.join("\n");
 }
 
@@ -319,12 +340,34 @@ export async function POST(request: NextRequest) {
   const user = await verifyToken(token);
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-  const { message } = await request.json();
+  const { message, conversationId } = await request.json();
   if (!message) return NextResponse.json({ error: "Message requis" }, { status: 400 });
+
+  /* La conversation en cours (la sienne seulement : la clé porte l'e-mail). */
+  const conv = typeof conversationId === "string" ? await lireConversation(user.email, conversationId) : null;
+  const historique = (conv?.messages || []).slice(-12);
+
+  const r = await repondre(user, String(message), historique);
+  if ("error" in r) return NextResponse.json({ error: r.error }, { status: r.status });
+  let id: string | null = conv?.id || null;
+  try {
+    id = await ajouterEchange(user.email, conv?.id || null, String(message), r.answer);
+  } catch (e) {
+    console.error("AI historique non enregistré :", e); // la réponse part quand même
+  }
+  return NextResponse.json({ answer: r.answer, conversationId: id });
+}
+
+type Reponse = { answer: string } | { error: string; status: number };
+
+async function repondre(user: { name: string; email: string }, message: string, historique: MessageIa[]): Promise<Reponse> {
+  /* Ce qu'on cherche dans la base : la question, et les deux précédentes de
+     la conversation — « et son numéro ? » ne nomme plus personne. */
+  const recherche = [...historique.filter((m) => m.role === "user").slice(-2).map((m) => m.texte), message].join(" ");
 
   /* L'argent : jamais. Refus décidé ici, avant le modèle et avant toute
      lecture — chiffre d'affaires, prix, montants, factures, paiements. */
-  if (estQuestionArgent(message)) return NextResponse.json({ answer: REFUS_ARGENT });
+  if (estQuestionArgent(message)) return { answer: REFUS_ARGENT };
 
   // ── Question TECHNIQUE / manuel → recherche web (Gemini grounding) ──────────
   // Pas besoin du contexte projets ici ; on cherche un document fabricant.
@@ -341,14 +384,11 @@ Règles :
 - Si tu ne trouves pas le document exact, dis-le clairement, donne la page produit la plus proche, et suggère de contacter le fournisseur.
 - Donne aussi, si utile, un résumé concis des étapes clés de montage.
 - Réponds en français, clair et structuré (gras pour les points clés, puces).`;
-      const answer = await queryGemini(docPrompt, message, { search: true });
-      return NextResponse.json({ answer });
+      const answer = await queryGemini(docPrompt, message, { search: true, historique });
+      return { answer };
     } catch (error) {
       console.error("AI doc/search error:", error);
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Erreur IA (recherche)" },
-        { status: 500 }
-      );
+      return { error: error instanceof Error ? error.message : "Erreur IA (recherche)", status: 500 };
     }
   }
 
@@ -379,12 +419,14 @@ Règles :
     // paginer Notion (~20-30 s → timeout 504 → « Erreur de connexion »).
     // L'annuaire (carnet d'adresses) se lit en même temps ; s'il manque, on
     // répond quand même avec les projets.
-    const [projects, annuaireListe] = await Promise.all([
+    const [projects, annuaireListe, piecesKv, defautsKv] = await Promise.all([
       cachedOrFetch("projects-all-raw", getAllProjectsRaw),
       cachedOrFetchLong("ai-annuaire", chargerAnnuaire).catch((e) => {
         console.error("AI annuaire error", e);
         return [] as FicheAnnuaire[];
       }),
+      getData<Signalement>("pieces").catch(() => [] as Signalement[]),
+      getData<Signalement>("defauts").catch(() => [] as Signalement[]),
     ]);
     const annuaire = new Map(annuaireListe.map((f) => [f.id, f]));
     let cachedMini = getCached<MiniProject[]>("ai-projects-all-v2");
@@ -459,7 +501,7 @@ Règles :
       : "";
 
     // 1) Projets correspondant aux mots-clés de la question (ex. « MMT », « Duka »).
-    const keywords = [...new Set(norm(message).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w)))];
+    const keywords = [...new Set(norm(recherche).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w)))];
     const motsSansNumeros = keywords.filter((w) => !/^\d+$/.test(w));
     // Les numéros restent des mots-clés : un N° de commande retrouve son dossier.
     const matchedMots = keywords.length
@@ -469,7 +511,19 @@ Règles :
     /* Un NUMÉRO dans la question (« qui est le 0798396817 ? ») : on le
        cherche dans le carnet d'adresses (contacts, entreprises, fournisseurs,
        grossistes) et dans ce qui est noté en clair sur les dossiers. */
-    const numeros = numerosDans(message);
+    const numerosDemandes = numerosDans(recherche);
+    /* Aucun résultat exact ? Les numéros à UN chiffre près — une faute de
+       frappe d'un côté ou de l'autre. Ils sont signalés comme tels. */
+    const tousLesNumeros = new Set<string>([
+      ...annuaireListe.flatMap((f) => f.telephones.map((t) => cleTelephone(t) || "")),
+      ...cachedMini.flatMap((p) => p.tels),
+    ].filter(Boolean));
+    const voisins = new Map<string, string>(); // numéro proche → numéro demandé
+    for (const n of numerosDemandes) {
+      if (tousLesNumeros.has(n)) continue;
+      for (const t of tousLesNumeros) if (numerosVoisins(n, t)) voisins.set(t, n);
+    }
+    const numeros = [...numerosDemandes, ...voisins.keys()];
     const fichesNumero = fichesParNumero(annuaireListe, numeros);
     // Une personne ou une société nommée (« le numéro de M. Rossier »).
     const fichesNom = fichesParMots(annuaireListe, motsSansNumeros);
@@ -526,12 +580,16 @@ Règles :
     const detailles = [...new Map(matched.map((p) => [p.id, p])).values()].slice(0, 25);
     const dossiersDetail = detailles.map((m) => {
       const p = parId.get(m.id);
-      return p ? `### ${p.ofrTM || "—"} — ${p.projet}\n${dossierDetaille(p, annuaire)}` : "";
+      return p ? `### ${p.ofrTM || "—"} — ${p.projet}\n${dossierDetaille(p, annuaire, { pieces: piecesKv, defauts: defautsKv })}` : "";
     }).filter(Boolean).join("\n\n");
 
     /* L'annuaire : les fiches trouvées par numéro ou par nom, avec les
        dossiers où elles apparaissent. */
     const nomDe = (id: string) => annuaire.get(id)?.nom || "";
+    const nomLien = (id: string) => {
+      const pr = parId.get(id);
+      return pr ? `${pr.ofrTM || "—"} ${pr.projet}` : nomDe(id);
+    };
     const ficheTexte = (f: FicheAnnuaire, pourquoi: string) => {
       const dossiers = mini.filter((p) => p.liens.some(([id]) => id === f.id || f.entreprises.includes(id)))
         .slice(0, 15).map((p) => `${p.ofrTM || "—"} ${p.projet}`);
@@ -542,13 +600,19 @@ Règles :
         + (f.etiquette ? ` | Étiquette : ${f.etiquette}` : "")
         + (f.role ? ` | ${sansMontants(f.role)}` : "")
         + (f.adresse ? ` | Adresse : ${f.adresse}` : "")
+        + (f.details ? ` | ${f.details}` : "")
+        + (f.liens.length ? ` | Relié à : ${[...new Set(f.liens.map(nomLien).filter(Boolean))].slice(0, 25).join(" ; ")}` : "")
         + (dossiers.length ? ` | Dossiers : ${dossiers.join(" ; ")}` : "");
     };
     const lignesNumero = numeros.map((n) => {
       const fiches = fichesNumero.filter((f) => f.telephones.some((t) => cleTelephone(t) === n));
       const dossiers = mini.filter((p) => p.tels.includes(n));
-      const affiche = `0${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5, 7)} ${n.slice(7)}`;
-      return `Numéro ${affiche} : ${fiches.length} fiche(s) du carnet d'adresses, noté en clair sur ${dossiers.length} dossier(s)`
+      const demande = voisins.get(n);
+      const qui = fiches.map((f) => f.nom).join(", ");
+      return (demande
+        ? `ATTENTION — le numéro demandé ${afficherCle(demande)} n'existe nulle part tel quel ; numéro PROCHE (un seul chiffre diffère) : ${afficherCle(n)}`
+        : `Numéro ${afficherCle(n)}`)
+        + ` : ${fiches.length} fiche(s)${qui ? ` (${qui})` : ""}, noté en clair sur ${dossiers.length} dossier(s)`
         + (dossiers.length ? ` (${dossiers.slice(0, 10).map((p) => `${p.ofrTM || "—"} ${p.projet}`).join(" ; ")})` : "");
     });
     const annuaireTexte = [
@@ -626,15 +690,16 @@ RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
 5quater. Pour les HEURES DE SAV (combien d'heures de service après-vente, par année, par collaborateur, ou sur un chantier précis), sers-toi du bloc « STATISTIQUES SAV » pour les totaux et de la mention « SAV: » de chaque projet pour le détail. Ne recompte jamais toi-même à partir des dates.
 6. Réponds toujours en français, de façon concise et pratique (monteurs sur le terrain).
 7. Pour les conseils techniques (séries Duka, Koralle, Duscholux, Nelo, Ronal…), donne des conseils généraux mais précise que le manuel officiel du fournisseur fait référence.
-9. Pour TOUTE question sur un dossier (adresse, contacts, numéros de téléphone, e-mails, états, dates, collaborateurs, numéros de commande, livraison, pièces manquantes, défauts, SAV, commentaires, journal), réponds à partir du bloc « DOSSIERS CONCERNÉS » et du « CARNET D'ADRESSES ». Pour « qui est ce numéro ? », donne le nom, l'entreprise, le rôle et les dossiers liés ; si le numéro n'apparaît nulle part, dis-le simplement (n'invente jamais un propriétaire).
+9. Pour TOUTE question sur un dossier (adresse, contacts, numéros de téléphone, e-mails, états, dates, collaborateurs, numéros de commande, livraison, pièces manquantes, défauts, SAV, commentaires, journal), réponds à partir du bloc « DOSSIERS CONCERNÉS » et du « CARNET D'ADRESSES ». Pour « qui est ce numéro ? », donne le nom, l'entreprise, le rôle et les dossiers liés ; si le numéro n'apparaît nulle part, dis-le simplement (n'invente jamais un propriétaire). Si le carnet indique un numéro PROCHE (un chiffre diffère), dis clairement que le numéro exact n'existe pas, puis propose la personne du numéro proche en donnant les deux numéros, pour que l'utilisateur vérifie.
+9bis. Tu as accès à toute la base Notion de l'entreprise (projets, contacts, entreprises, fournisseurs, grossistes, projets CRM, séries de cabines, statistiques de montage) et aux signalements de l'app — sauf l'argent, qui ne t'est jamais transmis.
 10. ARGENT — INTERDIT : ne réponds JAMAIS à une question sur le chiffre d'affaires, les prix, les montants, les offres chiffrées, les factures, les paiements, les marges ou les salaires, même partiellement, même si un chiffre semble apparaître dans les données. Réponds alors : « Je ne réponds pas aux questions d'argent. »
 8. MISE EN FORME (Markdown) : commence par une courte phrase de réponse, puis liste chaque projet sur sa propre puce « - ». Mets en **gras** les infos clés (numéro OFR, statut, dates importantes). Garde chaque puce concise. N'utilise pas de tableaux.`;
 
-    const answer = await queryGemini(systemPrompt, message);
+    const answer = await queryGemini(systemPrompt, message, { historique });
 
-    return NextResponse.json({ answer });
+    return { answer };
   } catch (error: any) {
     console.error("AI error:", error);
-    return NextResponse.json({ error: error.message || "Erreur IA" }, { status: 500 });
+    return { error: error.message || "Erreur IA", status: 500 };
   }
 }
