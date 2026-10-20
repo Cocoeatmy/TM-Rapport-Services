@@ -416,14 +416,15 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
     /* La rangée de LOGOS (grossistes, fournisseurs) fait doublon avec la
        page d'accueil en logos d'où l'on vient (rail Signal, app iPhone) :
        elle ne s'ouvre plus là (20.10.2026). Le thème Classique, sans ces
-       pages, la garde — c'est sa seule façon de choisir. */
+       pages, la garde — c'est sa seule façon de choisir. Idem pour les onglets du CRM
+       (Contacts, Entreprises…) : la page d'accueil CRM les offre déjà. */
     const sansLogos = !!isSignal || document.documentElement.getAttribute("data-app") === "ios";
     setOpen(
       mode.endsWith("-accueil") ? null :
       mode.startsWith("grossistes") ? (sansLogos ? null : "grossistes") :
       mode.startsWith("fournisseurs") ? (sansLogos ? null : "fournisseurs-menu") :
       mode.startsWith("services") || mode.startsWith("mesures") || mode.startsWith("cmd") || mode.startsWith("sav") ? "services" :
-      mode.startsWith("clients") ? "clients" :
+      mode.startsWith("clients") ? (sansLogos ? null : "clients") :
       null);
   }, [mode, isSignal]);
 
