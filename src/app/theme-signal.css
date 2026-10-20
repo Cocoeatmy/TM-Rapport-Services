@@ -6061,3 +6061,22 @@ html[data-ui="signal"] .kb-sugg { max-width: 100%; }
 
 /* Mode concentration : les colonnes prennent la place des accessoires. */
 html[data-ui="signal"] .kb-concentre .kb-col-corps { max-height: calc(100vh - 190px); }
+
+/* ── iPhone, une journée à l'écran : des numéros de projet LISIBLES ──────
+   Chaque case avait la hauteur de ses cabines : sur une journée de quatre
+   chantiers, une case d'une cabine faisait douze pixels et son numéro
+   (TM-…) se chevauchait avec le voisin (20.10.2026). Sur un écran tactile en
+   vue d'une journée, chaque case garde 28 px au moins, plus une part à la
+   mesure de ses cabines (la proportion reste visible) ; la barre — et son
+   libellé posé dessus — s'allongent d'autant s'il le faut. Le Mac garde la
+   stricte proportion : rien ne change pour lui. */
+@media (max-width: 767px) and (pointer: coarse) {
+  html[data-ui="signal"] .sg-bar-stack {
+    height: max(var(--sg-pct, 0%), calc(var(--sg-cases, 0) * 28px + var(--sg-pct, 0%) * 0.4)) !important;
+  }
+  html[data-ui="signal"] .sg-bar-val {
+    bottom: max(var(--sg-pct, 0%), calc(var(--sg-cases, 0) * 28px + var(--sg-pct, 0%) * 0.4)) !important;
+  }
+  html[data-ui="signal"] .sg-bar-stack > .sg-bar-seg { min-height: 28px; }
+  html[data-ui="signal"] .sg-bar-stack > .sg-bar-seg.is-empty { min-height: 3px; }
+}

@@ -4403,8 +4403,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             rapportait. Les barres sont ramenées à 78 % de la
                             zone pour lui laisser sa place sans déborder. */}
                         <span className="sg-bar-zone">
+                          {/* Sur iPhone (une journée à l'écran), chaque case
+                              garde une hauteur LISIBLE : --sg-cases en donne le
+                              nombre, la feuille de style fait le reste. Le Mac
+                              garde la stricte proportion. */}
                           <span className="sg-bar-val"
-                                style={{ bottom: `${Math.round((b.poidsJour / max) * 78)}%` }}>
+                                style={{ bottom: `${Math.round((b.poidsJour / max) * 78)}%`, ["--sg-pct" as string]: `${Math.round((b.poidsJour / max) * 78)}%`, ["--sg-cases" as string]: b.segs.reduce((n, s) => n + s.projetsRecu.length + s.projetsAttente.length + s.projetsMesure.length + s.projetsSav.length, 0) }}>
                             {b.nb === 0 ? "0" : (
                               <>
                                 {/* Ce que vaut la journée, au-dessus de ce
@@ -4432,7 +4436,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             )}
                           </span>
                           <span className={`sg-bar-stack${b.isToday ? " is-today" : ""}`}
-                                style={{ height: `${Math.round((b.poidsJour / max) * 78)}%` }}>
+                                style={{ height: `${Math.round((b.poidsJour / max) * 78)}%`, ["--sg-pct" as string]: `${Math.round((b.poidsJour / max) * 78)}%`, ["--sg-cases" as string]: b.segs.reduce((n, s) => n + s.projetsRecu.length + s.projetsAttente.length + s.projetsMesure.length + s.projetsSav.length, 0) }}>
                             {b.segs.length === 0 && <i className="sg-bar-seg is-empty" style={{ flexGrow: 1 }} />}
                             {/* Une case PAR PROJET, à sa hauteur de cabines, et
                                 non un bloc par monteur : trois montages pour
