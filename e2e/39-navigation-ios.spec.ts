@@ -364,3 +364,66 @@ test.describe("app iPhone : barre du bas et tirer pour actualiser", () => {
     expect(await geste(120, 440)).toBe(true);
   });
 });
+
+/* 20.10.2026 — lisibilité au téléphone : les jours du tableau de bord
+   s'ouvrent dans le Planning, titres entiers, états en boutons, IA en couleur. */
+test.describe("app iPhone : lisibilité", () => {
+  test.use({ userAgent: UA_APP, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("le bouton de l'assistant IA est en couleur", async ({ page, context }) => {
+    await ouvrir(page, context, ADMIN);
+    const fond = await page.locator(".tm-ai-entete").first().evaluate((el) => getComputedStyle(el).backgroundImage);
+    expect(fond).toContain("linear-gradient");
+  });
+
+  test("« Montages » d'un jour du tableau de bord ouvre le Planning sur ce jour, filtré", async ({ page, context }) => {
+    await ouvrir(page, context, ADMIN);
+    /* Un montage fixé aujourd'hui, pour que la ligne « Montages » soit active. */
+    const [base] = await page.evaluate(() => fetch("/api/projects").then((r) => r.json()));
+    const jour = await page.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; });
+    const montage = { ...base, id: "p-montage", projet: "Régie du Lac - Dupont, Rue des Alpes 12 à 1400 Yverdon-les-Bains, salle de bains du premier étage", etatCMD: "RDV - fixé", dateMontage: `${jour}T08:30:00.000+02:00`, collaborateurs: "Claudio & Jacobo", nbCabines: 2 };
+    await page.route(/\/api\/projects(\?|$|\/all-active|\/all\b)/, (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify([montage]) }));
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(2000);
+    const ligne = page.locator(".sg-row:not(.sg-row-static)", { hasText: "Montages" }).first();
+    if (!(await ligne.isVisible().catch(() => false))) {
+      await page.locator(".sg-day-toggle, button:has(.sg-day-chev)").first().click().catch(() => {});
+    }
+    await page.locator(".sg-row:not(.sg-row-static)", { hasText: "Montages" }).first().click();
+    await expect(page).toHaveURL(/\/planning\?jour=\d{4}-\d{2}-\d{2}&type=montage/);
+    await expect(page.locator(".tm-planning-puce.is-on")).toHaveCount(1);
+    await expect(page.locator(".tm-planning-puce.is-on")).toContainText("Montages");
+    await page.screenshot({ path: "test-results/ios-planning-jour.png" });
+    /* Le titre n'est plus coupé : aucune limite de lignes. */
+    const titre = page.locator(".tm-planning-projet").first();
+    if (await titre.count()) expect(await titre.evaluate((el) => getComputedStyle(el).webkitLineClamp || "none")).toMatch(/none|^$/);
+  });
+
+  test("« Projets en cours » : des boutons d'état avec leur nombre filtrent la liste", async ({ page, context }) => {
+    await ouvrir(page, context, ADMIN, "/");
+    /* Trois projets dans deux états, à partir du projet fictif du banc. */
+    const [base] = await page.evaluate(() => fetch("/api/projects").then((r) => r.json()));
+    const liste = [
+      { ...base, id: "p-a", projet: "Chantier A", etatCMD: "En attente de mesures", dateMontage: null },
+      { ...base, id: "p-b", projet: "Chantier B", etatCMD: "En attente de mesures", dateMontage: null },
+      { ...base, id: "p-c", projet: "Chantier C", etatCMD: "Récéptionné - RDV à fixer", dateMontage: null },
+    ];
+    await page.route("**/api/projects/all-active**", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify(liste) }));
+    await page.goto("/?mode=calendrier", { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1500);
+    const boutons = page.locator(".tm-etats-boutons .tm-etat-bouton");
+    await expect(boutons).toHaveCount(3);
+    await expect(boutons.nth(1)).toContainText("En attente de mesures");
+    await expect(boutons.nth(1).locator("b")).toHaveText("2");
+    await expect(boutons.first()).toBeVisible();
+    expect(await boutons.count()).toBeGreaterThan(1);
+    const second = boutons.nth(1);
+    const nombre = Number(await second.locator("b").innerText());
+    await second.click();
+    await expect(second).toHaveClass(/is-actif/);
+    await expect(page.getByText(new RegExp(`^${nombre} intervention`))).toBeVisible();
+    await page.screenshot({ path: "test-results/ios-projets-etats.png" });
+    await second.click();
+    await expect(boutons.first()).toHaveClass(/is-actif/);
+  });
+});

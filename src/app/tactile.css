@@ -222,3 +222,37 @@
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* ── « Projets en cours » : les états en boutons (écran tactile) ─────────
+   Une longue liste de cartes ne se feuillette pas : on choisit d'abord un
+   état (« En attente de mesures », « Réceptionné - RDV à fixer »…), avec
+   son nombre dans une bulle. Le Mac (pointeur fin) ne les voit pas. */
+.tm-etats-boutons { display: none; }
+@media (pointer: coarse) {
+  .tm-etats-boutons {
+    display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 14px;
+  }
+  .tm-etat-bouton {
+    display: inline-flex; align-items: center; gap: 8px;
+    min-height: 38px; padding: 6px 8px 6px 13px; border-radius: 999px;
+    font-size: 13.5px; font-weight: 600; line-height: 1.15; text-align: left;
+    border: 1.5px solid transparent;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .tm-etat-bouton b {
+    min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; background: rgba(255, 255, 255, 0.85); color: #0f172a;
+  }
+  .tm-etat-bouton:active { transform: scale(0.96); }
+  .tm-etat-bouton.is-actif {
+    border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  }
+  /* « Tous » : neutre. Les états gardent la couleur de leur badge
+     (classes STATUS_CMD_COLORS), pour se reconnaître d'un coup d'œil. */
+  .tm-etat-bouton:first-child { background: #eef2f7; color: #334155; }
+  .tm-etat-bouton:first-child.is-actif { background: #1e293b; color: #fff; border-color: #1e293b; box-shadow: none; }
+  .tm-etat-bouton:first-child.is-actif b { background: rgba(255, 255, 255, 0.2); color: #fff; }
+  .dark .tm-etat-bouton:first-child { background: #1e293b; color: #e2e8f0; }
+}

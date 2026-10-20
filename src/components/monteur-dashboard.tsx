@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText, Check, Mail, Smartphone
 } from "lucide-react";
@@ -1667,6 +1668,7 @@ const RDV_STATUS_ORDER: Record<string, string[]> = {
 
 type ForcedPanel = "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer";
 function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [], forcePanel = null, onForcePanelClose, restreint = false }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[]; forcePanel?: ForcedPanel | null; onForcePanelClose?: () => void; restreint?: boolean }) {
+  const routeur = useRouter();
   useNotionColors(); // couleurs Notion sur les badges de statut
   const firstName = userName.split(" ")[0];
   /* ── Compte collaborateur (`restreint`) ────────────────────────────────
@@ -3675,16 +3677,26 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     const quand = brut ? new Date(brut.includes("T") ? brut : brut + "T12:00:00") : null;
                     const jour = quand ? quand.toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" }) : "";
                     const heure = quand && brut.includes("T") ? quand.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" }) : "";
+                    /* Trois colonnes, sans cadre : QUAND (date, puis l'heure
+                       dessous), QUOI (le titre ENTIER, sur deux ou trois
+                       lignes s'il le faut — tronqué, on ne savait plus quel
+                       chantier c'était), OÙ et COMBIEN (l'emplacement des
+                       cabines, puis leur nombre). */
+                    const emplacement = String(p.emplacementCabine || "").trim();
                     return (
-                      <button key={`${source}-${p.id}`} type="button" className="sg-row"
+                      <button key={`${source}-${p.id}`} type="button" className="sg-row sg-int"
                         title={`${p.ofrTM || ""} ${p.projet || ""}`.trim()}
                         onClick={() => openSignalPreview(p, MODES[source] || "cmd")}>
                         <span className="sg-row-bar" style={{ background: COULEURS[source] || "var(--sg-line-strong)" }} />
-                        <span className="sg-row-label">
-                          {[jour, heure].filter(Boolean).join(" · ")}{jour ? " — " : ""}{p.projet}
+                        <span className="sg-int-quand">
+                          <span className="sg-int-jour">{jour || "—"}</span>
+                          {heure && <span className="sg-int-heure">{heure}</span>}
                         </span>
-                        <span className="sg-row-count">{p.nbCabines || 0}</span>
-                        <span className="sg-row-unit">cab.</span>
+                        <span className="sg-int-titre">{p.projet}</span>
+                        <span className="sg-int-ou">
+                          {emplacement && <span className="sg-int-empl">{emplacement}</span>}
+                          <span className="sg-int-cab"><b>{p.nbCabines || 0}</b> cab.</span>
+                        </span>
                       </button>
                     );
                   })}
@@ -3801,6 +3813,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     disabled={r.count === 0}
                     title={r.count ? `Voir le ${new Date(col.date + "T12:00:00").toLocaleDateString("fr-CH")} dans le calendrier` : undefined}
                     onClick={(e) => {
+                      /* App iPhone : le jour s'ouvre dans le Planning — la
+                         vue claire, titres entiers, toute l'équipe pour qui
+                         la suit — filtré sur ce type de rendez-vous. Le
+                         calendrier dense restait illisible au téléphone
+                         (20.10.2026). Le Mac garde son calendrier. */
+                      if (document.documentElement.getAttribute("data-app") === "ios") {
+                        const TYPES: Record<string, string> = { Montages: "montage", Mesures: "mesures", Services: "services", SAV: "sav", Garanties: "garantie" };
+                        const type = TYPES[r.label];
+                        routeur.push(`/planning?jour=${col.date}${type ? `&type=${type}` : ""}`);
+                        return;
+                      }
                       const dt = new Date(col.date + "T12:00:00");
                       openPanel("calendrier", e);
                       setCalendarMonth({ year: dt.getFullYear(), month: dt.getMonth() });

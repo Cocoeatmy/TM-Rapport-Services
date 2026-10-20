@@ -307,3 +307,17 @@ html[data-app="ios"] .tm-ios-barre.is-replie > .tm-ios-onglet.is-repr svg { colo
 @media (prefers-reduced-motion: reduce) {
   html[data-app="ios"] .tm-ios-barre { transition: none; }
 }
+
+/* ── L'assistant IA dans l'en-tête : en couleur, comme sur le Mac ─────────
+   Le dégradé violet-bleu du rail Signal le distingue des autres pastilles :
+   c'est un outil, pas une page (demande du 20.10.2026). */
+/* Sélecteur renforcé : la règle « verre » des pastilles de l'en-tête
+   (#main-header button.w-9.h-9) l'emportait, et le bouton restait gris. */
+html[data-app="ios"] #main-header button.tm-ai-entete.w-9.h-9,
+html[data-app="ios"] .tm-ai-entete {
+  background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+}
+html[data-app="ios"] .tm-ai-entete:active { filter: brightness(1.1); }

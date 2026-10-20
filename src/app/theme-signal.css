@@ -6080,3 +6080,35 @@ html[data-ui="signal"] .kb-concentre .kb-col-corps { max-height: calc(100vh - 19
   html[data-ui="signal"] .sg-bar-stack > .sg-bar-seg { min-height: 28px; }
   html[data-ui="signal"] .sg-bar-stack > .sg-bar-seg.is-empty { min-height: 3px; }
 }
+
+/* ── « Mes interventions » (collaborateur) : trois colonnes sans cadre ────
+   Quand (date, heure dessous) · quoi (titre ENTIER, retour à la ligne) ·
+   où et combien (emplacement des cabines, puis leur nombre). Le titre
+   tronqué ne permettait plus de reconnaître le chantier (20.10.2026). */
+html[data-ui="signal"] .sg-mes-interventions .sg-row.sg-int {
+  display: grid;
+  grid-template-columns: 4px 88px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 12px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+  height: auto;
+  text-align: left;
+}
+html[data-ui="signal"] .sg-mes-interventions .sg-int .sg-row-bar { align-self: stretch; height: auto; min-height: 34px; }
+html[data-ui="signal"] .sg-mes-interventions .sg-int-quand {
+  display: flex; flex-direction: column; gap: 2px; line-height: 1.2;
+}
+html[data-ui="signal"] .sg-mes-interventions .sg-int-jour { font-size: 13px; font-weight: 600; color: var(--sg-text); text-transform: capitalize; }
+html[data-ui="signal"] .sg-mes-interventions .sg-int-heure { font-family: var(--font-mono); font-size: 12.5px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sg-mes-interventions .sg-int-titre {
+  min-width: 0; font-size: 14px; font-weight: 600; line-height: 1.3; color: var(--sg-text);
+  white-space: normal; overflow-wrap: anywhere;
+}
+html[data-ui="signal"] .sg-mes-interventions .sg-int-ou {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px; max-width: 108px; text-align: right; line-height: 1.2;
+}
+html[data-ui="signal"] .sg-mes-interventions .sg-int-empl { font-size: 11.5px; font-weight: 600; color: var(--sg-text-2); overflow-wrap: anywhere; }
+html[data-ui="signal"] .sg-mes-interventions .sg-int-cab { font-size: 12px; color: var(--sg-text-3); white-space: nowrap; }
+html[data-ui="signal"] .sg-mes-interventions .sg-int-cab b { font-size: 16px; font-weight: 800; color: var(--sg-text); margin-right: 2px; }
+

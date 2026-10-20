@@ -1176,6 +1176,8 @@ function HomePage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(statusParam);
   const [collabFilter, setCollabFilter] = useState<string | null>(collabParam || collaborateurParam);
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
+  /* « Projets en cours » sur écran tactile : l'état choisi par bouton (null = tous). */
+  const [etatEnCours, setEtatEnCours] = useState<string | null>(null);
   const [rapportSubFilter, setRapportSubFilter] = useState<"en-cours" | "en-attente" | "cloture" | null>(null);
   const [crmTagFilter, setCrmTagFilter] = useState<string | null>(null);
   const [subView, setSubView] = useState<"projets" | "stats">("projets");
@@ -5736,21 +5738,44 @@ function HomePage() {
           const dB = b.dateMontage || b.dateMesures || "";
           return dA.localeCompare(dB);
         });
+        /* Les états, en boutons, avec leur nombre — dans l'ordre du travail
+           (mesures, commande, montage). Toucher un état n'affiche que lui ;
+           le toucher à nouveau, ou « Tous », rend la liste entière. Écran
+           tactile seulement : le Mac garde sa page (règle .tm-etats-boutons). */
+        const parEtat = new Map<string, number>();
+        for (const p of calProjects) { const e = p.etatCMD || "Sans état"; parEtat.set(e, (parEtat.get(e) || 0) + 1); }
+        const ordre = Object.keys(STATUS_CMD_COLORS);
+        const etats = [...parEtat.keys()].sort((a, b) =>
+          ((ordre.indexOf(a) + 1) || 99) - ((ordre.indexOf(b) + 1) || 99) || a.localeCompare(b));
+        const etatActif = etatEnCours && parEtat.has(etatEnCours) ? etatEnCours : null;
+        const affiches = etatActif ? calProjects.filter((p: any) => (p.etatCMD || "Sans état") === etatActif) : calProjects;
         return (
           <div>
             <div className="relative mb-4 max-w-lg">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input placeholder="Rechercher (nom, OFR...)" className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
+            <div className="tm-etats-boutons" role="group" aria-label="Filtrer par état">
+              <button type="button" className={`tm-etat-bouton${etatActif ? "" : " is-actif"}`} aria-pressed={!etatActif} onClick={() => setEtatEnCours(null)}>
+                Tous<b>{calProjects.length}</b>
+              </button>
+              {etats.map((e) => (
+                <button key={e} type="button" aria-pressed={etatActif === e}
+                  className={`tm-etat-bouton ${STATUS_CMD_COLORS[e] || "bg-gray-100 text-gray-700"}${etatActif === e ? " is-actif" : ""}`}
+                  onClick={() => setEtatEnCours(etatActif === e ? null : e)}>
+                  {e}<b>{parEtat.get(e)}</b>
+                </button>
+              ))}
+            </div>
             <p className="text-sm text-gray-500 mb-3">
-              {calProjects.length} intervention{calProjects.length !== 1 ? "s" : ""}
+              {affiches.length} intervention{affiches.length !== 1 ? "s" : ""}{etatActif ? ` · ${etatActif}` : ""}
             </p>
             {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
             <div className="space-y-3">
-              {calProjects.map((project: any) => (
+              {affiches.map((project: any) => (
                 <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
               ))}
-              {calProjects.length === 0 && !loading && (
+              {affiches.length === 0 && !loading && (
                 <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucune intervention planifiée</p></div>
               )}
             </div>

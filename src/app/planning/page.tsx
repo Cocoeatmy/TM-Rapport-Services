@@ -51,6 +51,22 @@ export default function PlanningPage() {
   const [horsLigne, setHorsLigne] = useState<number | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const aujourdhuiRef = useRef<HTMLElement | null>(null);
+  /* Ouvert depuis le tableau de bord (« Montages » de demain…) : le jour
+     demandé, et ce type de rendez-vous seulement. Lu dans l'adresse au
+     chargement (useSearchParams imposerait un Suspense au rendu statique). */
+  const [jourVise, setJourVise] = useState<string | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const jour = q.get("jour");
+    const type = q.get("type") as TypeRdv | null;
+    if (type && TYPES.some((t) => t.id === type)) setTypes(new Set([type]));
+    if (jour && /^\d{4}-\d{2}-\d{2}$/.test(jour)) {
+      const cible = new Date(jour + "T12:00:00");
+      const ecart = Math.round((cible.getTime() - lundiDe(0).getTime()) / 86400000);
+      setDecalage(Math.floor(ecart / 7));
+      setJourVise(jour);
+    }
+  }, []);
 
   const lundi = useMemo(() => lundiDe(decalage), [decalage]);
   const jours = useMemo(() => Array.from({ length: 7 }, (_, i) => { const d = new Date(lundi); d.setDate(lundi.getDate() + i); return iso(d); }), [lundi]);
@@ -80,10 +96,15 @@ export default function PlanningPage() {
   }, [du, au, collab]);
 
   useEffect(() => { charger(); }, [charger]);
-  /* À l'ouverture, aller tout de suite au jour même. */
+  /* À l'ouverture, aller tout de suite au jour même — ou au jour demandé. */
   useEffect(() => {
-    if (decalage === 0 && !chargement) aujourdhuiRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
-  }, [decalage, chargement]);
+    if (chargement) return;
+    if (jourVise) {
+      document.querySelector(`[data-jour="${jourVise}"]`)?.scrollIntoView({ block: "start", behavior: "auto" });
+      return;
+    }
+    if (decalage === 0) aujourdhuiRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
+  }, [decalage, chargement, jourVise]);
 
   const rdv = (donnees?.rdv || []).filter((r) => types.has(r.type));
   const parJour = new Map<string, RendezVous[]>();
