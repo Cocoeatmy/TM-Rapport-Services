@@ -1,6 +1,6 @@
 import { gunzipSync, gzipSync } from "node:zlib";
 import { notion, databaseId } from "./notion";
-import { redisEnabled, redisGetJSON, redisHGetAll, redisHSet, redisLockAcquire, redisLockRelease, redisSetJSON } from "./redis-cache";
+import { redisEnabled, redisDel, redisGetJSON, redisHGetAll, redisHSet, redisLockAcquire, redisLockRelease, redisMGet, redisSetJSON, redisSetTexte } from "./redis-cache";
 
 // ---------------------------------------------------------------------------
 // In-memory cache  (survives across requests in the same serverless process)
@@ -433,6 +433,57 @@ async function readFromNotionSafe<T>(key: string): Promise<T[]> {
    On attend la première au lieu d'en lancer sept. */
 const lecturesEnVol = new Map<string, Promise<unknown[]>>();
 
+/* ── Le MIROIR partagé (Redis) des lectures ─────────────────────────────────
+   Le cache ci-dessus vit dans UNE instance. Chaque nouvelle instance Vercel
+   — et il en naît souvent — relisait donc ses listes en entier dans Notion,
+   tranche par tranche, dans la file de 3 requêtes/s. Mesuré le 20.10.2026 :
+   un rapport de montage à 32,8 s, 99 appels Notion, des dépassements de délai
+   en cascade, et les listes en échec rendues VIDES (pièces absentes du PDF).
+
+   Le miroir ne sert QU'À LIRE (`getData`). Les écritures relisent toujours
+   Notion (`getDataFresh`) : une copie ne peut pas écraser la vérité.
+
+   Une copie périmée est la seule crainte. D'où deux règles :
+   - toute écriture pose un TÉMOIN daté et retire le miroir ;
+   - un miroir plus ancien que le dernier témoin est ignoré, et une lecture
+     commencée avant une écriture ne publie pas ce qu'elle a lu. */
+const MIROIR = (key: string) => `kv:miroir:${key}`;
+const ECRIT = (key: string) => `kv:ecrit:${key}`;
+const MIROIR_TTL_SEC = 6 * 3600;
+
+async function derniereEcriture(key: string): Promise<number> {
+  const [v] = await redisMGet(ECRIT(key));
+  return Number(v) || 0;
+}
+
+async function lireMiroir<T>(key: string): Promise<T[] | null> {
+  if (!redisEnabled) return null;
+  try {
+    const [m, ecrit] = await Promise.all([redisGetJSON<{ t: number; data: T[] }>(MIROIR(key)), derniereEcriture(key)]);
+    if (!m || !Array.isArray(m.data) || m.data.length === 0) return null;
+    return m.t > ecrit ? m.data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function publierMiroir(key: string, data: unknown[], debutLecture: number): Promise<void> {
+  if (!redisEnabled || data.length === 0) return;
+  try {
+    // Une écriture a eu lieu pendant la lecture : ce qu'on a lu date déjà.
+    if ((await derniereEcriture(key)) >= debutLecture) return;
+    await redisSetJSON(MIROIR(key), { t: Date.now(), data }, MIROIR_TTL_SEC);
+  } catch { /* sans miroir, on relit Notion comme avant */ }
+}
+
+async function marquerEcriture(key: string): Promise<void> {
+  if (!redisEnabled) return;
+  await Promise.all([
+    redisSetTexte(ECRIT(key), String(Date.now()), 7 * 24 * 3600),
+    redisDel(MIROIR(key)),
+  ]).catch(() => {});
+}
+
 export async function getData<T>(key: string): Promise<T[]> {
   // 1. In-memory cache (fast, survives within the same process)
   const cached = getCached<T>(key);
@@ -441,13 +492,22 @@ export async function getData<T>(key: string): Promise<T[]> {
   const enVol = lecturesEnVol.get(key);
   if (enVol) return (await enVol) as T[];
 
-  // 2. Primary store: Notion (mode safe → erreur réseau → [] sans throw)
-  console.log(`[kv-store] Cache miss for "${key}", fetching from Notion...`);
-  const lecture = readFromNotionSafe<T>(key).then((data) => {
-    // 3. Populate cache
-    if (data.length > 0) { setCache(key, data); void ecrireTemoin(key, data.length); }
+  const lecture = (async () => {
+    // 2. Le miroir partagé : une instance froide n'attend plus Notion.
+    const miroir = await lireMiroir<T>(key);
+    if (miroir) { setCache(key, miroir); return miroir; }
+    // 3. Primary store: Notion (mode safe → erreur réseau → [] sans throw)
+    console.log(`[kv-store] Cache miss for "${key}", fetching from Notion...`);
+    const debut = Date.now();
+    const data = await readFromNotionSafe<T>(key);
+    // 4. Populate cache
+    if (data.length > 0) {
+      setCache(key, data);
+      void ecrireTemoin(key, data.length);
+      void publierMiroir(key, data, debut);
+    }
     return data;
-  }) as Promise<unknown[]>;
+  })() as Promise<unknown[]>;
   lecturesEnVol.set(key, lecture);
   try {
     return (await lecture) as T[];
@@ -469,11 +529,13 @@ export async function getData<T>(key: string): Promise<T[]> {
 export async function getDataFresh<T>(key: string): Promise<T[]> {
   // readFromNotion propage les erreurs API — l'appelant doit les attraper
   console.log(`[kv-store] Fresh read for "${key}" from Notion...`);
+  const debut = Date.now();
   const data = await readFromNotion<T>(key);
 
   // Mettre à jour le cache de cette instance avec les données fraîches
   if (data.length > 0) {
     setCache(key, data);
+    void publierMiroir(key, data, debut);
   }
 
   return data;
@@ -552,18 +614,26 @@ export async function setData<T>(key: string, data: T[], options: OptionsEcritur
   setCache(key, data);
   void ecrireTemoin(key, data.length);
 
+  // Le miroir partagé est retiré AVANT l'écriture, et le témoin daté :
+  // aucune lecture ne servira plus l'ancienne version.
+  await marquerEcriture(key);
+
   // 2. Write to Notion (primary store) – sérialisé par clé pour éviter que deux
   //    écritures concurrentes ne corrompent la page (mélange ancien/nouveau).
   const compactJson = JSON.stringify(data);
   const previous = writeLocks.get(key) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(() => writeToNotion(key, compactJson));
   writeLocks.set(key, next);
-  next.finally(() => { if (writeLocks.get(key) === next) writeLocks.delete(key); });
+  next.finally(() => { if (writeLocks.get(key) === next) writeLocks.delete(key); }).catch(() => { /* l'échec est rendu par `await next` */ });
   try {
     await next;
   } catch (err) {
     console.error(`[kv-store] Notion write failed for "${key}":`, err);
     throw err; // Re-throw so callers know the write didn't persist
+  } finally {
+    // Témoin re-daté APRÈS l'écriture : une lecture commencée pendant
+    // l'écriture a pu lire l'ancienne version — elle ne la publiera pas.
+    await marquerEcriture(key);
   }
 }
 
