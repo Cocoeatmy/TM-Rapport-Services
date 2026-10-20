@@ -8,9 +8,47 @@
  * (20.10.2026). Mêmes cartes que « Projets en cours » (src/app/accueils.css).
  */
 import { useEffect, useState, type CSSProperties } from "react";
-import { ChevronRight, Users, Building2, Factory, Warehouse, LayoutGrid } from "lucide-react";
+import { ChevronRight, Users, Building2, Factory, Warehouse, LayoutGrid, Ruler, Wrench, Settings, AlertTriangle } from "lucide-react";
 
 const carteStyle = (couleur: string) => ({ ["--tm-etat" as string]: couleur } as CSSProperties);
+
+/* ── Services : les quatre listes de travail ─────────────────────────── */
+const SERVICES = [
+  { mode: "mesures", api: "/api/projects/mesures", label: "Mesures", aide: "Relevés à planifier et à traiter", Icon: Ruler, couleur: "#0e7490" },
+  { mode: "cmd", api: "/api/projects", label: "Montages", aide: "Commandes et poses", Icon: Wrench, couleur: "#1b63ff" },
+  { mode: "services", api: "/api/projects/services", label: "Services", aide: "Joints, réglages, interventions", Icon: Settings, couleur: "#7c3aed" },
+  { mode: "sav", api: "/api/projects/sav", label: "SAV", aide: "Service après-vente", Icon: AlertTriangle, couleur: "#b45309" },
+] as const;
+
+export function AccueilServices({ onOuvrir }: { onOuvrir: (mode: string) => void }) {
+  /* Le nombre de dossiers en cours de chaque liste (listes en cache du serveur). */
+  const [nombres, setNombres] = useState<Record<string, number | null>>({});
+  useEffect(() => {
+    let vivant = true;
+    for (const c of SERVICES) {
+      fetch(c.api)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (vivant) setNombres((n) => ({ ...n, [c.mode]: Array.isArray(d) ? d.length : null })); })
+        .catch(() => {});
+    }
+    return () => { vivant = false; };
+  }, []);
+  return (
+    <section className="tm-accueil" aria-label="Services">
+      <div className="tm-accueil-titre"><h2>Services</h2><p>Les listes de travail</p></div>
+      <div className="tm-etats-grille">
+        {SERVICES.map(({ mode, label, aide, Icon, couleur }) => (
+          <button key={mode} type="button" className="tm-etat-bouton" style={carteStyle(couleur)} onClick={() => onOuvrir(mode)}>
+            <span className="tm-etat-icone"><Icon /></span>
+            <span className="tm-etat-nom">{label}<br /><small style={{ fontWeight: 500, fontSize: 12, color: "#64748b" }}>{aide}</small></span>
+            <b>{nombres[mode] ?? "…"}</b>
+            <ChevronRight className="tm-etat-fleche" aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 /* ── CRM ─────────────────────────────────────────────────────────────── */
 const CRM = [

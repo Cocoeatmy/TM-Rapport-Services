@@ -76,10 +76,16 @@ test.describe("app iPhone", () => {
     for (const r of ["Projets en cours", "Services", "CRM", "Grossistes", "Fournisseurs", "Kanban", "Déstockage", "Chantiers PPE"]) {
       await expect(feuille.locator(".tm-ios-rubrique", { hasText: r })).toBeVisible();
     }
+    /* « Services » ouvre sa page en cartes (même design que Projets en cours). */
     await feuille.locator(".tm-ios-rubrique", { hasText: "Services" }).click();
-    await feuille.locator(".tm-ios-puce", { hasText: "Montages" }).click();
-    await expect(page).toHaveURL(/mode=cmd/);
     await expect(feuille).toHaveCount(0);
+    await expect(page).toHaveURL(/mode=services-accueil/);
+    const cartes = page.locator(".tm-accueil[aria-label='Services'] .tm-etat-bouton");
+    await expect(cartes).toHaveCount(4);
+    await cartes.filter({ hasText: "Montages" }).click();
+    await expect(page).toHaveURL(/mode=cmd/);
+    /* Le retour vers la page en cartes, en tête de la liste. */
+    await expect(page.locator(".tm-etats-retour", { hasText: "Services" })).toBeVisible();
     /* Le sous-menu existant (Mesures / Montages / Services / SAV) est là. */
     await expect(page.locator(".nav-sub-chip", { hasText: "Montages" })).toBeVisible();
     expect(await marque(page)).toBe(1);
@@ -488,3 +494,29 @@ test.describe("app iPhone : Liquid Glass réglable", () => {
     expect(alpha(await fond())).toBeLessThan(0.55);
   });
 });
+
+test.describe("app iPhone : rubriques en cartes, logos compris", () => {
+  test.use({ userAgent: UA_APP, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test("Grossistes et Fournisseurs : les logos en cartes ; une carte ouvre la liste, « ‹ Grossistes » revient", async ({ page, context }) => {
+    await ouvrir(page, context, ADMIN);
+    await barre(page).getByText("Projets").click();
+    await page.locator(".tm-ios-feuille .tm-ios-rubrique", { hasText: "Grossistes" }).click();
+    await expect(page).toHaveURL(/mode=grossistes-accueil/);
+    await expect(page.locator(".tm-etat-bouton.is-logo")).toHaveCount(5);
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: "test-results/ios-grossistes.png" });
+    await page.locator(".tm-etat-bouton.is-logo[aria-label='Dubat']").click();
+    await expect(page).toHaveURL(/mode=grossistes-dubat/);
+    await page.locator(".tm-etats-retour", { hasText: "Grossistes" }).click();
+    await expect(page).toHaveURL(/mode=grossistes-accueil/);
+    await barre(page).getByText("Projets").click();
+    await page.locator(".tm-ios-feuille .tm-ios-rubrique", { hasText: "Fournisseurs" }).click();
+    await expect(page.locator(".tm-etat-bouton.is-logo")).toHaveCount(9);
+    await barre(page).getByText("Projets").click();
+    await page.locator(".tm-ios-feuille .tm-ios-rubrique", { hasText: "CRM" }).click();
+    await expect(page.locator(".tm-accueil[aria-label='CRM'] .tm-etat-bouton")).toHaveCount(4);
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: "test-results/ios-crm.png" });
+  });
+});
+

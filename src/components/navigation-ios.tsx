@@ -54,24 +54,26 @@ export function ouvrirRubrique(router: ReturnType<typeof useRouter>, pathname: s
 }
 
 /* Les rubriques, dans l'ordre de la barre d'onglets qu'elles remplacent. */
-interface Rubrique { id: string; label: string; droit?: string; signal?: boolean; classique?: boolean; sous?: { mode: string; label: string }[]; mode?: string }
+/* `accueil` : la page en cartes de la rubrique (même design que Projets en
+   cours, logos pour les partenaires) — elle remplace le dépliage en puces. */
+interface Rubrique { id: string; label: string; droit?: string; signal?: boolean; classique?: boolean; sous?: { mode: string; label: string }[]; mode?: string; accueil?: string }
 const RUBRIQUES: Rubrique[] = [
   /* La liste de tous les projets ouverts — ce qu'ouvrait « Planning » avant
      que celui-ci ne devienne l'agenda des rendez-vous. */
   { id: "en-cours", label: "Projets en cours", mode: "calendrier", droit: "projets.voir" },
-  { id: "services", label: "Services", droit: "projets.voir", sous: [
+  { id: "services", label: "Services", droit: "projets.voir", accueil: "services-accueil", sous: [
     { mode: "mesures", label: "Mesures" }, { mode: "cmd", label: "Montages" },
     { mode: "services", label: "Services" }, { mode: "sav", label: "SAV" },
   ] },
-  { id: "crm", label: "CRM", droit: "carnet.voir", sous: [
+  { id: "crm", label: "CRM", droit: "carnet.voir", accueil: "clients-accueil", sous: [
     { mode: "clients-contacts", label: "Contacts" }, { mode: "clients-entreprises", label: "Entreprises" },
     { mode: "clients-fournisseurs", label: "Fournisseurs" }, { mode: "clients-grossistes", label: "Grossistes" },
   ] },
-  { id: "grossistes", label: "Grossistes", droit: "projets.voir", sous: [
+  { id: "grossistes", label: "Grossistes", droit: "projets.voir", accueil: "grossistes-accueil", sous: [
     { mode: "grossistes", label: "Tous" }, { mode: "grossistes-bms", label: "BMS" }, { mode: "grossistes-dubat", label: "Dubat" },
     { mode: "grossistes-tema", label: "Tema Sàrl" }, { mode: "grossistes-matway", label: "MatWay" }, { mode: "grossistes-bringhen", label: "Bringhen" },
   ] },
-  { id: "fournisseurs", label: "Fournisseurs", droit: "projets.voir", sous: [
+  { id: "fournisseurs", label: "Fournisseurs", droit: "projets.voir", accueil: "fournisseurs-accueil", sous: [
     { mode: "fournisseurs", label: "Tous" }, { mode: "fournisseurs-duka", label: "Duka.ch" }, { mode: "fournisseurs-duscholux", label: "Duscholux" },
     { mode: "fournisseurs-kermi", label: "Kermi" }, { mode: "fournisseurs-koralle", label: "Koralle" }, { mode: "fournisseurs-nelo", label: "Nelo" },
     { mode: "fournisseurs-novellini", label: "Novellini" }, { mode: "fournisseurs-ronal", label: "Ronal" }, { mode: "fournisseurs-samo", label: "Samo" },
@@ -212,12 +214,12 @@ export function NavigationIos() {
               {rubriques.map((r) => {
                 const ouvert = groupe === r.id;
                 const actifRubrique = surAccueil && (r.mode ? modeCourant === r.mode
-                  : (r.sous || []).some((s) => modeCourant === s.mode || modeCourant === `${s.mode}-termine`));
+                  : modeCourant === r.accueil || (r.sous || []).some((s) => modeCourant === s.mode || modeCourant === `${s.mode}-termine`));
                 return (
                   <li key={r.id}>
                     <button type="button" className={`tm-ios-rubrique${actifRubrique ? " is-actif" : ""}`}
-                      aria-expanded={r.sous ? ouvert : undefined}
-                      onClick={() => (r.sous ? setGroupe(ouvert ? null : r.id) : aller(r.mode!))}>
+                      aria-expanded={r.sous && !r.accueil ? ouvert : undefined}
+                      onClick={() => (r.accueil ? aller(r.accueil) : r.sous ? setGroupe(ouvert ? null : r.id) : aller(r.mode!))}>
                       <span>{r.label}</span>
                       <ChevronRight className={`w-4 h-4 tm-ios-chevron${ouvert ? " is-ouvert" : ""}`} />
                     </button>
