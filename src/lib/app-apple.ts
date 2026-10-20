@@ -252,6 +252,10 @@ let installe = false;
 /** À appeler une fois, au démarrage de chaque page. Sans effet hors de l'app. */
 export function installerAppApple(): void {
   if (installe || typeof window === "undefined" || !dansAppApple()) return;
+  /* Une fenêtre annexe (ouverte par la fenêtre principale, Mac) ne fait que
+     MONTRER : le coffre, sa restauration et son double restent l'affaire de
+     la seule fenêtre principale — deux écrivains, c'est un de trop. */
+  if (window.opener || new URLSearchParams(location.search).get("_fw") === "1") return;
   installe = true;
   window.tmApple = { synchroniser, etat: etatPourApp, restaurer: restaurerDepuisCoffre };
 

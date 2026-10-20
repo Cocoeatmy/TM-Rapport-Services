@@ -1479,9 +1479,18 @@ function HomePage() {
     setFloatingWindows((prev) => prev.map((w) => w.id === id ? { ...w, z: topZ.current } : w));
   }, []);
   const openFloatingWindow = useCallback(() => {
+    const newMode = mode !== "dashboard" ? mode : "mesures";
+    /* Dans l'app Mac, la page annexe est une VRAIE fenêtre macOS : l'app
+       ouvre tout `window.open` du site dans sa propre fenêtre, qui partage la
+       session — on la déplace hors de la fenêtre principale, sur un autre
+       écran, comme on veut (20.10.2026). Le navigateur et l'iPad gardent la
+       fenêtre flottante dans la page. */
+    if (/TMRapportApp\/[^\s]*\s*\(macOS\)/.test(navigator.userAgent)) {
+      window.open(`/?mode=${newMode}&_fw=1`, `tm-annexe-${Date.now()}`);
+      return;
+    }
     if (floatingWindows.length >= 2) return;
     topZ.current += 1;
-    const newMode = mode !== "dashboard" ? mode : "mesures";
     setFloatingWindows((prev) => [...prev, { id: Date.now(), mode: newMode, z: topZ.current }]);
   }, [floatingWindows.length, mode]);
   const closeFloatingWindow = useCallback((id: number) => {

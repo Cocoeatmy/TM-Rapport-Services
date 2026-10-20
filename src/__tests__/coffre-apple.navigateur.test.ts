@@ -161,6 +161,22 @@ describe("Dans un navigateur", () => {
   });
 });
 
+describe("Dans une fenêtre annexe de l'app Mac", () => {
+  beforeEach(() => installerPont());
+  it("ne touche pas au coffre : c'est l'affaire de la fenêtre principale", () => {
+    const avant = Object.getOwnPropertyDescriptor(window, "opener");
+    Object.defineProperty(window, "opener", { value: {}, configurable: true });
+    try {
+      app.installerAppApple();
+      expect(window.tmApple).toBeUndefined();
+      expect(coffre.messages).toHaveLength(0);
+    } finally {
+      if (avant) Object.defineProperty(window, "opener", avant);
+      else delete (window as { opener?: unknown }).opener;
+    }
+  });
+});
+
 describe("Dans l'app Apple — les photos", () => {
   beforeEach(() => installerPont());
 
