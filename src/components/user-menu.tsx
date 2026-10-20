@@ -91,6 +91,21 @@ export function UserMenu() {
   }, [open]);
   const [darkMode, setDarkMode] = useState(false);
   const [uiMode, setUiMode] = useState<UiMode>("classic");
+  /* Intensité du Liquid Glass (app iPhone, thème Signal) : 0 = presque
+     opaque, 100 = très transparent. Gardée sur l'appareil ; appliquée en
+     direct sur <html> (--tm-verre-t), et dès le chargement par le layout. */
+  const [verre, setVerre] = useState(60);
+  useEffect(() => {
+    try {
+      const v = parseFloat(localStorage.getItem("tm-verre") || "");
+      if (v >= 0 && v <= 100) setVerre(v);
+    } catch { /* confort */ }
+  }, []);
+  const changerVerre = (v: number) => {
+    setVerre(v);
+    document.documentElement.style.setProperty("--tm-verre-t", String(v / 100));
+    try { localStorage.setItem("tm-verre", String(v)); } catch { /* confort */ }
+  };
   const [saveToPhotos, setSaveToPhotos] = useState(false);
   // Préférences e-mails (admin) : modal + données API.
   const [showEmailPrefs, setShowEmailPrefs] = useState(false);
@@ -521,6 +536,21 @@ export function UserMenu() {
                 </span>
               )}
             </button>
+            {/* Liquid Glass : visible seulement dans l'app iPhone en thème
+                Signal (règle .tm-verre-reglage) — c'est là que le verre existe. */}
+            <div className="tm-verre-reglage px-3 pt-2 pb-2">
+              <div className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-200">
+                <span className="font-medium">Liquid Glass</span>
+                <span className="text-xs tabular-nums text-gray-500">{Math.round(verre)} %</span>
+              </div>
+              <input type="range" min={0} max={100} step={5} value={verre}
+                aria-label="Intensité de l'effet Liquid Glass"
+                className="tm-verre-curseur mt-1"
+                onChange={(e) => changerVerre(Number(e.target.value))} />
+              <div className="flex justify-between text-[10px] uppercase tracking-wider text-gray-400">
+                <span>Opaque</span><span>Transparent</span>
+              </div>
+            </div>
             <div className="h-px bg-gray-100 dark:bg-gray-700 my-1" />
             {/* Repartir des données du serveur quand un écran semble en
                 retard. N'emporte que des copies — jamais ce qui attend d'être

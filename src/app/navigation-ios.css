@@ -160,20 +160,33 @@ html[data-app="ios"] .tm-chatbot-panneau {
    flottants — jamais aux formulaires, rapports ni tableaux.
    Repli : sans `backdrop-filter`, ou si iOS demande de réduire la
    transparence, des surfaces opaques aux mêmes couleurs. */
+/* UN SEUL RÉGLAGE, --tm-verre-t (0 → 1), choisi dans Profil → Thème →
+   « Liquid Glass » et posé sur <html> au chargement : à 0 le verre est
+   presque opaque ; à 1 il laisse voir la page, très flouée. Tout en
+   découle — teinte, flou, saturation, reflet, ombre. Par défaut 0,6 : plus
+   marqué que la première version (demande du 20.10.2026). */
 html[data-app="ios"][data-ui="signal"] {
-  --tm-verre-encre: rgba(12, 22, 38, 0.86);
-  --tm-verre-encre-fort: rgba(12, 22, 38, 0.78);
-  --tm-verre-clair: rgba(255, 255, 255, 0.72);
-  --tm-verre-flou: blur(24px) saturate(185%);
-  --tm-verre-reflet: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  --tm-verre-t: 0.6;
+  /* Jamais sous 50 % de bleu nuit : au-delà, sur une page blanche, les
+     libellés blancs ne se lisaient plus. */
+  --tm-verre-encre: rgba(12, 22, 38, calc(0.95 - 0.45 * var(--tm-verre-t)));
+  --tm-verre-encre-fort: rgba(12, 22, 38, calc(0.97 - 0.45 * var(--tm-verre-t)));
+  --tm-verre-clair: rgba(255, 255, 255, calc(0.93 - 0.5 * var(--tm-verre-t)));
+  --tm-verre-flou: blur(calc(10px + 24px * var(--tm-verre-t))) saturate(calc(130% + 110% * var(--tm-verre-t)));
+  --tm-verre-reflet:
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.14 + 0.3 * var(--tm-verre-t))),
+    inset 0 -1px 0 rgba(255, 255, 255, calc(0.04 + 0.1 * var(--tm-verre-t))),
+    inset 0 0 calc(18px * var(--tm-verre-t)) rgba(255, 255, 255, calc(0.08 * var(--tm-verre-t)));
   --tm-verre-ombre: 0 10px 30px rgba(8, 14, 25, 0.28), 0 2px 6px rgba(8, 14, 25, 0.18);
+  /* Le « liquide » : un reflet clair en haut de la surface, plus visible à mesure que le verre s'éclaircit. */
+  --tm-verre-lustre: linear-gradient(180deg, rgba(255, 255, 255, calc(0.16 * var(--tm-verre-t))) 0%, rgba(255, 255, 255, 0) 55%);
 }
 
 /* LA surface de verre — une seule définition, pour la barre du bas ET
    l'en-tête : même teinte, même flou, même reflet, même profondeur. */
 html[data-app="ios"][data-ui="signal"] :is(.tm-ios-barre, #main-header) {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: var(--tm-verre-encre);
+  border: 1px solid rgba(255, 255, 255, calc(0.12 + 0.2 * var(--tm-verre-t)));
+  background: var(--tm-verre-lustre), var(--tm-verre-encre);
   -webkit-backdrop-filter: var(--tm-verre-flou);
   backdrop-filter: var(--tm-verre-flou);
   box-shadow: var(--tm-verre-reflet), var(--tm-verre-ombre);
@@ -231,15 +244,15 @@ html[data-app="ios"][data-ui="signal"] #main-header a.w-9.h-9:active { transform
 html[data-app="ios"][data-ui="signal"] .tm-ios-feuille-corps,
 html[data-app="ios"][data-ui="signal"] .tm-menu-profil {
   background: var(--tm-verre-clair) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
-  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: var(--tm-verre-flou);
+  backdrop-filter: var(--tm-verre-flou);
   border: 1px solid rgba(255, 255, 255, 0.55) !important;
   border-radius: 22px !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), var(--tm-verre-ombre) !important;
 }
 html.dark[data-app="ios"][data-ui="signal"] .tm-ios-feuille-corps,
 html.dark[data-app="ios"][data-ui="signal"] .tm-menu-profil {
-  background: rgba(17, 30, 48, 0.74) !important;
+  background: rgba(17, 30, 48, calc(0.94 - 0.45 * var(--tm-verre-t))) !important;
   border-color: rgba(255, 255, 255, 0.14) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), var(--tm-verre-ombre) !important;
 }
@@ -306,7 +319,9 @@ html[data-app="ios"] #tm-ios-barre.tm-ios-barre {
   transition:
     right 0.62s cubic-bezier(0.25, 1.12, 0.4, 1),
     left 0.62s cubic-bezier(0.25, 1.12, 0.4, 1),
-    border-radius 0.62s cubic-bezier(0.25, 1.12, 0.4, 1),
+    /* L'arrondi SANS rebond : le dépassement le faisait passer un instant
+       sous zéro — des angles droits à la réouverture (20.10.2026). */
+    border-radius 0.5s cubic-bezier(0.25, 1, 0.4, 1),
     background-color 0.2s ease;
 }
 html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre { --tm-col: calc((100vw - 28px) / 5); }
@@ -330,7 +345,9 @@ html[data-app="ios"] #tm-ios-barre.tm-ios-barre.is-replie {
   bottom: var(--tm-bas-ios);
   height: var(--tm-barre-ios);
   padding: 0;
-  border-radius: 9999px;
+  /* La moitié de la hauteur — un rond — et non 9999 px : entre 9999 et 28,
+     la transition traversait des valeurs absurdes. */
+  border-radius: calc(var(--tm-barre-ios) / 2);
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
 /* Tous glissent vers la première place, centrés dans le rond. */
@@ -372,3 +389,32 @@ html[data-app="ios"] .tm-ai-entete {
   box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
 }
 html[data-app="ios"] .tm-ai-entete:active { filter: brightness(1.1); }
+
+/* ── Le curseur « Liquid Glass » (menu Profil → Thème) ─────────────────── */
+.tm-verre-reglage { display: none; }
+html[data-app="ios"][data-ui="signal"] .tm-verre-reglage { display: block; }
+.tm-verre-curseur {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 28px; background: transparent;
+}
+.tm-verre-curseur::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 999px;
+  background: linear-gradient(90deg, #0c1626 0%, rgba(12, 22, 38, 0.55) 55%, rgba(120, 160, 255, 0.35) 100%);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+.tm-verre-curseur::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; margin-top: -9px;
+  width: 24px; height: 24px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(8, 14, 25, 0.35), inset 0 1px 0 #fff;
+}
+
+/* Plus le verre est transparent, plus icônes et libellés ont besoin d'un
+   léger relief pour rester lisibles sur ce qui passe dessous. */
+html[data-app="ios"][data-ui="signal"] :is(.tm-ios-barre, #main-header) :is(.tm-ios-onglet > span:not(.tm-ios-plus-rond), button.w-9.h-9) {
+  text-shadow: 0 1px 2px rgba(8, 14, 25, calc(0.5 * var(--tm-verre-t)));
+}
+html[data-app="ios"][data-ui="signal"] :is(.tm-ios-barre, #main-header) :is(.tm-ios-onglet, button.w-9.h-9) > svg {
+  filter: drop-shadow(0 1px 1.5px rgba(8, 14, 25, calc(0.55 * var(--tm-verre-t))));
+}
+

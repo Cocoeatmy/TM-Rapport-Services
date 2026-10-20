@@ -111,7 +111,7 @@ export default function RootLayout({
             Lit `tm-ui-mode` (classic|aurora|signal). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='ocean'||m==='cleanmymac'){m='signal';localStorage.setItem('tm-ui-mode',m);}if(m==='aurora'||m==='signal'){document.documentElement.setAttribute('data-ui',m);}}catch(e){}})();`,
+            __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='ocean'||m==='cleanmymac'){m='signal';localStorage.setItem('tm-ui-mode',m);}if(m==='aurora'||m==='signal'){document.documentElement.setAttribute('data-ui',m);}var g=parseFloat(localStorage.getItem('tm-verre')||'');if(g>=0&&g<=100){document.documentElement.style.setProperty('--tm-verre-t',String(g/100));}}catch(e){}})();`,
           }}
         />
         {/* L'app sur iPhone : sa navigation d'app (barre du bas, en-tête

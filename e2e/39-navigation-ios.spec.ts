@@ -443,3 +443,37 @@ test.describe("app iPhone : le « + » de la barre", () => {
     expect(Math.round(r.height)).toBe(46);
   });
 });
+
+test.describe("app iPhone : Liquid Glass réglable", () => {
+  test.use({ userAgent: UA_APP, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("le rond replié s'arrondit à la moitié de sa hauteur (jamais d'angles droits)", async ({ page, context }) => {
+    await ouvrir(page, context, ADMIN);
+    await page.evaluate(() => { document.body.style.minHeight = "4000px"; });
+    for (const y of [300, 800]) { await page.evaluate((v) => window.scrollTo(0, v), y); await page.waitForTimeout(60); }
+    await page.waitForTimeout(800);
+    expect(await barre(page).evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe("30px");
+    expect(await barre(page).evaluate((el) => getComputedStyle(el).transition)).not.toMatch(/border-radius[^,]*1\.1/);
+  });
+
+  test("le curseur du thème fait varier le verre, et le réglage est gardé", async ({ page, context }) => {
+    await ouvrir(page, context, ADMIN);
+    await barre(page).locator(".tm-ios-onglet", { hasText: "Profil" }).click();
+    const curseur = page.locator(".tm-verre-curseur");
+    await expect(curseur).toBeVisible();
+    const fond = () => page.locator("#main-header").evaluate((el) => getComputedStyle(el).backgroundColor);
+    await curseur.fill("0");
+    await page.waitForTimeout(400); // la teinte de l'en-tête a sa transition
+    const opaque = await fond();
+    await curseur.fill("100");
+    await page.waitForTimeout(400);
+    const transparent = await fond();
+    const alpha = (c: string) => Number((c.match(/rgba?\(([^)]+)\)/)?.[1].split(",")[3] ?? "1"));
+    expect(alpha(opaque)).toBeGreaterThan(0.9);
+    expect(alpha(transparent)).toBeLessThan(0.55);
+    expect(await page.evaluate(() => localStorage.getItem("tm-verre"))).toBe("100");
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1200);
+    expect(alpha(await fond())).toBeLessThan(0.55);
+  });
+});
