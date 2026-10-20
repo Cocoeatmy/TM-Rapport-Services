@@ -1,0 +1,137 @@
+/* ══ Les pages d'accueil en cartes ═════════════════════════════════════════
+   Projets (états et rubriques), CRM, Grossistes, Fournisseurs : on choisit
+   d'abord une grande carte, puis la liste s'ouvre — avec un retour. Né sur
+   iPhone (« Projets en cours »), repris sur Mac et iPad (20.10.2026) : la
+   grille prend autant de colonnes que la largeur le permet. */
+
+.tm-accueil { margin-bottom: 22px; }
+.tm-accueil-titre {
+  display: flex; align-items: baseline; gap: 10px; margin: 2px 0 14px;
+}
+.tm-accueil-titre h2 { font-size: 22px; font-weight: 750; letter-spacing: -0.02em; color: #0f172a; }
+.tm-accueil-titre p { font-size: 13px; color: #64748b; }
+.dark .tm-accueil-titre h2 { color: #f1f5f9; }
+.tm-accueil-section {
+  margin: 20px 0 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #64748b; display: flex; align-items: center; gap: 10px;
+}
+.tm-accueil-section::after { content: ""; flex: 1; height: 1px; background: rgba(15, 23, 42, 0.08); }
+
+/* La grille : deux colonnes au téléphone, davantage dès qu'il y a la place. */
+.tm-etats-grille {
+  display: grid; gap: 12px; margin-bottom: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 700px) { .tm-etats-grille { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; } }
+
+/* ── La carte ──────────────────────────────────────────────────────────── */
+.tm-etat-bouton {
+  --tm-etat: #2563eb;
+  position: relative; min-height: 112px; padding: 13px 14px;
+  display: grid; grid-template-rows: auto 1fr auto; gap: 4px;
+  text-align: left; color: #0f172a;
+  background: var(--sg-paper, #fff);
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 18px;
+  box-shadow: 0 1px 2px rgba(11, 18, 32, 0.05), 0 6px 16px rgba(11, 18, 32, 0.06);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.16s ease, background-color 0.22s ease, box-shadow 0.22s ease, color 0.22s ease, border-color 0.22s ease;
+  animation: tm-carte-entree 0.36s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.tm-etat-bouton:active { transform: scale(0.97); }
+@media (hover: hover) {
+  .tm-etat-bouton:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--tm-etat) 35%, transparent);
+    box-shadow: 0 2px 4px rgba(11, 18, 32, 0.05), 0 12px 26px rgba(11, 18, 32, 0.1);
+  }
+}
+.tm-etats-grille .tm-etat-bouton:nth-child(2) { animation-delay: 30ms; }
+.tm-etats-grille .tm-etat-bouton:nth-child(3) { animation-delay: 60ms; }
+.tm-etats-grille .tm-etat-bouton:nth-child(4) { animation-delay: 90ms; }
+.tm-etats-grille .tm-etat-bouton:nth-child(n+5) { animation-delay: 120ms; }
+@keyframes tm-carte-entree { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+.tm-etat-tete {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: rgba(15, 23, 42, 0.45);
+}
+.tm-etat-tete i {
+  width: 8px; height: 8px; border-radius: 999px; flex: 0 0 auto;
+  background: var(--tm-etat);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tm-etat) 18%, transparent);
+}
+.tm-etat-nom {
+  font-size: 14.5px; font-weight: 650; line-height: 1.22; padding-right: 6px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tm-etat-bouton b {
+  justify-self: end; font-size: 28px; font-weight: 800; line-height: 1;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: var(--tm-etat);
+}
+.tm-etat-fleche {
+  position: absolute; left: 14px; bottom: 14px; width: 16px; height: 16px;
+  color: color-mix(in srgb, var(--tm-etat) 60%, #94a3b8);
+}
+
+/* « Tous » : la grande carte bleu nuit, sur toute la largeur. */
+.tm-etats-grille .tm-etat-bouton.is-tous {
+  grid-column: 1 / -1; min-height: 88px;
+  background: #0f1b2e; color: #fff; border-color: transparent;
+  box-shadow: 0 8px 22px rgba(15, 27, 46, 0.28);
+}
+.tm-etat-bouton.is-tous .tm-etat-tete { color: rgba(255, 255, 255, 0.6); }
+.tm-etat-bouton.is-tous .tm-etat-tete i { background: linear-gradient(135deg, #22c55e, #3b82f6 55%, #a855f7); }
+.tm-etat-bouton.is-tous b { color: #fff; }
+.tm-etat-bouton.is-tous .tm-etat-fleche { color: rgba(255, 255, 255, 0.55); }
+
+/* Une icône à la place de la pastille (rubriques, CRM). */
+.tm-etat-icone {
+  width: 38px; height: 38px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--tm-etat) 12%, #fff); color: var(--tm-etat);
+}
+.tm-etat-icone svg { width: 20px; height: 20px; }
+.tm-etat-bouton.is-rubrique { min-height: 96px; grid-template-rows: auto 1fr; }
+.tm-etat-bouton.is-rubrique .tm-etat-nom { font-size: 15.5px; align-self: end; }
+
+/* Carte à logo (grossistes, fournisseurs). */
+.tm-etat-bouton.is-logo {
+  grid-template-rows: 1fr auto; min-height: 132px; padding: 16px; justify-items: center; text-align: center;
+}
+.tm-etat-logo { display: flex; align-items: center; justify-content: center; width: 100%; height: 72px; overflow: hidden; }
+.tm-etat-logo img { max-width: 82%; max-height: 64px; object-fit: contain; }
+.tm-etat-logo img.is-inverse { filter: invert(1); }
+.tm-etat-bouton.is-logo .tm-etat-nom { font-size: 13px; font-weight: 600; color: #475569; -webkit-line-clamp: 1; padding: 0; }
+
+.dark .tm-etat-bouton { background: #1e293b; color: #e2e8f0; border-color: rgba(255, 255, 255, 0.08); }
+.dark .tm-etat-tete { color: rgba(226, 232, 240, 0.5); }
+.dark .tm-etat-icone { background: color-mix(in srgb, var(--tm-etat) 22%, #1e293b); }
+.dark .tm-etat-bouton.is-logo { background: #f8fafc; } /* les logos sont dessinés pour un fond clair */
+
+/* ── Le retour, en tête de la liste ouverte ───────────────────────────── */
+.tm-etats-retour {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  margin: 0 0 12px; padding: 4px 0;
+  background: none; border: none; color: #1b63ff; cursor: pointer;
+  font-size: 15px; font-weight: 600; text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.tm-etats-retour > svg { margin-left: -6px; flex: 0 0 auto; }
+.tm-etats-retour em {
+  --tm-etat: #0f172a;
+  margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
+  max-width: 62%; padding: 6px 12px; border-radius: 999px;
+  font-style: normal; font-size: 13px; font-weight: 650; color: #0f172a;
+  background: var(--sg-paper, #fff); border: 1px solid rgba(15, 23, 42, 0.08);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tm-etats-retour em i { width: 8px; height: 8px; border-radius: 999px; background: var(--tm-etat); flex: 0 0 auto; }
+@media (min-width: 700px) { .tm-etats-retour em { max-width: 340px; } }
+.dark .tm-etats-retour { color: #7fb0ff; }
+.dark .tm-etats-retour em { background: #1e293b; color: #e2e8f0; border-color: rgba(255, 255, 255, 0.1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-etat-bouton { animation: none; transition: none; }
+}

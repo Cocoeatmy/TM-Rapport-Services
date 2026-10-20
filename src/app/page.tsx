@@ -8,7 +8,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, BarChart2, Archive, Columns3, FolderOpen, Compass, Receipt, Coins, AlertTriangle, CheckCircle2, Clock, Truck, Building2, Sparkles } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, BarChart2, Archive, Columns3, FolderOpen, Compass, Receipt, Coins, AlertTriangle, CheckCircle2, Clock, Truck, Building2, Sparkles, Factory, Warehouse } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,8 @@ import { SignalPreviewHost, openSignalPreview, closeSignalPreview, survolerAperc
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
 import { ZoneTexte } from "@/components/zone-texte";
+import { AccueilCrm, AccueilLogos } from "@/components/accueils-rubriques";
+import "./accueils.css";
 
 /* La pastille de chaque état de commande, dans les cartes de « Projets en
    cours » (écran tactile) : une teinte franche par état, regroupées par
@@ -395,6 +397,7 @@ function SignalHeaderBar({ isAdmin, onNewProject, children }: {
 
 function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProject, bexioOk }:{ mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isSignal?: boolean; onNewProject?: () => void; bexioOk?: boolean }) {
   const [open, setOpen] = useState<string | null>(
+    mode.endsWith("-accueil") ? null :
     mode.startsWith("grossistes") ? "grossistes" :
     mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
     mode.startsWith("services") || mode === "mesures" || mode === "cmd" || mode === "sav" ? "services" :
@@ -407,8 +410,11 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
      rubrique ouverte (Mesures / Montages…, En cours / Terminés) suit donc
      le mode. Ailleurs, rien ne change. */
   useEffect(() => {
-    if (document.documentElement.getAttribute("data-app") !== "ios") return;
+    /* Partout (et plus seulement sur iPhone) : une vue ouverte depuis une
+       page d'accueil en cartes doit retrouver son sous-menu ; une page
+       d'accueil, elle, n'en a pas. */
     setOpen(
+      mode.endsWith("-accueil") ? null :
       mode.startsWith("grossistes") ? "grossistes" :
       mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
       mode.startsWith("services") || mode.startsWith("mesures") || mode.startsWith("cmd") || mode.startsWith("sav") ? "services" :
@@ -467,7 +473,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
 
   const handleSelect = (m: string) => {
     // Garder le sous-menu ouvert pour grossistes et fournisseurs
-    if (m.startsWith("grossistes")) {
+    if (m.endsWith("-accueil") || m === "calendrier") {
+      setOpen(null);
+    } else if (m.startsWith("grossistes")) {
       setOpen("grossistes");
     } else if (m.startsWith("fournisseurs")) {
       setOpen("fournisseurs-menu");
@@ -491,10 +499,14 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
         {[
           /* Pas d'entrée « Tableau de bord » : le bouton Accueil de l'en-tête y
              ramène déjà, l'icône faisait doublon. */
-          { id: "services",     label: "Services",        Icon: Ruler,       active: isServicesActive || open === "services",                act: () => setOpen(open === "services" ? null : "services") },
-          { id: "clients",      label: "CRM",             Icon: UsersIcon,   active: isClientsActive || open === "clients",                  act: () => setOpen(open === "clients" ? null : "clients") },
-          { id: "grossistes",   label: "Grossistes",      Icon: ShoppingBag, active: isGrossisteActive || open === "grossistes",             act: () => setOpen(open === "grossistes" ? null : "grossistes") },
-          { id: "fournisseurs", label: "Fournisseurs",    Icon: Package,     active: isFournisseursActive || open === "fournisseurs-menu",   act: () => setOpen(open === "fournisseurs-menu" ? null : "fournisseurs-menu") },
+          /* Chaque rubrique ouvre désormais sa PAGE D'ACCUEIL en cartes
+             (20.10.2026) : Projets (états + Mesures, Montages, Services, SAV),
+             CRM, Grossistes et Fournisseurs (par leurs logos). Les listes
+             restent celles d'avant ; on y arrive par les cartes. */
+          { id: "projets",      label: "Projets",         Icon: FolderOpen,  active: isServicesActive || mode === "calendrier",           act: () => handleSelect("calendrier") },
+          { id: "clients",      label: "CRM",             Icon: UsersIcon,   active: isClientsActive || mode === "clients-accueil",          act: () => handleSelect("clients-accueil") },
+          { id: "grossistes",   label: "Grossistes",      Icon: Warehouse,   active: isGrossisteActive || mode === "grossistes-accueil",     act: () => handleSelect("grossistes-accueil") },
+          { id: "fournisseurs", label: "Fournisseurs",    Icon: Factory,     active: isFournisseursActive || mode === "fournisseurs-accueil", act: () => handleSelect("fournisseurs-accueil") },
           /* Sanitaires et Rapport ont quitté le rail : deux vues jamais
              consultées qui occupaient une place entre des destinations
              ouvertes chaque jour. Les modes existent toujours — ?mode=
@@ -1106,8 +1118,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "facturation" | "ca-bexio" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv" | "arrivage" | "chantiers" | "kanban";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "facturation", "ca-bexio", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts", "arrivage", "chantiers", "kanban"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "facturation" | "ca-bexio" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv" | "arrivage" | "chantiers" | "kanban" | "clients-accueil" | "grossistes-accueil" | "fournisseurs-accueil";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "facturation", "ca-bexio", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts", "arrivage", "chantiers", "kanban", "clients-accueil", "grossistes-accueil", "fournisseurs-accueil"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -1188,12 +1200,13 @@ function HomePage() {
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
   /* « Projets en cours » sur écran tactile : l'état choisi par bouton (null = tous). */
   const [etatEnCours, setEtatEnCours] = useState<string | null>(null);
-  /* Écran tactile : « Projets en cours » s'ouvre sur les cartes d'état
-     (écran d'accueil), et une carte ouvre SA liste — avec un retour. Le Mac
-     garde la liste directe. */
-  const [tactile, setTactile] = useState(false);
+  /* « Projets en cours » s'ouvre sur les cartes d'état (écran d'accueil),
+     et une carte ouvre SA liste — avec un retour (iPhone, iPad et Mac). */
+  /* L'app iPhone a ses rubriques dans le menu Projets du bas : la page
+     Projets n'y montre que les états. Mac et iPad montrent aussi les rubriques. */
+  const [appIphone, setAppIphone] = useState(false);
   useEffect(() => {
-    setTactile(window.matchMedia("(pointer: coarse)").matches);
+    setAppIphone(document.documentElement.getAttribute("data-app") === "ios");
     /* Le retour d'iOS (geste ou bouton) ramène aux cartes. */
     const surRetour = (ev: PopStateEvent) => {
       const e = (ev.state as { tmEtat?: string } | null)?.tmEtat;
@@ -1646,6 +1659,13 @@ function HomePage() {
 
     fetchFromAPI(true);
   }, [mode]);
+
+  /* Ouvrir une vue depuis une page d'accueil en cartes : le même effet
+     qu'un onglet de la barre (filtres remis à zéro, liste). */
+  const ouvrirVue = (m: Mode) => {
+    setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
+    try { window.scrollTo({ top: 0 }); } catch { /* ignore */ }
+  };
 
   const MODE_API: Record<string, string> = {
     dashboard: "/api/projects",
@@ -2855,8 +2875,37 @@ function HomePage() {
         );
       })()}
 
+      {/* PAGES D'ACCUEIL EN CARTES — CRM, Grossistes, Fournisseurs (rail). */}
+      {mode === "clients-accueil" && <AccueilCrm onOuvrir={(m) => ouvrirVue(m as Mode)} />}
+      {mode === "grossistes-accueil" && (
+        <AccueilLogos titre="Grossistes" aide="Choisis un grossiste pour voir ses chantiers" famille="grossistes" onOuvrir={(m) => ouvrirVue(m as Mode)}
+          entrees={[
+            { mode: "grossistes", label: "Tous" },
+            { mode: "grossistes-bms", label: "BMS", logo: "/logos/fournisseurs/BMS-Logo.png" },
+            { mode: "grossistes-dubat", label: "Dubat", logo: "/logos/fournisseurs/Dubat-Logo.png" },
+            { mode: "grossistes-tema", label: "Tema Sàrl", logo: "/logos/fournisseurs/Tema-Logo.png", inverse: true },
+            { mode: "grossistes-matway", label: "MatWay", logo: "/logos/fournisseurs/Matway-Logo.png", inverse: true },
+            { mode: "grossistes-bringhen", label: "Bringhen", logo: "/logos/fournisseurs/Bringhen-logo.png", zoom: 2.6 },
+          ]} />
+      )}
+      {mode === "fournisseurs-accueil" && (
+        <AccueilLogos titre="Fournisseurs" aide="Choisis un fournisseur pour voir ses chantiers" famille="fournisseurs" onOuvrir={(m) => ouvrirVue(m as Mode)}
+          entrees={[
+            { mode: "fournisseurs", label: "Tous" },
+            { mode: "fournisseurs-duka", label: "Duka.ch", logo: "/logos/fournisseurs/Duka-logo.png" },
+            { mode: "fournisseurs-duscholux", label: "Duscholux", logo: "/logos/fournisseurs/Duscholux-logo.png" },
+            { mode: "fournisseurs-kermi", label: "Kermi", logo: "/logos/fournisseurs/Kermi-logo.png" },
+            { mode: "fournisseurs-koralle", label: "Koralle", logo: "/logos/fournisseurs/Koralle-logo.png" },
+            { mode: "fournisseurs-nelo", label: "Nelo", logo: "/logos/fournisseurs/Nelo-logo.png", inverse: true },
+            { mode: "fournisseurs-novellini", label: "Novellini", logo: "/logos/fournisseurs/Novellini-logo.png", inverse: true },
+            { mode: "fournisseurs-ronal", label: "Ronal", logo: "/logos/fournisseurs/ronal-logo.png" },
+            { mode: "fournisseurs-samo", label: "Samo", logo: "/logos/fournisseurs/Samo-logo.png" },
+            { mode: "fournisseurs-vismaravetro", label: "Vismaravetro", logo: "/logos/fournisseurs/Vismaravetro-logo.png" },
+          ]} />
+      )}
+
       {/* VUE CLIENTS - CRM Notion */}
-      {mode.startsWith("clients-") && (
+      {mode.startsWith("clients-") && mode !== "clients-accueil" && (
         <>
           <CRMClients
             mode={mode as "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes"}
@@ -2874,7 +2923,7 @@ function HomePage() {
         (mode.startsWith("fournisseurs") && !mode.startsWith("fournisseurs-menu")) ||
         (mode.startsWith("grossistes")) ||
         (mode === "sanitaires")
-      ) && (() => {
+      ) && !mode.endsWith("-accueil") && (() => {
         // Famille de partenaire courante.
         const family: "fournisseurs" | "grossistes" | "sanitaires" =
           mode.startsWith("grossistes") ? "grossistes" : mode === "sanitaires" ? "sanitaires" : "fournisseurs";
@@ -5775,8 +5824,9 @@ function HomePage() {
         const etatActif = etatEnCours && (etatEnCours === "__tous__" || parEtat.has(etatEnCours)) ? etatEnCours : null;
         const filtre = etatActif && etatActif !== "__tous__" ? etatActif : null;
         const affiches = filtre ? calProjects.filter((p: any) => (p.etatCMD || "Sans état") === filtre) : calProjects;
-        /* Écran tactile, rien de choisi : l'écran d'accueil — les cartes seules. */
-        const accueilCartes = tactile && !etatActif;
+        /* Rien de choisi : l'écran d'accueil — les cartes seules (iPhone, iPad
+           et Mac : la page Projets du rail, 20.10.2026). */
+        const accueilCartes = !etatActif;
         const ouvrir = (e: string) => {
           setEtatEnCours(e);
           try { window.history.pushState({ ...(window.history.state || {}), tmEtat: e }, ""); } catch { /* sans historique : le bouton suffit */ }
@@ -5813,7 +5863,7 @@ function HomePage() {
         return (
           <div>
             {/* Liste ouverte depuis une carte : le retour aux cartes, en tête. */}
-            {tactile && etatActif && (
+            {etatActif && (
               <button type="button" className="tm-etats-retour" onClick={revenir}>
                 <ChevronLeft className="w-5 h-5" />
                 <span>États</span>
@@ -5827,20 +5877,39 @@ function HomePage() {
               <Input placeholder="Rechercher (nom, OFR...)" className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             {accueilCartes ? (
-              /* L'écran d'accueil : toutes les cartes, en grille. */
-              <div className="tm-etats-grille" role="group" aria-label="Choisir un état">
-                {carte(null, true)}
-                {etats.map((e) => carte(e, true))}
-              </div>
+              <>
+                {/* Mac et iPad : la page Projets du rail — le titre, puis les
+                    rubriques (ce qu'ouvrait l'ancien bouton « Services »), puis
+                    les états. Sur iPhone, le menu Projets du bas a déjà les
+                    rubriques : on garde les états seuls. */}
+                {!appIphone && (
+                  <>
+                    <div className="tm-accueil-titre"><h2>Projets</h2><p>{calProjects.length} projets en cours</p></div>
+                    <div className="tm-accueil-section">Rubriques</div>
+                    <div className="tm-etats-grille" role="group" aria-label="Rubriques">
+                      {([
+                        ["mesures", "Mesures", Ruler, "#0e7490"], ["cmd", "Montages", Wrench, "#1b63ff"],
+                        ["services", "Services", Settings, "#7c3aed"], ["sav", "SAV", AlertTriangle, "#b45309"],
+                      ] as const).map(([m, label, Icone, couleur]) => (
+                        <button key={m} type="button" className="tm-etat-bouton is-rubrique"
+                          style={{ ["--tm-etat" as string]: couleur }} onClick={() => ouvrirVue(m as Mode)}>
+                          <span className="tm-etat-icone"><Icone /></span>
+                          <span className="tm-etat-nom">{label}</span>
+                          <ChevronRight className="tm-etat-fleche" style={{ left: "auto", right: 14 }} aria-hidden="true" />
+                        </button>
+                      ))}
+                    </div>
+                    <div className="tm-accueil-section">Par état</div>
+                  </>
+                )}
+                {/* Toutes les cartes d'état, en grille. */}
+                <div className="tm-etats-grille" role="group" aria-label="Choisir un état">
+                  {carte(null, true)}
+                  {etats.map((e) => carte(e, true))}
+                </div>
+              </>
             ) : (
               <>
-                {/* Mac : la rangée de cartes reste au-dessus de la liste (masquée sur écran tactile, où l'on a les cartes d'accueil). */}
-                {!tactile && (
-                  <div className="tm-etats-boutons" role="group" aria-label="Filtrer par état">
-                    {carte(null, false)}
-                    {etats.map((e) => carte(e, false))}
-                  </div>
-                )}
                 <p className="text-sm text-gray-500 mb-3">
                   {affiches.length} intervention{affiches.length !== 1 ? "s" : ""}{filtre ? ` · ${filtre}` : ""}
                 </p>
