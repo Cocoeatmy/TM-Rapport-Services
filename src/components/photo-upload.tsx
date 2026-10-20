@@ -5,6 +5,7 @@ import { Camera, ImagePlus, X, Loader2, Download, CloudUpload, RotateCcw, Rotate
 import { thumbnailUrl, rotateCloudinaryUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
 import { compressImage } from "@/lib/compress-image";
+import { ACCEPTE_CAMERA, estDocumentUrl, etiquetteDocument, iconeDocument } from "@/lib/fichiers-joints";
 import { priseDeVueDuFichier } from "@/lib/exif-photo";
 import { suffixePriseDeVue } from "@/lib/heures-photos";
 import { refusFichier } from "@/lib/video-limites";
@@ -136,7 +137,9 @@ export function PhotoUpload({
     // ── Aperçu instantané ────────────────────────────────────────────────────
     // Les blob URLs sont affichées tout de suite — avant compression et upload.
     // L'utilisateur voit la photo apparaître dans la grille immédiatement.
-    const newPreviews: string[] = originals.map((f) => URL.createObjectURL(f));
+    /* Un document (PDF, Word…) n'a pas d'aperçu image : son icône. */
+    const newPreviews: string[] = originals.map((f) =>
+      f.type.startsWith("image/") || f.type.startsWith("video/") ? URL.createObjectURL(f) : iconeDocument(f.name));
     setPreviews((prev) => [...prev, ...newPreviews]);
 
     // ── Compteur d'uploads en cours ──────────────────────────────────────────
@@ -323,7 +326,8 @@ export function PhotoUpload({
   };
 
   // PDF : pas d'aperçu image → tuile dédiée (icône + « PDF »), cliquable.
-  const isPdfUrl = (u: string) => /\.pdf(\?|$)/i.test(u);
+  /* Tout document joint (PDF, Word, Excel…) : une case cliquable qui l'ouvre. */
+  const isPdfUrl = (u: string) => estDocumentUrl(u);
   // Ouverture PDF : lien DIRECT Cloudinary (origine externe) → s'ouvre dans le
   // navigateur externe (Chrome) avec la visionneuse + bouton télécharger, hors
   // de l'app installée. Nécessite « Allow delivery of PDF and ZIP files » activé
@@ -366,7 +370,7 @@ export function PhotoUpload({
                 title="Ouvrir / télécharger le PDF"
               >
                 <FileText className="w-8 h-8" />
-                <span className="text-[11px] font-semibold">PDF</span>
+                <span className="text-[11px] font-semibold">{etiquetteDocument(img.src)}</span>
               </a>
             ) : (
               <img
@@ -532,7 +536,7 @@ export function PhotoUpload({
           style={{ aspectRatio: "4/3" }}
         >
           <ImagePlus className="w-7 h-7" />
-          <span className="text-xs font-medium">Galerie</span>
+          <span className="text-xs font-medium">Galerie / fichiers</span>
           {uploadingCount > 0 && (
             <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
               <Loader2 className="w-2.5 h-2.5 animate-spin text-white" />
@@ -541,20 +545,20 @@ export function PhotoUpload({
         </button>
       </div>
 
-      {/* Input caméra */}
+      {/* Input caméra : photo OU vidéo prise sur le moment. */}
       <input
         ref={cameraRef}
         type="file"
-        accept={accept}
+        accept={ACCEPTE_CAMERA}
         capture="environment"
         className="hidden"
         onChange={(e) => handleFiles(e, "camera")}
       />
-      {/* Input galerie */}
+      {/* Input galerie / fichiers : TOUT type de fichier (photos, vidéos, PDF,
+          Word, Excel…) — sur iPhone, photothèque, appareil photo ou Fichiers. */}
       <input
         ref={galleryRef}
         type="file"
-        accept={accept}
         multiple
         className="hidden"
         onChange={(e) => handleFiles(e, "gallery")}

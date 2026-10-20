@@ -120,7 +120,7 @@ test.describe("l'envoi de secours", () => {
     await brancherEnvois(page, cloud, journal);
 
     await page.goto(`/projet/${PROJET_ID}?mode=cmd`, { waitUntil: "domcontentloaded" });
-    const champCartons = page.locator("label", { hasText: "Photographier les cartons" }).first()
+    const champCartons = page.locator("label", { hasText: "Photographier ou joindre (cartons)" }).first()
       .locator("xpath=ancestor::div[1]//input[@type='file' and @multiple]").first();
     await expect(champCartons).toHaveCount(1, { timeout: 30_000 });
 

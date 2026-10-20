@@ -21,6 +21,8 @@ import { timingSafeEqual } from "crypto";
 import ReactPDF, {
   Document, Page, Text, View, Image, Link, StyleSheet, Svg, Path,
 } from "@react-pdf/renderer";
+import { CaseDocument } from "@/lib/pdf-document-joint";
+import { estDocumentUrl } from "@/lib/fichiers-joints";
 import React from "react";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +58,8 @@ function telechargementUrl(u: string) {
  * l'original en pleine résolution. La flèche le dit sans une ligne de texte.
  */
 function Vignette({ url, style }: { url: string; style: any }) {
+  /* Un document joint (PDF, Word…) : une case nommée, cliquable. */
+  if (estDocumentUrl(url)) return <CaseDocument url={url} largeur={style?.width ?? 110} hauteur={style?.height ?? 82} style={{ margin: style?.margin, marginRight: style?.marginRight, marginBottom: style?.marginBottom }} />;
   const video = estVideo(url);
   return (
     <Link src={telechargementUrl(url)} style={{ ...style, textDecoration: "none" }}>

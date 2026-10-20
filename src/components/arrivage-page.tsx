@@ -1,4 +1,6 @@
 "use client";
+import { envoyerEtRattacher } from "@/lib/envoi-fichiers";
+import { thumbnailUrl } from "@/lib/image-url";
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Truck, ChevronDown, ChevronUp, Loader2, Package, Camera, X, AlertCircle, Search, Check } from "lucide-react";
@@ -367,17 +369,11 @@ export default function ArrivagePage() {
     if (!files.length) return;
     setUploading((prev) => ({ ...prev, [p.id]: true }));
     try {
-      const formData = new FormData();
-      Array.from(files).forEach((file) => formData.append("files", file));
-      formData.append("projectId", p.id);
-      formData.append("category", "cartons");
-      formData.append("notionField", "État des cartons réceptionnés");
-
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      const newUrls: string[] = (data.uploaded || data.files || []).map((f: { url: string }) => f.url);
+      /* Tout type de fichier (photo, vidéo, PDF…) : les documents et gros
+         fichiers partent directement vers Cloudinary (voir envoi-fichiers). */
+      const { envoyes, refuses } = await envoyerEtRattacher(Array.from(files), p.id, "cartons", "État des cartons réceptionnés");
+      if (refuses.length) alert(refuses.map((r) => `${r.nom} : ${r.motif}`).join("\n"));
+      const newUrls: string[] = envoyes.map((f) => f.url);
 
       const currentUrls: string[] = (forms[p.id] as any)?.photosCartonsUrls ?? p.photosCartons.map((f) => f.url);
       const merged = [...currentUrls, ...newUrls];
@@ -426,16 +422,11 @@ export default function ArrivagePage() {
     if (!files.length) return;
     setUploadingBon((prev) => ({ ...prev, [p.id]: true }));
     try {
-      const formData = new FormData();
-      Array.from(files).forEach((file) => formData.append("files", file));
-      formData.append("projectId", p.id);
-      formData.append("category", "bon-livraison");
-      formData.append("notionField", "Bon de livraison");
-
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const newUrls: string[] = (data.uploaded || data.files || []).map((f: { url: string }) => f.url);
+      /* Tout type de fichier (photo, vidéo, PDF…) : les documents et gros
+         fichiers partent directement vers Cloudinary (voir envoi-fichiers). */
+      const { envoyes, refuses } = await envoyerEtRattacher(Array.from(files), p.id, "bon-livraison", "Bon de livraison");
+      if (refuses.length) alert(refuses.map((r) => `${r.nom} : ${r.motif}`).join("\n"));
+      const newUrls: string[] = envoyes.map((f) => f.url);
 
       const currentUrls: string[] = (forms[p.id] as any)?.photosBonLivraisonUrls ?? p.photosBonLivraison.map((f) => f.url);
       const merged = [...currentUrls, ...newUrls];
@@ -924,7 +915,6 @@ export default function ArrivagePage() {
                         <input
                           ref={(el) => { fileBonInputRefs.current[p.id] = el; }}
                           type="file"
-                          accept="image/*"
                           multiple
                           className="hidden"
                           onChange={(e) => { if (e.target.files) handleUploadBon(p, e.target.files); e.target.value = ""; }}
@@ -938,7 +928,7 @@ export default function ArrivagePage() {
                           {urls.map((url) => (
                             <div key={url} className="relative group w-16 h-16">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={url} alt="Bon de livraison" className="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-slate-600" />
+                              <img src={thumbnailUrl(url, 300)} alt="Bon de livraison" className="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-slate-600" />
                               <button
                                 type="button"
                                 onClick={() => removePhotoBon(p.id, url)}
@@ -981,7 +971,6 @@ export default function ArrivagePage() {
                       <input
                         ref={(el) => { fileInputRefs.current[p.id] = el; }}
                         type="file"
-                        accept="image/*"
                         multiple
                         className="hidden"
                         onChange={(e) => {
@@ -1003,7 +992,7 @@ export default function ArrivagePage() {
                           <div key={url} className="relative group aspect-square">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={url}
+                              src={thumbnailUrl(url, 300)}
                               alt="Carton"
                               className="w-full h-full object-cover rounded-lg"
                             />

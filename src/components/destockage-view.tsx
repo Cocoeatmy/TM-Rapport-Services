@@ -167,7 +167,7 @@ function FileUploadField({
             {uploading ? "Envoi en cours…" : label}
           </button>
         )}
-        <input ref={inputRef} type="file" accept={type === "photo" ? "image/*" : "application/pdf"} className="hidden" onChange={handleChange} />
+        <input ref={inputRef} type="file" accept={type === "photo" ? "image/*" : undefined} className="hidden" onChange={handleChange} />
       </div>
     </div>
   );

@@ -20,6 +20,8 @@ import { v2 as cloudinary } from "cloudinary";
 import ReactPDF, {
   Document, Page, Text, View, Image, Link, Svg, Path, StyleSheet,
 } from "@react-pdf/renderer";
+import { CaseDocument } from "@/lib/pdf-document-joint";
+import { estDocumentUrl } from "@/lib/fichiers-joints";
 import React from "react";
 
 export const dynamic = "force-dynamic";
@@ -116,6 +118,8 @@ const styles = StyleSheet.create({
 
 // Vignette téléchargeable (image/vidéo) avec badge play + téléchargement.
 function MediaThumb({ url }: { url: string }) {
+  /* Un document joint (PDF, Word…) : une case nommée, cliquable. */
+  if (estDocumentUrl(url)) return <CaseDocument url={url} />;
   const video = isVideoUrl(url);
   return (
     <Link src={downloadUrl(url)} style={{ width: 110, height: 82, textDecoration: "none" }}>

@@ -280,13 +280,11 @@ export function CartonPhotos({
         ) : (
           <>
             <Camera className="w-4 h-4" />
-            Photographier les cartons
+            Photographier ou joindre (cartons)
           </>
         )}
         <input
           type="file"
-          accept="image/*"
-          capture="environment"
           multiple
           onChange={handleCapture}
           className="hidden"

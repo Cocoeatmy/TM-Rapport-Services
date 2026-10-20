@@ -13,6 +13,8 @@
  * telles quelles — la fonction est safe à appeler partout.
  */
 
+import { estDocumentUrl, iconeDocument } from "./fichiers-joints";
+
 const CLOUDINARY_UPLOAD_MARKER = "/image/upload/";
 
 export type ImageTransformOptions = {
@@ -37,6 +39,17 @@ export function optimizeImageUrl(
   options: ImageTransformOptions = {},
 ): string {
   if (!url || typeof url !== "string") return "";
+
+  /* Un document joint (PDF, Word, Excel…) n'est pas une image : une icône à
+     sa place plutôt qu'une image cassée. Une vidéo : sa première image. */
+  if (estDocumentUrl(url)) return iconeDocument(url);
+  if (url.includes("/video/upload/")) {
+    const marque = "/video/upload/";
+    const i = url.indexOf(marque);
+    const suite = url.slice(i + marque.length).replace(/^(?:[a-z]+_[^,/]+,?)+\//i, "").replace(/\.[a-z0-9]+(\?.*)?$/i, ".jpg");
+    const t = ["so_0", "q_auto", options.width ? `w_${options.width}` : "", options.width ? `c_${options.crop || "limit"}` : "", options.aspectRatio ? `ar_${options.aspectRatio}` : ""].filter(Boolean).join(",");
+    return `${url.slice(0, i + marque.length)}${t}/${suite}`;
+  }
 
   // URLs non-Cloudinary : on ne peut pas transformer, on retourne tel quel.
   const uploadIdx = url.indexOf(CLOUDINARY_UPLOAD_MARKER);

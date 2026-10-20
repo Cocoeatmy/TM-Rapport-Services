@@ -5,6 +5,8 @@ import { Camera, X, Loader2, FileCheck } from "lucide-react";
 import { toast } from "sonner";
 import { thumbnailUrl } from "@/lib/image-url";
 import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
+import { doitPartirEnDirect, envoyerEnDirect, refusPour } from "@/lib/envoi-fichiers";
+import { estDocumentUrl } from "@/lib/fichiers-joints";
 
 interface DeliveryScanProps {
   projectId: string;
@@ -21,25 +23,29 @@ export function DeliveryScan({ projectId, bonLivraison, hideTitle }: DeliverySca
     const file = e.target.files?.[0];
     if (!file) return;
 
+    /* Photo, PDF, document, vidéo : tout est accepté (limites de l'app). */
+    const refus = await refusPour(file);
+    if (refus) { toast.error(refus); if (inputRef.current) inputRef.current.value = ""; return; }
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("files", file);
-      formData.append("category", "livraisons");
-      formData.append("projectId", projectId);
-
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const uploadData = await uploadRes.json();
-
-      if (!uploadData.files?.length) {
+      let imageUrl = "";
+      if (doitPartirEnDirect(file)) {
+        /* PDF, vidéo ou gros fichier : directement vers Cloudinary (Vercel
+           plafonne une requête à 4,5 Mo). */
+        imageUrl = (await envoyerEnDirect([file], projectId, "livraisons"))[0]?.url || "";
+      } else {
+        const formData = new FormData();
+        formData.append("files", file);
+        formData.append("category", "livraisons");
+        formData.append("projectId", projectId);
+        const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+        const uploadData = await uploadRes.json();
+        imageUrl = uploadData.files?.[0]?.url || "";
+      }
+      if (!imageUrl) {
         toast.error("Erreur lors de l'upload");
         return;
       }
-
-      const imageUrl = uploadData.files[0].url;
 
       const patchRes = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
@@ -51,7 +57,7 @@ export function DeliveryScan({ projectId, bonLivraison, hideTitle }: DeliverySca
         setUrl(imageUrl);
         toast.success("Bon de livraison enregistré");
         // Propose d'ajouter la photo du bon dans Photos.
-        saveFilesToDeviceGallery([file]).catch(() => {});
+        if (file.type.startsWith("image/")) saveFilesToDeviceGallery([file]).catch(() => {});
       } else {
         toast.error("Erreur lors de la sauvegarde");
       }
@@ -102,7 +108,7 @@ export function DeliveryScan({ projectId, bonLivraison, hideTitle }: DeliverySca
           </button>
           <div className="flex items-center gap-1 mt-1">
             <FileCheck className="w-3.5 h-3.5 text-green-500" />
-            <span className="text-xs text-green-600 font-medium">Scanné</span>
+            <span className="text-xs text-green-600 font-medium">{estDocumentUrl(url) ? "Joint" : "Scanné"}</span>
           </div>
         </div>
       ) : (
@@ -116,15 +122,13 @@ export function DeliveryScan({ projectId, bonLivraison, hideTitle }: DeliverySca
           ) : (
             <Camera className="w-4 h-4" />
           )}
-          {uploading ? "Envoi en cours..." : "Scanner bon de livraison"}
+          {uploading ? "Envoi en cours..." : "Scanner ou joindre le bon de livraison"}
         </button>
       )}
 
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={handleFile}
       />

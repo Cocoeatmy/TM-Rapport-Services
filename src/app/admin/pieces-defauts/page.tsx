@@ -23,6 +23,7 @@ import {
   X, Send, MessageCircle, ChevronDown, ChevronRight, ExternalLink, Check,
 } from "lucide-react";
 import { thumbnailUrl, fullUrl } from "@/lib/image-url";
+import { estDocumentUrl } from "@/lib/fichiers-joints";
 
 interface CommentItem { user: string; message: string; timestamp: number }
 
@@ -391,7 +392,7 @@ export default function PiecesDefautsPage() {
                           {s.photos.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                               {s.photos.map((url, i) => (
-                                <button key={`${url}-${i}`} onClick={() => setLightboxUrl(fullUrl(url))}
+                                <button key={`${url}-${i}`} onClick={() => (estDocumentUrl(url) ? window.open(url, "_blank", "noopener") : setLightboxUrl(fullUrl(url)))}
                                   className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-slate-600">
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img src={thumbnailUrl(url)} alt="" className="w-full h-full object-cover" />

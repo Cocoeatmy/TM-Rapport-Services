@@ -1,4 +1,5 @@
 "use client";
+import { iconeDocument } from "@/lib/fichiers-joints";
 
 import { useState, useRef } from "react";
 import { Package, Camera, Loader2, Send, AlertTriangle, X, ImagePlus, Sparkles } from "lucide-react";
@@ -57,7 +58,7 @@ export function PiecesForm({ projectId, projectName, cabineLabel, cabineIdx, onS
     if (!files?.length) return;
     const newFiles = await Promise.all(Array.from(files).map((f) => compressImage(f)));
     setPhotos((prev) => [...prev, ...newFiles]);
-    setPhotoPreviews((prev) => [...prev, ...newFiles.map((f) => URL.createObjectURL(f))]);
+    setPhotoPreviews((prev) => [...prev, ...newFiles.map((f) => (f.type.startsWith("image/") || f.type.startsWith("video/") ? URL.createObjectURL(f) : iconeDocument(f.name)))]);
   };
 
   const removePhoto = (index: number) => {
@@ -70,7 +71,7 @@ export function PiecesForm({ projectId, projectName, cabineLabel, cabineIdx, onS
     if (!files?.length) return;
     const newFiles = await Promise.all(Array.from(files).map((f) => compressImage(f)));
     setEclatePhotos((prev) => [...prev, ...newFiles]);
-    setEclatePreviews((prev) => [...prev, ...newFiles.map((f) => URL.createObjectURL(f))]);
+    setEclatePreviews((prev) => [...prev, ...newFiles.map((f) => (f.type.startsWith("image/") || f.type.startsWith("video/") ? URL.createObjectURL(f) : iconeDocument(f.name)))]);
     setPasEclate(false); // une photo d'éclaté annule la coche « Pas d'éclaté »
   };
 
@@ -266,8 +267,8 @@ export function PiecesForm({ projectId, projectName, cabineLabel, cabineIdx, onS
             Galerie
           </button>
         </div>
-        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
-        <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
+        <input ref={cameraRef} type="file" accept="image/*,video/*" capture="environment" className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
+        <input ref={galleryRef} type="file" multiple className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
       </div>
 
       {/* Photo de l'ÉCLATÉ du produit — obligatoire sauf « Pas d'éclaté ». */}
@@ -308,8 +309,8 @@ export function PiecesForm({ projectId, projectName, cabineLabel, cabineIdx, onS
                 Galerie
               </button>
             </div>
-            <input ref={eclateCameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleEclateFiles(e.target.files)} />
-            <input ref={eclateGalleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleEclateFiles(e.target.files)} />
+            <input ref={eclateCameraRef} type="file" accept="image/*,video/*" capture="environment" className="hidden" onChange={(e) => handleEclateFiles(e.target.files)} />
+            <input ref={eclateGalleryRef} type="file" multiple className="hidden" onChange={(e) => handleEclateFiles(e.target.files)} />
           </>
         )}
         <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none pt-0.5">

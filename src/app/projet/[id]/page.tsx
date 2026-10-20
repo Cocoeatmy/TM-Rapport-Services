@@ -1,5 +1,8 @@
 "use client";
 
+import { attachPhotos } from "@/lib/cloudinary-upload";
+import { refusPour, doitPartirEnDirect, envoyerEnDirect } from "@/lib/envoi-fichiers";
+import { ACCEPTE_CAMERA, iconeDocument } from "@/lib/fichiers-joints";
 import { Suspense, useEffect, useMemo, useRef, useState, use, useCallback, type Dispatch, type SetStateAction } from "react";
 import { fileDEnvoi } from "@/lib/envoi-en-serie";
 import { createPortal } from "react-dom";
@@ -2497,24 +2500,47 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
     if (cameraRef.current) cameraRef.current.value = "";
     if (galleryRef.current) galleryRef.current.value = "";
 
-    // Aperçu instantané
-    const newPreviews = originals.map((f) => URL.createObjectURL(f));
+    /* Tout type de fichier : photo, vidéo, PDF, Word… — dans les limites de
+       l'app (10 Mo, vidéo 100 Mo / 1 min). */
+    const acceptes: File[] = [];
+    for (const f of originals) {
+      const refus = await refusPour(f);
+      if (refus) toast.error(`${f.name} : ${refus}`); else acceptes.push(f);
+    }
+    if (acceptes.length === 0) return;
+
+    // Aperçu instantané (un document : son icône)
+    const newPreviews = acceptes.map((f) =>
+      f.type.startsWith("image/") || f.type.startsWith("video/") ? URL.createObjectURL(f) : iconeDocument(f.name));
     setUploadPreviews((prev) => [...prev, ...newPreviews]);
     setUploadingCount((n) => n + 1);
 
     try {
-      const formData = new FormData();
-      originals.forEach((f) => formData.append("files", f));
-      formData.append("projectId", projectId);
-      formData.append("category", uploadCategory);
-      formData.append("notionField", uploadNotionField);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (!res.ok) {
-        toast.error("Échec de l'upload");
-        return;
+      /* Les photos légères par /api/upload, comme avant ; les documents, les
+         vidéos et les gros fichiers directement vers Cloudinary (Vercel
+         plafonne une requête à 4,5 Mo), puis rattachés au même champ. */
+      const directs = acceptes.filter(doitPartirEnDirect);
+      const legers = acceptes.filter((f) => !doitPartirEnDirect(f));
+      const newPhotos: { name: string; url: string }[] = [];
+      if (legers.length > 0) {
+        const formData = new FormData();
+        legers.forEach((f) => formData.append("files", f));
+        formData.append("projectId", projectId);
+        formData.append("category", uploadCategory);
+        formData.append("notionField", uploadNotionField);
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        if (!res.ok) {
+          toast.error("Échec de l'upload");
+          return;
+        }
+        const data = await res.json();
+        newPhotos.push(...(data.files || []).map((f: any) => ({ name: f.name || "photo.jpg", url: f.url })));
       }
-      const data = await res.json();
-      const newPhotos: { name: string; url: string }[] = (data.files || []).map((f: any) => ({ name: f.name || "photo.jpg", url: f.url }));
+      if (directs.length > 0) {
+        const envoyes = await envoyerEnDirect(directs, projectId, uploadCategory);
+        await attachPhotos(projectId, uploadNotionField, envoyes);
+        newPhotos.push(...envoyes);
+      }
       // Dédup par URL au cas où le serveur renverrait des doublons.
       const seen = new Set<string>();
       const merged = [...photos, ...newPhotos].filter((p) => {
@@ -2639,8 +2665,8 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
             )}
           </button>
         </div>
-        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleAddPhotos(e.target.files, "camera")} />
-        <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleAddPhotos(e.target.files, "gallery")} />
+        <input ref={cameraRef} type="file" accept={ACCEPTE_CAMERA} capture="environment" className="hidden" onChange={(e) => handleAddPhotos(e.target.files, "camera")} />
+        <input ref={galleryRef} type="file" multiple className="hidden" onChange={(e) => handleAddPhotos(e.target.files, "gallery")} />
       </div>
     </div>
   );
@@ -3901,7 +3927,7 @@ function DocumentUploader({ projectId, notionField, onUploaded }: { projectId: s
   };
   return (
     <div>
-      <input ref={ref} type="file" multiple accept="application/pdf,image/*,.pdf,.doc,.docx,.xls,.xlsx" className="hidden" onChange={(e) => upload(e.target.files)} />
+      <input ref={ref} type="file" multiple className="hidden" onChange={(e) => upload(e.target.files)} />
       <button
         type="button"
         onClick={() => ref.current?.click()}
@@ -13704,7 +13730,6 @@ function ProjectPageContent({ id }: { id: string }) {
                 ref={offresFileRef}
                 type="file"
                 multiple
-                accept="application/pdf,image/*,.pdf,.doc,.docx,.xls,.xlsx"
                 className="hidden"
                 onChange={(e) => uploadOffres(e.target.files)}
               />

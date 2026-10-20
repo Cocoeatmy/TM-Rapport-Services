@@ -20,6 +20,8 @@ import { timingSafeEqual } from "crypto";
 import ReactPDF, {
   Document, Page, Text, View, Image, Link, Svg, Path, StyleSheet,
 } from "@react-pdf/renderer";
+import { CaseDocument } from "@/lib/pdf-document-joint";
+import { estDocumentUrl } from "@/lib/fichiers-joints";
 import React from "react";
 
 export const dynamic = "force-dynamic";
@@ -117,6 +119,8 @@ function DownloadArrow() {
 // Vignette cliquable → télécharge la photo/vidéo. Vidéo : poster + ▶. PDF : tuile.
 function MediaThumb({ url }: { url: string }) {
   const video = isVideoUrl(url);
+  /* Tout document joint (PDF, Word, Excel…) : une case nommée, cliquable. */
+  if (estDocumentUrl(url) && !isPdfUrl(url)) return <CaseDocument url={url} />;
   if (isPdfUrl(url)) {
     // PDF : lien direct (SANS fl_attachment — les fichiers `raw` renvoient 401
     // avec une transformation quand le compte a les transformations strictes).

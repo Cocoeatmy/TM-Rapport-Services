@@ -21,6 +21,8 @@ import ReactPDF, {
   Svg,
   Path,
 } from "@react-pdf/renderer";
+import { CaseDocument } from "@/lib/pdf-document-joint";
+import { estDocumentUrl } from "@/lib/fichiers-joints";
 import React from "react";
 import { getData, getDataFresh, setData } from "@/lib/kv-store";
 import { emailEnabled } from "@/lib/email-prefs";
@@ -698,6 +700,8 @@ function PhotoLink({ url, style }: { url: string; style: any }) {
     objectFit: s.objectFit || "contain",
   };
   if (s.borderRadius !== undefined) imgStyle.borderRadius = s.borderRadius;
+  /* Un document joint (PDF, Word…) : une case nommée, cliquable. */
+  if (estDocumentUrl(url)) return <CaseDocument url={url} largeur={linkStyle.width ?? 110} hauteur={linkStyle.height ?? 82} style={linkStyle} />;
   const video = estVideo(url);
   return (
     <Link src={downloadImageUrl(url)} style={linkStyle}>

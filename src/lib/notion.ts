@@ -1628,7 +1628,8 @@ export async function updateProject(
     if (data.bonLivraison && data.bonLivraison.startsWith("http")) {
       // Store as file (external URL)
       properties["Bon de livraison"] = {
-        files: [descripteurFichier("bon-de-livraison.jpg", data.bonLivraison)],
+        /* Garde la vraie extension : un bon en PDF n'est pas un « .jpg ». */
+        files: [descripteurFichier(`bon-de-livraison.${(/\.([a-z0-9]{2,5})(?:\?|#|$)/i.exec(data.bonLivraison.split(/[?#]/)[0]) || [, "jpg"])[1].toLowerCase()}`, data.bonLivraison)],
       };
     } else {
       // Clear the field

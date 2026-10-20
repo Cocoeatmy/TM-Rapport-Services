@@ -1,4 +1,5 @@
 "use client";
+import { iconeDocument } from "@/lib/fichiers-joints";
 
 import { useState, useRef } from "react";
 import { Camera, ImagePlus, Loader2, Send, ShieldAlert, X, Check, Sparkles } from "lucide-react";
@@ -120,7 +121,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
     // pour éviter le rejet Vercel (limite 4.5 Mo par requête)
     const newFiles = await Promise.all(Array.from(files).map((f) => compressImage(f)));
     setPhotos((prev) => [...prev, ...newFiles]);
-    setPhotoPreviews((prev) => [...prev, ...newFiles.map((f) => URL.createObjectURL(f))]);
+    setPhotoPreviews((prev) => [...prev, ...newFiles.map((f) => (f.type.startsWith("image/") || f.type.startsWith("video/") ? URL.createObjectURL(f) : iconeDocument(f.name)))]);
     if (cameraRef.current) cameraRef.current.value = "";
     if (galleryRef.current) galleryRef.current.value = "";
   };
@@ -427,8 +428,8 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
             Galerie
           </button>
         </div>
-        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
-        <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
+        <input ref={cameraRef} type="file" accept="image/*,video/*" capture="environment" className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
+        <input ref={galleryRef} type="file" multiple className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
       </div>
 
       {/* Affichage sur rapport client : par défaut oui, mais on peut
