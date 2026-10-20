@@ -61,6 +61,8 @@ const RUBRIQUES: Rubrique[] = [
   /* La liste de tous les projets ouverts — ce qu'ouvrait « Planning » avant
      que celui-ci ne devienne l'agenda des rendez-vous. */
   { id: "en-cours", label: "Projets en cours", mode: "calendrier", droit: "projets.voir" },
+  /* Un carton arrive : on le retrouve par son numéro de commande. */
+  { id: "arrivage", label: "Arrivage", mode: "arrivage", droit: "projets.voir" },
   { id: "services", label: "Services", droit: "projets.voir", accueil: "services-accueil", sous: [
     { mode: "mesures", label: "Mesures" }, { mode: "cmd", label: "Montages" },
     { mode: "services", label: "Services" }, { mode: "sav", label: "SAV" },

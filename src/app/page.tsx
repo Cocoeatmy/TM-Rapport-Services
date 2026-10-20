@@ -513,6 +513,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
           { id: "clients",      label: "CRM",             Icon: UsersIcon,   active: isClientsActive || mode === "clients-accueil",          act: () => handleSelect("clients-accueil") },
           { id: "grossistes",   label: "Grossistes",      Icon: Warehouse,   active: isGrossisteActive || mode === "grossistes-accueil",     act: () => handleSelect("grossistes-accueil") },
           { id: "fournisseurs", label: "Fournisseurs",    Icon: Factory,     active: isFournisseursActive || mode === "fournisseurs-accueil", act: () => handleSelect("fournisseurs-accueil") },
+          /* Arrivage : retrouver un chantier par le numéro du carton. La page
+             existait sans qu'aucun bouton n'y mène (20.10.2026). */
+          { id: "arrivage",     label: "Arrivage",        Icon: Truck,       active: mode === "arrivage",                                   act: () => { handleSelect("arrivage"); setOpen(null); } },
           /* Sanitaires et Rapport ont quitté le rail : deux vues jamais
              consultées qui occupaient une place entre des destinations
              ouvertes chaque jour. Les modes existent toujours — ?mode=

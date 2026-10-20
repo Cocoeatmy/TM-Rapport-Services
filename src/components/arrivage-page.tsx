@@ -1,1060 +1,383 @@
 "use client";
+
+/**
+ * Arrivage — refait le 20.10.2026.
+ *
+ * Le geste du dépôt : un carton arrive, on tape le numéro de commande qui y
+ * est inscrit, on retrouve le chantier et on note son arrivée — sans ouvrir
+ * la fiche complète du projet, où ces quelques champs se perdaient parmi
+ * cent autres.
+ *
+ * La page existait (mode « arrivage ») mais rien n'y menait, sa recherche
+ * ignorait le n° de commande fournisseur, et les commentaires partaient
+ * dans « Commentaires Montages ». Elle devient deux écrans :
+ *   1. la recherche, par TOUS les numéros (espaces et tirets ignorés :
+ *      « 882 108-323 » trouve « 882108323 »), et ce qui est attendu ;
+ *   2. la fiche d'arrivage du projet choisi : ce que Notion sait déjà
+ *      (cabines, fournisseur, séries), puis ce qu'on constate à réception.
+ *
+ * Les fichiers (bon de livraison, photos, dégâts) partent et se rattachent
+ * à Notion dès qu'on les choisit ; jamais on ne réécrit la liste entière —
+ * c'est ainsi qu'aucune photo existante ne peut disparaître d'ici.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Search, X, Loader2, ChevronLeft, Truck, PackageCheck, Package, Camera, FileText, AlertTriangle,
+  Check, Minus, Plus, Warehouse, CalendarCheck, Layers, Factory, ChevronRight,
+} from "lucide-react";
+import { toast } from "sonner";
+import type { Project } from "@/lib/notion";
 import { envoyerEtRattacher } from "@/lib/envoi-fichiers";
 import { thumbnailUrl } from "@/lib/image-url";
-
-import { useEffect, useState, useRef, useCallback } from "react";
-import { Truck, ChevronDown, ChevronUp, Loader2, Package, Camera, X, AlertCircle, Search, Check } from "lucide-react";
 import { STATUS_CMD_COLORS } from "@/lib/constants";
-import { ColoredSelect } from "@/components/colored-select";
-import { statusClasses, useNotionColors } from "@/lib/notion-colors";
-
-interface FileItem {
-  name: string;
-  url: string;
-}
-
-interface Project {
-  id: string;
-  projet: string;
-  ofrTM: string;
-  etatCMD: string;
-  fournisseurs: string[];
-  seriesCabines: string[];
-  emplacementCabine: string;
-  servCmdFournisseurs: string;
-  cmdGrossiste: string;
-  cmdFournisseurs: string;
-  cmdTMUsine: string;
-  arrivageGrossiste: string | null;
-  arrivageTM: string | null;
-  /** « Prévision livraison » — la seule date connue tant que rien n'est là. */
-  previsionLivraison: string | null;
-  bonLivraison: string;
-  photosBonLivraison: FileItem[];
-  photosCartons: FileItem[];
-  nbCartons: number | null;
-  nbCabines: number | null;
-  commentairesMontages: string;
-}
-
-// Statuts exclus de la recherche Arrivage — projets déjà planifiés/terminés
-// qui n'ont plus besoin de suivi d'arrivage.
-import { useIsSignalTheme } from "@/lib/use-signal-theme";
 import { ZoneTexte } from "@/components/zone-texte";
+import "@/app/arrivage.css";
 
-const EXCLUDED_STATUTS = new Set([
-  "Récéptionné - RDV à fixer",
-  "RDV - fixé",
-  "RDV - Attendre news",
-  "Montage partiel",
-  "Annulé",
-  "Terminé",
-]);
+/** Ce qui n'attend plus de carton. */
+const FINIS = new Set(["Annulé", "Terminé"]);
+/** Les états où un carton est attendu — montrés d'abord. */
+const ATTENDUS = ["Cabines à recevoir", "Livraison partielle", "Cabines en CMD", "Cabine à aller chercher"];
 
-// Statuts pertinents pour le suivi d'arrivage (mode « Tout afficher »).
-// "En attente de mesures" est inclus mais souvent décoché (beaucoup ne sont
-// pas encore commandées) → cases à cocher pour choisir ce qu'on voit.
-const ARRIVAGE_STATUTS = [
-  "En attente de mesures",
-  "Cabines mesurées",
-  "Cabines en CMD",
-  "Cabines à recevoir",
-  "Livraison partielle",
+/** Les numéros qu'on lit sur un carton, dans l'ordre où on les cherche. */
+const NUMEROS: { cle: keyof Project; label: string }[] = [
+  { cle: "cmdFournisseurs", label: "CMD fournisseur" },
+  { cle: "servCmdFournisseurs", label: "CMD services" },
+  { cle: "servMesuresFournisseurs", label: "Serv. mesures" },
+  { cle: "cmdGrossiste", label: "CMD grossiste" },
+  { cle: "ofrGrossiste", label: "OFR grossiste" },
+  { cle: "cmdTMUsine", label: "CMD TM usine" },
+  { cle: "cmdTM", label: "CMD TM" },
+  { cle: "ofrTM", label: "OFR TM" },
 ];
 
-const ALL_STATUTS = [
-  "En attente de mesures",
-  "Cabines mesurées",
-  "OFR envoyées sans mesures",
-  "Cabines en CMD",
-  "Cabines à recevoir",
-  "Livraison partielle",
-  "Cabine à aller chercher",
-  "Récéptionné - RDV à fixer",
-  "RDV - fixé",
-  "RDV - Attendre news",
-  "Montage partiel",
-  "Soucis montage",
-  "Annulé",
-  "Terminé",
-];
+const plier = (s: unknown) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const compact = (s: unknown) => plier(s).replace(/[^a-z0-9]/g, "");
+const dateCourte = (iso?: string | null) => {
+  const d = String(iso || "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d)
+    ? new Date(d + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : "";
+};
+const aujourdhui = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const estPdf = (url: string) => /\.pdf($|\?)/i.test(url) || url.includes("/raw/upload/");
 
-/** Découpe une liste de références en préservant l'ordre saisi : deux numéros
- *  de projet se lisent alors du plus ancien au plus récent, l'un sous l'autre. */
-function splitRefs(raw: string): string[] {
-  if (!raw) return [];
-  return raw.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
-}
-
-function toInputDate(iso: string | null): string {
-  if (!iso) return "";
-  // ISO date: "2024-03-15" or "2024-03-15T..." → take first 10 chars
-  return iso.slice(0, 10);
-}
-
-function formatDateDisplay(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
+type Trouve = { p: Project; ou?: { label: string; valeur: string } };
 
 export default function ArrivagePage() {
-  useNotionColors(); // charge + applique les couleurs Notion (badges + menus)
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
-  /* Thème « Signal » : la page s'ouvrait VIDE (showAll = false par défaut,
-     « aucun projet affiché sans recherche active »), alors que la tuile du
-     tableau de bord annonce un nombre de projets en arrivage. On affiche donc
-     directement la liste ; l'utilisateur garde le bouton pour la replier et
-     les cases à cocher pour choisir les statuts. */
-  const isSignalUi = useIsSignalTheme();
-  const showAllTouched = useRef(false);
+  const [projets, setProjets] = useState<Project[]>([]);
+  const [chargement, setChargement] = useState(true);
+  const [erreur, setErreur] = useState("");
+  const [q, setQ] = useState("");
+  const [choisi, setChoisi] = useState<Project | null>(null);
+  const [emplacements, setEmplacements] = useState<string[]>([]);
+  const champ = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
-    if (isSignalUi && !showAllTouched.current) setShowAll(true);
-  }, [isSignalUi]);
-  // Statuts visibles en mode « Tout afficher » (cochés). Persisté en localStorage.
-  const [visibleStatuts, setVisibleStatuts] = useState<Set<string>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const s = localStorage.getItem("tm-arrivage-statuts");
-        if (s) return new Set(JSON.parse(s) as string[]);
-      } catch {}
-    }
-    return new Set(ARRIVAGE_STATUTS);
-  });
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-
-  // Per-project form state
-  const [forms, setForms] = useState<Record<string, Partial<Project & { photosCartonsUrls: string[]; photosBonLivraisonUrls: string[] }>>>({});
-  const [saving, setSaving] = useState<Record<string, boolean>>({});
-  const [saveSuccess, setSaveSuccess] = useState<Record<string, boolean>>({});
-  const [uploading, setUploading] = useState<Record<string, boolean>>({});
-  const [uploadingBon, setUploadingBon] = useState<Record<string, boolean>>({});
-  const [emplacementOptions, setEmplacementOptions] = useState<string[]>([]);
-
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const fileBonInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-
-  // Load projects — utilise all-active pour avoir TOUS les projets disponibles
-  // (pas uniquement les CMD), sinon la recherche manque les mesures, SAV, etc.
-  useEffect(() => {
-    setLoading(true);
     fetch("/api/projects/all-active")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data: Project[]) => {
-        setProjects(data);
-        setLoading(false);
-      })
-      .catch((e) => {
-        setError(e.message);
-        setLoading(false);
-      });
-  }, []);
-
-  // Load emplacement options
-  useEffect(() => {
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d: Project[]) => setProjets(Array.isArray(d) ? d : []))
+      .catch((e) => setErreur(e.message || "Liste indisponible"))
+      .finally(() => setChargement(false));
     fetch("/api/projects/field-options?fields=Emplacement+de+cabine")
       .then((r) => r.json())
-      .then((data) => {
-        const opts = data?.["Emplacement de cabine"] || [];
-        setEmplacementOptions(Array.isArray(opts) ? opts : []);
-      })
+      .then((d) => setEmplacements(Array.isArray(d?.["Emplacement de cabine"]) ? d["Emplacement de cabine"] : []))
       .catch(() => {});
   }, []);
 
-  const normalize = (s: string) =>
-    (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  useEffect(() => { if (!choisi) setTimeout(() => champ.current?.focus(), 60); }, [choisi]);
 
-  // Aucun projet affiché sans recherche active.
-  // Avec recherche : cherche dans tous les projets SAUF ceux dont le statut
-  // indique que l'arrivage est déjà passé ou le projet annulé/terminé.
-  const searchableProjects = projects.filter((p) => !EXCLUDED_STATUTS.has(p.etatCMD));
+  const ouverts = useMemo(() => projets.filter((p) => !FINIS.has(p.etatCMD)), [projets]);
 
-  const filteredProjects = search.trim()
-    ? (() => {
-        const q = normalize(search.trim());
-        return searchableProjects.filter((p) =>
-          normalize(p.projet).includes(q) ||
-          normalize(p.ofrTM).includes(q) ||
-          normalize(p.etatCMD).includes(q) ||
-          (p.fournisseurs || []).some((f) => normalize(f).includes(q)) ||
-          (p.seriesCabines || []).some((s) => normalize(s).includes(q)) ||
-          normalize(p.emplacementCabine).includes(q) ||
-          normalize(p.servCmdFournisseurs).includes(q) ||
-          normalize(p.cmdGrossiste).includes(q) ||
-          normalize(p.cmdTMUsine).includes(q) ||
-          normalize(p.arrivageTM || "").includes(q) ||
-          normalize(p.arrivageGrossiste || "").includes(q) ||
-          normalize(p.bonLivraison).includes(q) ||
-          String(p.nbCartons ?? "").includes(q)
-        );
-      })()
-    : showAll
-      ? searchableProjects.filter((p) => visibleStatuts.has(p.etatCMD))
-      : [];
-
-  /* Regroupement par statut (thème Signal) : chaque état forme son propre
-     tableau, dans l'ordre du cycle d'arrivage. Hors Signal, et pendant une
-     recherche, la liste reste continue comme avant. */
-  const projectGroups: [string, Project[]][] = (() => {
-    if (!isSignalUi || search.trim()) return [["", filteredProjects]];
-    const map = new Map<string, Project[]>();
-    filteredProjects.forEach((p) => {
-      const k = p.etatCMD || "Sans statut";
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(p);
-    });
-    const order = [...ARRIVAGE_STATUTS, "Sans statut"];
-    return [...map.entries()].sort((a, b) => {
-      const ia = order.indexOf(a[0]), ib = order.indexOf(b[0]);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-    });
-  })();
-
-  // Persiste le choix des statuts visibles.
-  useEffect(() => {
-    try { localStorage.setItem("tm-arrivage-statuts", JSON.stringify([...visibleStatuts])); } catch {}
-  }, [visibleStatuts]);
-
-  const toggleStatut = (s: string) => {
-    setVisibleStatuts((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) next.delete(s); else next.add(s);
-      return next;
-    });
-  };
-
-  const getForm = useCallback(
-    (p: Project) => {
-      if (forms[p.id]) return forms[p.id];
-      return {
-        etatCMD: p.etatCMD,
-        emplacementCabine: p.emplacementCabine,
-        arrivageTM: toInputDate(p.arrivageTM),
-        arrivageGrossiste: toInputDate(p.arrivageGrossiste),
-        cmdFournisseurs: p.cmdFournisseurs,
-        servCmdFournisseurs: p.servCmdFournisseurs,
-        cmdGrossiste: p.cmdGrossiste,
-        cmdTMUsine: p.cmdTMUsine,
-        nbCartons: p.nbCartons,
-        commentairesMontages: p.commentairesMontages || "",
-        photosCartonsUrls: p.photosCartons.map((f) => f.url),
-        photosBonLivraisonUrls: p.photosBonLivraison.map((f) => f.url),
-      };
-    },
-    [forms]
-  );
-
-  const setFormField = (id: string, field: string, value: unknown) => {
-    setForms((prev) => ({
-      ...prev,
-      [id]: {
-        ...getForm(projects.find((p) => p.id === id)!),
-        ...prev[id],
-        [field]: value,
-      },
-    }));
-  };
-
-  const handleExpand = (p: Project) => {
-    if (expandedId === p.id) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(p.id);
-    // Initialize form if not already
-    if (!forms[p.id]) {
-      setForms((prev) => ({
-        ...prev,
-        [p.id]: {
-          etatCMD: p.etatCMD,
-          emplacementCabine: p.emplacementCabine,
-          arrivageTM: toInputDate(p.arrivageTM),
-          arrivageGrossiste: toInputDate(p.arrivageGrossiste),
-          cmdFournisseurs: p.cmdFournisseurs,
-          servCmdFournisseurs: p.servCmdFournisseurs,
-          cmdGrossiste: p.cmdGrossiste,
-          cmdTMUsine: p.cmdTMUsine,
-          bonLivraison: p.bonLivraison,
-          nbCartons: p.nbCartons,
-          commentairesMontages: p.commentairesMontages || "",
-          photosCartonsUrls: p.photosCartons.map((f) => f.url),
-        },
-      }));
-    }
-  };
-
-  const handleSave = async (p: Project) => {
-    const f = forms[p.id];
-    if (!f) return;
-    setSaving((prev) => ({ ...prev, [p.id]: true }));
-    try {
-      const body: Record<string, unknown> = {};
-      if (f.etatCMD !== undefined) body.etatCMD = f.etatCMD;
-      if (f.emplacementCabine !== undefined) body.emplacementCabine = f.emplacementCabine;
-      if (f.arrivageTM !== undefined) body.arrivageTM = (f.arrivageTM as string) || null;
-      if (f.arrivageGrossiste !== undefined) body.arrivageGrossiste = (f.arrivageGrossiste as string) || null;
-      if ((f as any).cmdFournisseurs !== undefined) body.cmdFournisseurs = (f as any).cmdFournisseurs;
-      if (f.servCmdFournisseurs !== undefined) body.servCmdFournisseurs = f.servCmdFournisseurs;
-      if (f.cmdGrossiste !== undefined) body.cmdGrossiste = f.cmdGrossiste;
-      if (f.cmdTMUsine !== undefined) body.cmdTMUsine = f.cmdTMUsine;
-      if (f.nbCartons !== undefined) body.nbCartons = f.nbCartons;
-      if ((f as any).commentairesMontages !== undefined) body.commentairesMontages = (f as any).commentairesMontages;
-      if ((f as any).photosCartonsUrls !== undefined) {
-        body.photosCartons = ((f as any).photosCartonsUrls as string[]).map((url, i) => ({
-          name: `carton-${i + 1}`,
-          url,
-        }));
+  const resultats: Trouve[] = useMemo(() => {
+    const brut = q.trim();
+    if (!brut) return [];
+    const c = compact(brut);
+    const mots = plier(brut).split(/\s+/).filter(Boolean);
+    const out: Trouve[] = [];
+    for (const p of ouverts) {
+      let ou: Trouve["ou"];
+      if (c.length >= 3) {
+        for (const n of NUMEROS) {
+          const v = String(p[n.cle] ?? "");
+          if (v && compact(v).includes(c)) { ou = { label: n.label, valeur: v }; break; }
+        }
       }
-      if ((f as any).photosBonLivraisonUrls !== undefined) {
-        body.photosBonLivraison = ((f as any).photosBonLivraisonUrls as string[]).map((url, i) => ({
-          name: `bon-livraison-${i + 1}`,
-          url,
-        }));
-      }
-
-      const res = await fetch(`/api/projects/${p.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      // Update local project list
-      setProjects((prev) =>
-        prev.map((proj) =>
-          proj.id === p.id
-            ? {
-                ...proj,
-                etatCMD: (f.etatCMD as string) ?? proj.etatCMD,
-                emplacementCabine: (f.emplacementCabine as string) ?? proj.emplacementCabine,
-                arrivageTM: (f.arrivageTM as string) || null,
-                arrivageGrossiste: (f.arrivageGrossiste as string) || null,
-                cmdFournisseurs: ((f as any).cmdFournisseurs as string) ?? proj.cmdFournisseurs,
-                servCmdFournisseurs: (f.servCmdFournisseurs as string) ?? proj.servCmdFournisseurs,
-                cmdGrossiste: (f.cmdGrossiste as string) ?? proj.cmdGrossiste,
-                cmdTMUsine: (f.cmdTMUsine as string) ?? proj.cmdTMUsine,
-                nbCartons: f.nbCartons !== undefined ? (f.nbCartons as number | null) : proj.nbCartons,
-                commentairesMontages: (f as any).commentairesMontages !== undefined ? (f as any).commentairesMontages as string : proj.commentairesMontages,
-                photosCartons: ((f as any).photosCartonsUrls as string[] | undefined)?.map((url, i) => ({
-                  name: `carton-${i + 1}`,
-                  url,
-                })) ?? proj.photosCartons,
-                photosBonLivraison: ((f as any).photosBonLivraisonUrls as string[] | undefined)?.map((url, i) => ({
-                  name: `bon-livraison-${i + 1}`,
-                  url,
-                })) ?? proj.photosBonLivraison,
-              }
-            : proj
-        )
-      );
-
-      setSaveSuccess((prev) => ({ ...prev, [p.id]: true }));
-      setTimeout(() => setSaveSuccess((prev) => ({ ...prev, [p.id]: false })), 2500);
-    } catch (e: unknown) {
-      alert(`Erreur lors de l'enregistrement : ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setSaving((prev) => ({ ...prev, [p.id]: false }));
+      const texte = plier(`${p.projet} ${(p.fournisseurs || []).join(" ")} ${(p.seriesCabines || []).join(" ")}`);
+      if (ou || mots.every((m) => texte.includes(m))) out.push({ p, ou });
     }
-  };
+    /* Un numéro trouvé passe avant un mot du titre ; puis ce qui est attendu. */
+    const rang = (t: Trouve) => (t.ou ? 0 : 10) + (ATTENDUS.includes(t.p.etatCMD) ? 0 : 1);
+    return out.sort((a, b) => rang(a) - rang(b)).slice(0, 40);
+  }, [q, ouverts]);
 
-  const handleUpload = async (p: Project, files: FileList) => {
-    if (!files.length) return;
-    setUploading((prev) => ({ ...prev, [p.id]: true }));
-    try {
-      /* Tout type de fichier (photo, vidéo, PDF…) : les documents et gros
-         fichiers partent directement vers Cloudinary (voir envoi-fichiers). */
-      const { envoyes, refuses } = await envoyerEtRattacher(Array.from(files), p.id, "cartons", "État des cartons réceptionnés");
-      if (refuses.length) alert(refuses.map((r) => `${r.nom} : ${r.motif}`).join("\n"));
-      const newUrls: string[] = envoyes.map((f) => f.url);
+  const attendus = useMemo(() => ouverts
+    .filter((p) => ATTENDUS.includes(p.etatCMD))
+    .sort((a, b) => String(a.previsionLivraison || "9999").localeCompare(String(b.previsionLivraison || "9999")))
+    .slice(0, 12), [ouverts]);
 
-      const currentUrls: string[] = (forms[p.id] as any)?.photosCartonsUrls ?? p.photosCartons.map((f) => f.url);
-      const merged = [...currentUrls, ...newUrls];
+  const majLocale = useCallback((id: string, patch: Partial<Project>) => {
+    setProjets((l) => l.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    setChoisi((p) => (p && p.id === id ? { ...p, ...patch } : p));
+  }, []);
 
-      setForms((prev) => ({
-        ...prev,
-        [p.id]: {
-          ...getForm(p),
-          ...prev[p.id],
-          photosCartonsUrls: merged,
-        },
-      }));
-
-      // Also update the local project list photos immediately
-      setProjects((prev) =>
-        prev.map((proj) =>
-          proj.id === p.id
-            ? { ...proj, photosCartons: merged.map((url, i) => ({ name: `carton-${i + 1}`, url })) }
-            : proj
-        )
-      );
-    } catch (e: unknown) {
-      alert(`Erreur upload : ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setUploading((prev) => ({ ...prev, [p.id]: false }));
-    }
-  };
-
-  const removePhoto = (projectId: string, url: string) => {
-    const p = projects.find((proj) => proj.id === projectId);
-    if (!p) return;
-    const currentUrls: string[] = (forms[projectId] as any)?.photosCartonsUrls ?? p.photosCartons.map((f) => f.url);
-    const updated = currentUrls.filter((u) => u !== url);
-    setForms((prev) => ({
-      ...prev,
-      [projectId]: {
-        ...getForm(p),
-        ...prev[projectId],
-        photosCartonsUrls: updated,
-      },
-    }));
-  };
-
-  // ── Bon de livraison : upload multi-photos (propriété Notion de type Files) ──
-  const handleUploadBon = async (p: Project, files: FileList) => {
-    if (!files.length) return;
-    setUploadingBon((prev) => ({ ...prev, [p.id]: true }));
-    try {
-      /* Tout type de fichier (photo, vidéo, PDF…) : les documents et gros
-         fichiers partent directement vers Cloudinary (voir envoi-fichiers). */
-      const { envoyes, refuses } = await envoyerEtRattacher(Array.from(files), p.id, "bon-livraison", "Bon de livraison");
-      if (refuses.length) alert(refuses.map((r) => `${r.nom} : ${r.motif}`).join("\n"));
-      const newUrls: string[] = envoyes.map((f) => f.url);
-
-      const currentUrls: string[] = (forms[p.id] as any)?.photosBonLivraisonUrls ?? p.photosBonLivraison.map((f) => f.url);
-      const merged = [...currentUrls, ...newUrls];
-
-      setForms((prev) => ({
-        ...prev,
-        [p.id]: { ...getForm(p), ...prev[p.id], photosBonLivraisonUrls: merged },
-      }));
-      setProjects((prev) =>
-        prev.map((proj) =>
-          proj.id === p.id
-            ? { ...proj, photosBonLivraison: merged.map((url, i) => ({ name: `bon-livraison-${i + 1}`, url })) }
-            : proj
-        )
-      );
-    } catch (e: unknown) {
-      alert(`Erreur upload : ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setUploadingBon((prev) => ({ ...prev, [p.id]: false }));
-    }
-  };
-
-  const removePhotoBon = (projectId: string, url: string) => {
-    const p = projects.find((proj) => proj.id === projectId);
-    if (!p) return;
-    const currentUrls: string[] = (forms[projectId] as any)?.photosBonLivraisonUrls ?? p.photosBonLivraison.map((f) => f.url);
-    const updated = currentUrls.filter((u) => u !== url);
-    setForms((prev) => ({
-      ...prev,
-      [projectId]: { ...getForm(p), ...prev[projectId], photosBonLivraisonUrls: updated },
-    }));
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center gap-3 py-10 text-red-600 dark:text-red-400">
-        <AlertCircle className="w-5 h-5" />
-        <span>Erreur : {error}</span>
-      </div>
-    );
+  if (choisi) {
+    return <FicheArrivage p={choisi} emplacements={emplacements} onRetour={() => setChoisi(null)} onMaj={majLocale} />;
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <Truck className="w-5 h-5 text-sky-500 shrink-0" />
-        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Arrivage cabines</h2>
-        <span className="text-xs text-gray-400 dark:text-gray-500">
-          {filteredProjects.length} projet{filteredProjects.length !== 1 ? "s" : ""}
-        </span>
-        {/* Barre de recherche */}
-        <div className="relative flex-1 min-w-[200px] max-w-lg">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher projet, N° OFR, fournisseur, état, emplacement…"
-            className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-400/60"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+    <div className="ar">
+      <header className="ar-hero">
+        <span className="ar-hero-icone"><Truck /></span>
+        <div>
+          <h1>Arrivage</h1>
+          <p>Tape le numéro de commande inscrit sur le carton.</p>
         </div>
-        {/* Toggle tout afficher */}
-        <button
-          onClick={() => { showAllTouched.current = true; setShowAll((v) => !v); }}
-          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors shrink-0 ${
-            showAll
-              ? "border-sky-400 text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20"
-              : "border-gray-200 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700"
-          }`}
-        >
-          {showAll ? "Tous les projets" : "Tout afficher"}
-        </button>
-      </div>
+      </header>
 
-      {/* Filtres par statut (mode Tout afficher, hors recherche) */}
-      {showAll && !search.trim() && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">Statuts&nbsp;:</span>
-          {/* « Tous » : tout cocher d'un geste pour voir l'ensemble des
-              arrivages à venir, ou tout décocher pour repartir à zéro. */}
-          {(() => {
-            const all = ARRIVAGE_STATUTS.every((s) => visibleStatuts.has(s));
-            const total = searchableProjects.filter((p) => ARRIVAGE_STATUTS.includes(p.etatCMD)).length;
+      <label className="ar-recherche">
+        <Search className="ar-recherche-loupe" />
+        <input ref={champ} value={q} onChange={(e) => setQ(e.target.value)} inputMode="search" enterKeyHint="search"
+          autoComplete="off" autoCorrect="off" spellCheck={false}
+          placeholder="N° de commande, projet, fournisseur…" aria-label="Rechercher un arrivage" />
+        {q && <button type="button" onClick={() => { setQ(""); champ.current?.focus(); }} aria-label="Effacer"><X /></button>}
+      </label>
+
+      {chargement && <p className="ar-etat"><Loader2 className="animate-spin" /> Chargement des projets…</p>}
+      {erreur && <p className="ar-etat is-erreur"><AlertTriangle /> {erreur}</p>}
+
+      {!chargement && q.trim() && (
+        <section className="ar-liste">
+          <p className="ar-liste-titre">{resultats.length ? `${resultats.length} projet${resultats.length > 1 ? "s" : ""}` : "Aucun projet ne correspond"}</p>
+          {resultats.map(({ p, ou }) => <Carte key={p.id} p={p} ou={ou} onOuvrir={() => setChoisi(p)} />)}
+          {!resultats.length && <p className="ar-vide">Vérifie le numéro, ou cherche par le nom du client.</p>}
+        </section>
+      )}
+
+      {!chargement && !q.trim() && attendus.length > 0 && (
+        <section className="ar-liste">
+          <p className="ar-liste-titre">Attendus au dépôt</p>
+          {attendus.map((p) => <Carte key={p.id} p={p} onOuvrir={() => setChoisi(p)} />)}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function Carte({ p, ou, onOuvrir }: { p: Project; ou?: { label: string; valeur: string }; onOuvrir: () => void }) {
+  const prevu = dateCourte(p.previsionLivraison);
+  const recu = dateCourte(p.arrivageTM);
+  return (
+    <button type="button" className="ar-carte" onClick={onOuvrir}>
+      <span className="ar-carte-haut">
+        {ou && <em className="ar-num"><b>{ou.label}</b>{ou.valeur}</em>}
+        <i className={`ar-statut ${STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700"}`}>{p.etatCMD || "—"}</i>
+      </span>
+      <span className="ar-carte-titre">{p.projet}</span>
+      <span className="ar-carte-bas">
+        {(p.fournisseurs || []).length > 0 && <span><Factory />{p.fournisseurs.join(", ")}</span>}
+        <span><Package />{p.nbCabines || 0} cab.</span>
+        {recu ? <span className="is-ok"><PackageCheck />Reçu le {recu}</span> : prevu ? <span><CalendarCheck />Prévu le {prevu}</span> : null}
+      </span>
+      <ChevronRight className="ar-carte-fleche" />
+    </button>
+  );
+}
+
+/* ── La fiche d'arrivage ─────────────────────────────────────────────── */
+
+function FicheArrivage({ p, emplacements, onRetour, onMaj }: {
+  p: Project; emplacements: string[]; onRetour: () => void; onMaj: (id: string, patch: Partial<Project>) => void;
+}) {
+  const initial = useMemo(() => ({
+    arrivageGrossiste: String(p.arrivageGrossiste || "").slice(0, 10),
+    arrivageTM: String(p.arrivageTM || "").slice(0, 10),
+    emplacement: String(p.emplacementCabine || "").split(",").map((s) => s.trim()).filter(Boolean),
+    nbCartons: p.nbCartons ?? null as number | null,
+    commentaire: p.commentaireLivraison || "",
+  }), [p.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [f, setF] = useState(initial);
+  const [envoi, setEnvoi] = useState(false);
+  const [abimes, setAbimes] = useState((p.photosCartons || []).length > 0);
+  const sale = JSON.stringify(f) !== JSON.stringify(initial);
+
+  useEffect(() => { window.scrollTo({ top: 0 }); }, []);
+
+  const retour = () => {
+    if (sale && !confirm("Quitter sans enregistrer ? Les dates, l'emplacement et le commentaire saisis seront perdus (les fichiers, eux, sont déjà envoyés).")) return;
+    onRetour();
+  };
+
+  const enregistrer = async () => {
+    const body: Record<string, unknown> = {};
+    if (f.arrivageGrossiste !== initial.arrivageGrossiste) body.arrivageGrossiste = f.arrivageGrossiste || null;
+    if (f.arrivageTM !== initial.arrivageTM) body.arrivageTM = f.arrivageTM || null;
+    if (f.emplacement.join(", ") !== initial.emplacement.join(", ")) body.emplacementCabine = f.emplacement.join(", ");
+    if (f.nbCartons !== initial.nbCartons) body.nbCartons = f.nbCartons;
+    if (f.commentaire !== initial.commentaire) body.commentaireLivraison = f.commentaire;
+    if (!Object.keys(body).length) { onRetour(); return; }
+    setEnvoi(true);
+    try {
+      const r = await fetch(`/api/projects/${p.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+      onMaj(p.id, {
+        arrivageGrossiste: f.arrivageGrossiste || null, arrivageTM: f.arrivageTM || null,
+        emplacementCabine: f.emplacement.join(", "), nbCartons: f.nbCartons, commentaireLivraison: f.commentaire,
+      });
+      toast.success("Arrivage enregistré");
+      onRetour();
+    } catch (e) {
+      toast.error(`Rien n'a été enregistré : ${(e as Error).message}`);
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  return (
+    <div className="ar ar-fiche">
+      <button type="button" className="ar-retour" onClick={retour}><ChevronLeft /> Arrivage</button>
+
+      <header className="ar-fiche-tete">
+        <p className="ar-fiche-ofr">{p.ofrTM || "—"}</p>
+        <h1>{p.projet}</h1>
+        <div className="ar-fiche-notion" aria-label="Déjà connu dans Notion">
+          <span><Package /><b>{p.nbCabines ?? "—"}</b> cabine{(p.nbCabines || 0) > 1 ? "s" : ""}</span>
+          <span><Factory />{(p.fournisseurs || []).join(", ") || "Fournisseur non renseigné"}</span>
+          <span><Layers />{(p.seriesCabines || []).join(", ") || "Série non renseignée"}</span>
+        </div>
+      </header>
+
+      <section className="ar-bloc">
+        <h2><CalendarCheck /> Dates d&apos;arrivage</h2>
+        <div className="ar-deux">
+          <label className="ar-champ">
+            <span><Warehouse />Chez le grossiste</span>
+            <input type="date" value={f.arrivageGrossiste} onChange={(e) => setF({ ...f, arrivageGrossiste: e.target.value })} />
+          </label>
+          <label className="ar-champ">
+            <span><Truck />Au dépôt TM</span>
+            <div className="ar-date-rapide">
+              <input type="date" value={f.arrivageTM} onChange={(e) => setF({ ...f, arrivageTM: e.target.value })} />
+              {f.arrivageTM !== aujourdhui() && (
+                <button type="button" onClick={() => setF({ ...f, arrivageTM: aujourdhui() })}>Aujourd&apos;hui</button>
+              )}
+            </div>
+          </label>
+        </div>
+      </section>
+
+      <section className="ar-bloc">
+        <h2><Package /> Emplacement de cabine</h2>
+        <div className="ar-puces">
+          {[...new Set([...emplacements, ...f.emplacement])].map((e) => {
+            const on = f.emplacement.includes(e);
             return (
-              <button
-                type="button"
-                onClick={() => setVisibleStatuts(all ? new Set() : new Set(ARRIVAGE_STATUTS))}
-                aria-pressed={all}
-                title={all ? "Décocher tous les statuts" : "Afficher tous les statuts"}
-                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 font-semibold ${
-                  all
-                    ? "border-sky-400 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300"
-                    : "border-gray-200 dark:border-slate-600 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700"
-                }`}
-              >
-                <span
-                  className={`w-3.5 h-3.5 rounded-[4px] border flex items-center justify-center shrink-0 ${
-                    all ? "bg-sky-500 border-sky-500 text-white" : "border-gray-300 dark:border-slate-500"
-                  }`}
-                >
-                  {all && <Check className="w-2.5 h-2.5" />}
-                </span>
-                Tous <span className="opacity-60">({total})</span>
-              </button>
-            );
-          })()}
-          {ARRIVAGE_STATUTS.map((s) => {
-            const checked = visibleStatuts.has(s);
-            const count = searchableProjects.filter((p) => p.etatCMD === s).length;
-            return (
-              <button
-                key={s}
-                type="button"
-                onClick={() => toggleStatut(s)}
-                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
-                  checked
-                    ? "border-sky-400 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300"
-                    : "border-gray-200 dark:border-slate-600 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700"
-                }`}
-              >
-                <span
-                  className={`w-3.5 h-3.5 rounded-[4px] border flex items-center justify-center shrink-0 ${
-                    checked ? "bg-sky-500 border-sky-500 text-white" : "border-gray-300 dark:border-slate-500"
-                  }`}
-                >
-                  {checked && <Check className="w-2.5 h-2.5" />}
-                </span>
-                {s} <span className="opacity-60">({count})</span>
+              <button key={e} type="button" className={`ar-puce${on ? " is-on" : ""}`} aria-pressed={on}
+                onClick={() => setF({ ...f, emplacement: on ? f.emplacement.filter((x) => x !== e) : [...f.emplacement, e] })}>
+                {on && <Check />}{e}
               </button>
             );
           })}
+          {!emplacements.length && !f.emplacement.length && <p className="ar-vide">Choix indisponibles pour l&apos;instant.</p>}
         </div>
-      )}
+      </section>
 
-      {!search.trim() && !showAll ? (
-        <div className="py-20 text-center space-y-3">
-          <Search className="w-10 h-10 text-gray-200 dark:text-slate-600 mx-auto" />
-          <p className="text-sm text-gray-400 dark:text-gray-500">
-            Recherchez un projet pour enregistrer un arrivage
-          </p>
-          <p className="text-xs text-gray-300 dark:text-gray-600">
-            N° OFR, nom du projet, fournisseur, N° CMD… ou cliquez sur « Tout afficher »
-          </p>
-        </div>
-      ) : filteredProjects.length === 0 ? (
-        <div className="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">
-          {search.trim()
-            ? <>Aucun projet trouvé pour «&nbsp;{search}&nbsp;»</>
-            : "Aucun projet pour les statuts sélectionnés"}
-        </div>
-      ) : null}
-
-      {/* Projets — regroupés par statut en thème Signal, pour que chaque état
-          forme un tableau distinct au lieu d'une liste continue. */}
-      {projectGroups.map(([statut, list]) => (
-      <div key={statut || "tous"} className={isSignalUi ? "sgA-group" : "contents"}>
-      {isSignalUi && statut && (
-        <div className="sg-grp">
-          <span className="sg-grp-label">{statut}</span>
-          <i className="sg-rule" />
-          <span className="sg-grp-sum">
-            {list.length} projet{list.length > 1 ? "s" : ""} · {list.reduce((s2, x) => s2 + (x.nbCabines || 0), 0)} cab.
-          </span>
-        </div>
-      )}
-      {list.map((p) => {
-        const isExpanded = expandedId === p.id;
-        const statusColor = statusClasses("État - CMD", p.etatCMD, STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700");
-        const f = forms[p.id];
-
-        return (
-          <div
-            key={p.id}
-            className={isSignalUi
-              ? "sgA-card"
-              : "bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden"}
-          >
-            {/* En-tête de carte — cliquable.
-                Thème Signal : ligne dense, même grammaire visuelle que
-                « RDV Montage à fixer » (colonnes alignées, pastille d'état,
-                références empilées). Ailleurs : la carte historique. */}
-            {isSignalUi ? (
-              <button
-                onClick={() => handleExpand(p)}
-                className={`sg-prow sgA-row${isExpanded ? " is-sel" : ""}`}
-              >
-                <span className="sg-mono sg-refs">
-                  {splitRefs(p.ofrTM).length
-                    ? splitRefs(p.ofrTM).map((n, k) => <i key={`${n}-${k}`}>{n}</i>)
-                    : "—"}
-                </span>
-                <span className="sg-mono sg-dim sg-refs">
-                  {(() => {
-                    const refs = splitRefs(p.servCmdFournisseurs || p.cmdFournisseurs || p.cmdGrossiste || p.cmdTMUsine || "");
-                    return refs.length ? refs.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—";
-                  })()}
-                </span>
-                <span className="sg-pname">{p.projet || "Sans nom"}</span>
-                <span className={`sg-state ${statusColor}`}>{p.etatCMD || "—"}</span>
-                <span className="sg-place">
-                  <span>{p.fournisseurs.join(", ") || "—"}</span>
-                </span>
-                <span className="sg-mono sg-dim sgA-serie">{p.seriesCabines.join(", ") || "—"}</span>
-                {/* Ce qu'on attend, et quand. L'arrivage effectif l'emporte :
-                    une fois la marchandise là, la prévision n'a plus d'objet.
-                    Sans l'une ni l'autre, un tiret — c'est alors la vérité. */}
-                {(() => {
-                  const arrive = p.arrivageTM || p.arrivageGrossiste;
-                  const quand = arrive || p.previsionLivraison;
-                  const titre = arrive
-                    ? "Arrivé le " + formatDateDisplay(arrive)
-                    : p.previsionLivraison
-                      ? "Livraison annoncée le " + formatDateDisplay(p.previsionLivraison) + " — pas encore reçue"
-                      : "Aucune date de livraison annoncée";
-                  return (
-                    <span className={"sg-mono sgA-livr" + (arrive ? " is-arrive" : "")} title={titre}>
-                      {formatDateDisplay(quand) || "—"}
-                    </span>
-                  );
-                })()}
-                <span className="sg-mono sg-right sg-strong">{p.nbCabines || 0}</span>
-                {isExpanded
-                  ? <ChevronUp className="w-4 h-4 sg-plist-chev" />
-                  : <ChevronDown className="w-4 h-4 sg-plist-chev" />}
-              </button>
-            ) : (
-            <button
-              onClick={() => handleExpand(p)}
-              className="w-full text-left px-5 py-4 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-slate-750 transition-colors"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">
-                    {p.projet || "Sans nom"}
-                  </span>
-                  {p.ofrTM && (
-                    <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded">
-                      OFR {p.ofrTM}
-                    </span>
-                  )}
-                </div>
-
-                {/* Infos clés — série · nb cabines · fournisseur (agrandies pour être évidentes) */}
-                {(p.seriesCabines.length > 0 || p.nbCabines || p.fournisseurs.length > 0) && (
-                  <div className="flex flex-wrap items-center gap-2 mt-2">
-                    {p.seriesCabines.map((s) => (
-                      <span key={s} className="text-xs sm:text-sm px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold">
-                        {s}
-                      </span>
-                    ))}
-                    {p.nbCabines != null && p.nbCabines > 0 && (
-                      <span className="text-xs sm:text-sm px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-semibold">
-                        {p.nbCabines} cabine{p.nbCabines > 1 ? "s" : ""}
-                      </span>
-                    )}
-                    {p.fournisseurs.length > 0 && (
-                      <span className="text-xs sm:text-sm px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-semibold">
-                        Fournisseur&nbsp;: {p.fournisseurs.join(", ")}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Références commandes (affichées seulement si renseignées) */}
-                {(p.cmdGrossiste || p.cmdFournisseurs || p.servCmdFournisseurs || p.cmdTMUsine) && (
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
-                    {p.cmdGrossiste && (
-                      <span className="text-[11px] text-gray-400 dark:text-gray-500">N° CMD Grossiste&nbsp;: <span className="font-medium text-gray-700 dark:text-gray-200">{p.cmdGrossiste}</span></span>
-                    )}
-                    {p.cmdFournisseurs && (
-                      <span className="text-[11px] text-gray-400 dark:text-gray-500">N° CMD Fourn.&nbsp;: <span className="font-medium text-gray-700 dark:text-gray-200">{p.cmdFournisseurs}</span></span>
-                    )}
-                    {p.servCmdFournisseurs && (
-                      <span className="text-[11px] text-gray-400 dark:text-gray-500">N° Serv. CMD Fourn.&nbsp;: <span className="font-medium text-gray-700 dark:text-gray-200">{p.servCmdFournisseurs}</span></span>
-                    )}
-                    {p.cmdTMUsine && (
-                      <span className="text-[11px] text-gray-400 dark:text-gray-500">N° CMD TM - Usine&nbsp;: <span className="font-medium text-gray-700 dark:text-gray-200">{p.cmdTMUsine}</span></span>
-                    )}
-                  </div>
-                )}
-
-                {/* Dates arrivage */}
-                <div className="flex flex-wrap gap-3 mt-1.5">
-                  {!p.arrivageTM && !p.arrivageGrossiste && p.previsionLivraison && (
-                    <span className="text-[11px] text-amber-700 dark:text-amber-300">
-                      Livraison prévue&nbsp;: <span className="font-medium">{formatDateDisplay(p.previsionLivraison)}</span>
-                    </span>
-                  )}
-                  {p.arrivageTM && (
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                      Arrivage TM&nbsp;: <span className="font-medium text-gray-700 dark:text-gray-200">{formatDateDisplay(p.arrivageTM)}</span>
-                    </span>
-                  )}
-                  {p.arrivageGrossiste && (
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                      Grossiste&nbsp;: <span className="font-medium text-gray-700 dark:text-gray-200">{formatDateDisplay(p.arrivageGrossiste)}</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Status badge + chevron */}
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${statusColor}`}>
-                  {p.etatCMD || "—"}
-                </span>
-                {isExpanded ? (
-                  <ChevronUp className="w-4 h-4 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                )}
-              </div>
-            </button>
-            )}
-
-            {/* Accordion — formulaire */}
-            {isExpanded && (
-              <div className="border-t border-gray-100 dark:border-slate-700 px-5 py-5 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* État CMD */}
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      État CMD
-                    </label>
-                    <ColoredSelect
-                      property="État - CMD"
-                      value={(f?.etatCMD as string) ?? p.etatCMD}
-                      options={ALL_STATUTS}
-                      onChange={(v) => setFormField(p.id, "etatCMD", v)}
-                      fallback={(v) => STATUS_CMD_COLORS[v]}
-                    />
-                  </div>
-
-                  {/* Emplacement cabine */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      Emplacement cabine
-                    </label>
-                    <input
-                      type="text"
-                      list={`emplacement-opts-${p.id}`}
-                      value={(f?.emplacementCabine as string) ?? p.emplacementCabine}
-                      onChange={(e) => setFormField(p.id, "emplacementCabine", e.target.value)}
-                      placeholder="Ex: Atelier TM, Chantier..."
-                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {emplacementOptions.length > 0 && (
-                      <datalist id={`emplacement-opts-${p.id}`}>
-                        {emplacementOptions.map((opt) => (
-                          <option key={opt} value={opt} />
-                        ))}
-                      </datalist>
-                    )}
-                  </div>
-
-                  {/* Nb. de cartons */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      Nb. de cartons
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={f?.nbCartons != null ? String(f.nbCartons) : p.nbCartons != null ? String(p.nbCartons) : ""}
-                      onChange={(e) =>
-                        setFormField(p.id, "nbCartons", e.target.value === "" ? null : Number(e.target.value))
-                      }
-                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Arrivage TM */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      Date arrivage TM
-                    </label>
-                    <input
-                      type="date"
-                      value={(f?.arrivageTM as string) ?? toInputDate(p.arrivageTM)}
-                      onChange={(e) => setFormField(p.id, "arrivageTM", e.target.value)}
-                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Arrivage Grossiste */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      Date arrivage Grossiste
-                    </label>
-                    <input
-                      type="date"
-                      value={(f?.arrivageGrossiste as string) ?? toInputDate(p.arrivageGrossiste)}
-                      onChange={(e) => setFormField(p.id, "arrivageGrossiste", e.target.value)}
-                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Tous les N° CMD sur UNE seule ligne ; chaque champ prend une part
-                      égale (flex-1) → la largeur s'adapte au nombre de champs visibles. */}
-                  <div className="sm:col-span-2">
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <div className="flex-1 min-w-0">
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                          N° CMD Fournisseurs
-                        </label>
-                        <input
-                          type="text"
-                          value={((f as any)?.cmdFournisseurs as string) ?? p.cmdFournisseurs}
-                          onChange={(e) => setFormField(p.id, "cmdFournisseurs", e.target.value)}
-                          className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                          N° Serv. CMD Fournisseurs
-                        </label>
-                        <input
-                          type="text"
-                          value={(f?.servCmdFournisseurs as string) ?? p.servCmdFournisseurs}
-                          onChange={(e) => setFormField(p.id, "servCmdFournisseurs", e.target.value)}
-                          className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      {(p.cmdGrossiste || (f?.cmdGrossiste as string)) && (
-                        <div className="flex-1 min-w-0">
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                            N° CMD Grossiste
-                          </label>
-                          <input
-                            type="text"
-                            value={(f?.cmdGrossiste as string) ?? p.cmdGrossiste}
-                            onChange={(e) => setFormField(p.id, "cmdGrossiste", e.target.value)}
-                            className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                      )}
-                      {(p.cmdTMUsine || (f?.cmdTMUsine as string)) && (
-                        <div className="flex-1 min-w-0">
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                            N° CMD TM – Usine
-                          </label>
-                          <input
-                            type="text"
-                            value={(f?.cmdTMUsine as string) ?? p.cmdTMUsine}
-                            onChange={(e) => setFormField(p.id, "cmdTMUsine", e.target.value)}
-                            className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Bon de livraison — photos (propriété Notion de type Files) */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                        Bon de livraison
-                      </label>
-                      <div className="flex items-center gap-2">
-                        {uploadingBon[p.id] && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />}
-                        <button
-                          type="button"
-                          onClick={() => fileBonInputRefs.current[p.id]?.click()}
-                          disabled={uploadingBon[p.id]}
-                          className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-                        >
-                          Ajouter
-                        </button>
-                        <input
-                          ref={(el) => { fileBonInputRefs.current[p.id] = el; }}
-                          type="file"
-                          multiple
-                          className="hidden"
-                          onChange={(e) => { if (e.target.files) handleUploadBon(p, e.target.files); e.target.value = ""; }}
-                        />
-                      </div>
-                    </div>
-                    {(() => {
-                      const urls: string[] = (forms[p.id] as any)?.photosBonLivraisonUrls ?? p.photosBonLivraison.map((ph) => ph.url);
-                      return urls.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {urls.map((url) => (
-                            <div key={url} className="relative group w-16 h-16">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={thumbnailUrl(url, 300)} alt="Bon de livraison" className="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-slate-600" />
-                              <button
-                                type="button"
-                                onClick={() => removePhotoBon(p.id, url)}
-                                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                title="Supprimer"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center py-6 border-2 border-dashed border-gray-200 dark:border-slate-600 rounded-xl text-gray-400 dark:text-gray-500 text-xs gap-2">
-                          <Camera className="w-4 h-4" />
-                          Aucune photo
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* État des cartons réceptionnés (cellule de grille, à côté du Bon de livraison) */}
-                  <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-                      <Camera className="w-3.5 h-3.5" />
-                      État des cartons réceptionnés
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {uploading[p.id] && (
-                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => fileInputRefs.current[p.id]?.click()}
-                        disabled={uploading[p.id]}
-                        className="text-xs px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-                      >
-                        Ajouter photos
-                      </button>
-                      <input
-                        ref={(el) => { fileInputRefs.current[p.id] = el; }}
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files) handleUpload(p, e.target.files);
-                          e.target.value = "";
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Photos grid */}
-                  {(() => {
-                    const urls: string[] =
-                      (forms[p.id] as any)?.photosCartonsUrls ??
-                      p.photosCartons.map((ph) => ph.url);
-                    return urls.length > 0 ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {urls.map((url) => (
-                          <div key={url} className="relative group aspect-square">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={thumbnailUrl(url, 300)}
-                              alt="Carton"
-                              className="w-full h-full object-cover rounded-lg"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removePhoto(p.id, url)}
-                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Supprimer"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center py-6 border-2 border-dashed border-gray-200 dark:border-slate-600 rounded-xl text-gray-400 dark:text-gray-500 text-xs gap-2">
-                        <Package className="w-4 h-4" />
-                        Aucune photo de carton
-                      </div>
-                    );
-                  })()}
-                  </div>
-                </div>
-
-                {/* Commentaires de montage */}
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                    Commentaires montage
-                  </label>
-                  <ZoneTexte
-                    rows={4}
-                    value={(forms[p.id] as any)?.commentairesMontages ?? (p.commentairesMontages || "")}
-                    onChange={(e) => setFormField(p.id, "commentairesMontages", e.target.value)}
-                    placeholder="Ex : Livraison partielle — cabines S.01, S.02 et S.03 reçues. S.04 manquante, à relivrer..."
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400/60 resize-none"
-                  />
-                </div>
-
-                {/* Save button */}
-                <div className="flex items-center justify-end gap-3 pt-2">
-                  {saveSuccess[p.id] && (
-                    <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                      Enregistré !
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleSave(p)}
-                    disabled={saving[p.id]}
-                    className="flex items-center gap-2 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-60"
-                  >
-                    {saving[p.id] && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Enregistrer
-                  </button>
-                </div>
-              </div>
-            )}
+      <section className="ar-bloc">
+        <h2><PackageCheck /> Cartons</h2>
+        <div className="ar-cartons">
+          <span>Nombre de cartons</span>
+          <div className="ar-compteur">
+            <button type="button" aria-label="Un de moins" onClick={() => setF({ ...f, nbCartons: Math.max(0, (f.nbCartons || 0) - 1) })}><Minus /></button>
+            <input type="number" min={0} inputMode="numeric" value={f.nbCartons ?? ""} placeholder="0"
+              onChange={(e) => setF({ ...f, nbCartons: e.target.value === "" ? null : Math.max(0, parseInt(e.target.value, 10) || 0) })} />
+            <button type="button" aria-label="Un de plus" onClick={() => setF({ ...f, nbCartons: (f.nbCartons || 0) + 1 })}><Plus /></button>
           </div>
-        );
-      })}
+        </div>
+        <Fichiers p={p} titre="Photos des cartons réceptionnés" champ="Photos des cartons récéptionnés" categorie="cartons-recus"
+          cle="photosCartonsRecus" icone={<Camera />} onMaj={onMaj} />
+        <button type="button" className={`ar-bascule${abimes ? " is-on" : ""}`} onClick={() => setAbimes(!abimes)} aria-pressed={abimes}>
+          <AlertTriangle /> Cartons abîmés à la réception ?
+          <i>{abimes ? "Oui" : "Non"}</i>
+        </button>
+        {abimes && (
+          <Fichiers p={p} titre="État des cartons réceptionnés" aide="Photographie chaque dégât, carton par carton."
+            champ="État des cartons réceptionnés" categorie="cartons" cle="photosCartons" icone={<AlertTriangle />} danger onMaj={onMaj} />
+        )}
+      </section>
+
+      <section className="ar-bloc">
+        <h2><FileText /> Bon de livraison</h2>
+        <Fichiers p={p} titre="Photo ou PDF du bon" champ="Bon de livraison" categorie="bon-livraison" cle="photosBonLivraison" icone={<FileText />} onMaj={onMaj} />
+      </section>
+
+      <section className="ar-bloc">
+        <h2><FileText /> Commentaires livraison</h2>
+        <ZoneTexte className="ar-texte" rows={3} value={f.commentaire} onChange={(e) => setF({ ...f, commentaire: e.target.value })}
+          placeholder="Dégâts constatés, carton manquant, livraison partielle…" />
+      </section>
+
+      <div className="ar-pied">
+        <button type="button" className="ar-btn is-doux" onClick={retour}>Annuler</button>
+        <button type="button" className="ar-btn is-ok" onClick={() => void enregistrer()} disabled={envoi}>
+          {envoi ? <Loader2 className="animate-spin" /> : <Check />}{envoi ? "Enregistrement…" : sale ? "Enregistrer l'arrivage" : "Terminé"}
+        </button>
       </div>
-      ))}
+    </div>
+  );
+}
+
+/** Une zone de fichiers : ceux déjà dans Notion, et l'ajout — rattaché aussitôt. */
+function Fichiers({ p, titre, aide, champ, categorie, cle, icone, danger, onMaj }: {
+  p: Project; titre: string; aide?: string; champ: string; categorie: string;
+  cle: "photosCartonsRecus" | "photosCartons" | "photosBonLivraison"; icone: React.ReactNode; danger?: boolean;
+  onMaj: (id: string, patch: Partial<Project>) => void;
+}) {
+  const [envoi, setEnvoi] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const liste = (p[cle] || []) as { name: string; url: string }[];
+
+  const ajouter = async (fichiers: FileList | null) => {
+    if (!fichiers?.length) return;
+    setEnvoi(true);
+    try {
+      const { envoyes, refuses } = await envoyerEtRattacher(Array.from(fichiers), p.id, categorie, champ);
+      if (refuses.length) toast.error(refuses.map((r) => `${r.nom} : ${r.motif}`).join("\n"));
+      if (envoyes.length) {
+        onMaj(p.id, { [cle]: [...liste, ...envoyes] } as Partial<Project>);
+        toast.success(`${envoyes.length} fichier${envoyes.length > 1 ? "s" : ""} ajouté${envoyes.length > 1 ? "s" : ""}`);
+      }
+    } catch (e) {
+      toast.error(`Envoi impossible : ${(e as Error).message}`);
+    } finally {
+      setEnvoi(false);
+      if (input.current) input.current.value = "";
+    }
+  };
+
+  return (
+    <div className={`ar-fichiers${danger ? " is-danger" : ""}`}>
+      <div className="ar-fichiers-tete">
+        <span>{icone}{titre}</span>
+        {liste.length > 0 && <em>{liste.length}</em>}
+      </div>
+      {aide && <p className="ar-aide">{aide}</p>}
+      <div className="ar-vignettes">
+        {liste.map((f) => (
+          <a key={f.url} href={f.url} target="_blank" rel="noreferrer" className="ar-vignette" title={f.name}>
+            {estPdf(f.url)
+              ? <span className="ar-vignette-doc"><FileText /><small>PDF</small></span>
+              // eslint-disable-next-line @next/next/no-img-element
+              : <img src={thumbnailUrl(f.url)} alt="" loading="lazy" />}
+          </a>
+        ))}
+        <button type="button" className="ar-ajout" onClick={() => input.current?.click()} disabled={envoi}>
+          {envoi ? <Loader2 className="animate-spin" /> : <Plus />}
+          <small>{envoi ? "Envoi…" : "Ajouter"}</small>
+        </button>
+        <input ref={input} type="file" accept="image/*,application/pdf" multiple hidden onChange={(e) => void ajouter(e.target.files)} />
+      </div>
     </div>
   );
 }

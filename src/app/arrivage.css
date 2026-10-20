@@ -1,0 +1,224 @@
+/* ══ Arrivage (20.10.2026) ══════════════════════════════════════════════════
+   Une grande barre de recherche, des cartes de projets, puis une fiche
+   d'arrivage en blocs — mêmes rondeurs et même bleu nuit que la création de
+   projet et les pages d'accueil en cartes. */
+
+.ar { max-width: 760px; margin: 0 auto; padding: 4px 0 40px; color: #0f172a; }
+
+/* La tête */
+.ar-hero { display: flex; align-items: center; gap: 14px; margin: 6px 0 18px; }
+.ar-hero-icone {
+  width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; flex: 0 0 auto;
+  background: linear-gradient(135deg, #1b63ff, #0e7490); color: #fff;
+  box-shadow: 0 8px 20px rgba(27, 99, 255, 0.28);
+}
+.ar-hero-icone svg { width: 26px; height: 26px; }
+.ar-hero h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.ar-hero p { font-size: 14px; color: #64748b; margin-top: 3px; }
+
+/* La recherche */
+.ar-recherche {
+  position: sticky; top: 8px; z-index: 5;
+  display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px; height: 60px; border-radius: 20px;
+  background: #fff; border: 1.5px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 2px 4px rgba(11, 18, 32, 0.04), 0 12px 28px rgba(11, 18, 32, 0.08);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.ar-recherche:focus-within { border-color: #1b63ff; box-shadow: 0 0 0 5px rgba(27, 99, 255, 0.12), 0 12px 28px rgba(11, 18, 32, 0.08); }
+.ar-recherche-loupe { width: 22px; height: 22px; color: #1b63ff; flex: 0 0 auto; }
+.ar-recherche input {
+  flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent;
+  font-size: 18px; font-weight: 600; color: #0f172a; letter-spacing: 0.01em;
+}
+.ar-recherche input::placeholder { color: #a3adbd; font-weight: 500; }
+.ar-recherche button {
+  width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center;
+  background: #f1f5f9; color: #64748b; border: 0; cursor: pointer;
+}
+.ar-recherche button svg { width: 18px; height: 18px; }
+
+.ar-etat { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 28px 0; color: #64748b; font-size: 14px; }
+.ar-etat svg { width: 18px; height: 18px; }
+.ar-etat.is-erreur { color: #b91c1c; }
+.ar-vide { font-size: 13px; color: #64748b; padding: 6px 2px; }
+
+/* Les cartes */
+.ar-liste { display: grid; gap: 10px; margin-top: 20px; }
+.ar-liste-titre { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; margin: 0 2px 2px; }
+.ar-carte {
+  position: relative; display: grid; gap: 7px; padding: 14px 44px 14px 16px; border-radius: 18px; text-align: left; cursor: pointer;
+  background: #fff; border: 1px solid rgba(15, 23, 42, 0.07);
+  box-shadow: 0 1px 2px rgba(11, 18, 32, 0.04), 0 6px 16px rgba(11, 18, 32, 0.05);
+  transition: transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  animation: ar-entree 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.ar-carte:active { transform: scale(0.985); }
+@media (hover: hover) { .ar-carte:hover { border-color: rgba(27, 99, 255, 0.3); box-shadow: 0 2px 4px rgba(11, 18, 32, 0.05), 0 12px 26px rgba(11, 18, 32, 0.09); } }
+@keyframes ar-entree { from { opacity: 0; transform: translateY(6px); } }
+.ar-carte-haut { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ar-num {
+  display: inline-flex; align-items: baseline; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  font-style: normal; font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; font-weight: 700;
+  background: rgba(27, 99, 255, 0.1); color: #1b4fd8;
+}
+.ar-num b { font-family: var(--font-sans, inherit); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.75; }
+.ar-statut { font-style: normal; font-size: 11px; font-weight: 650; padding: 2px 9px; border-radius: 999px; }
+.ar-carte-titre { font-size: 15px; font-weight: 650; line-height: 1.35; color: #0f172a; }
+.ar-carte-bas { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: #64748b; }
+.ar-carte-bas span { display: inline-flex; align-items: center; gap: 5px; }
+.ar-carte-bas svg { width: 14px; height: 14px; }
+.ar-carte-bas .is-ok { color: #15803d; font-weight: 600; }
+.ar-carte-fleche { position: absolute; right: 14px; top: 50%; width: 18px; height: 18px; margin-top: -9px; color: #94a3b8; }
+
+/* La fiche */
+.ar-retour {
+  display: inline-flex; align-items: center; gap: 2px; margin: 0 0 12px -6px; padding: 6px 8px;
+  font-size: 15px; font-weight: 600; color: #1b63ff; background: none; border: 0; cursor: pointer;
+}
+.ar-retour svg { width: 20px; height: 20px; }
+.ar-fiche-tete {
+  padding: 20px; border-radius: 22px; background: #0f1b2e; color: #fff;
+  box-shadow: 0 12px 30px rgba(15, 27, 46, 0.25);
+}
+.ar-fiche-ofr { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12.5px; color: #8fb4ff; font-weight: 600; }
+.ar-fiche-tete h1 { font-size: 19px; font-weight: 750; line-height: 1.3; margin-top: 4px; }
+.ar-fiche-notion { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.ar-fiche-notion span {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 12px;
+  font-size: 12.5px; background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.85);
+}
+.ar-fiche-notion b { font-size: 15px; color: #fff; }
+.ar-fiche-notion svg { width: 15px; height: 15px; color: #8fb4ff; }
+
+.ar-bloc {
+  margin-top: 14px; padding: 16px; border-radius: 20px; background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.07); box-shadow: 0 1px 2px rgba(11, 18, 32, 0.04), 0 6px 16px rgba(11, 18, 32, 0.04);
+  display: grid; gap: 12px;
+}
+.ar-bloc h2 { display: flex; align-items: center; gap: 8px; font-size: 14.5px; font-weight: 700; }
+.ar-bloc h2 svg { width: 17px; height: 17px; color: #1b63ff; }
+.ar-deux { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ar-champ { display: grid; gap: 6px; min-width: 0; }
+.ar-champ > span { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 650; color: #334155; }
+.ar-champ > span svg { width: 14px; height: 14px; color: #64748b; }
+.ar-champ input, .ar-texte {
+  width: 100%; min-height: 46px; padding: 10px 12px; border-radius: 13px; font-size: 16px; color: #0f172a;
+  background: #f6f8fb; border: 1.5px solid transparent; outline: none; resize: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+.ar-champ input:focus, .ar-texte:focus { background: #fff; border-color: #1b63ff; box-shadow: 0 0 0 4px rgba(27, 99, 255, 0.12); }
+.ar-date-rapide { display: flex; gap: 6px; }
+.ar-date-rapide input { flex: 1; }
+.ar-date-rapide button {
+  flex: 0 0 auto; padding: 0 12px; border-radius: 13px; font-size: 12.5px; font-weight: 700;
+  background: rgba(27, 99, 255, 0.1); color: #1b4fd8; border: 0; cursor: pointer;
+}
+
+.ar-puces { display: flex; flex-wrap: wrap; gap: 8px; }
+.ar-puce {
+  display: inline-flex; align-items: center; gap: 5px; padding: 9px 14px; border-radius: 999px;
+  font-size: 13.5px; font-weight: 600; color: #334155; background: #f1f5f9; border: 1.5px solid transparent; cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, transform 0.12s ease;
+}
+.ar-puce svg { width: 14px; height: 14px; }
+.ar-puce:active { transform: scale(0.96); }
+.ar-puce.is-on { background: #0f1b2e; color: #fff; }
+
+.ar-cartons { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ar-cartons > span { font-size: 13px; font-weight: 650; color: #334155; }
+.ar-compteur { display: inline-flex; align-items: center; gap: 6px; padding: 5px; border-radius: 16px; background: #f6f8fb; }
+.ar-compteur button {
+  width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+  background: #fff; color: #0f172a; border: 0; cursor: pointer; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+}
+.ar-compteur button svg { width: 18px; height: 18px; }
+.ar-compteur button:active { transform: scale(0.94); }
+.ar-compteur input {
+  width: 56px; text-align: center; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums;
+  background: transparent; border: 0; outline: none; color: #0f172a; -moz-appearance: textfield;
+}
+.ar-compteur input::-webkit-outer-spin-button, .ar-compteur input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.ar-bascule {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 14px; border-radius: 14px;
+  font-size: 13.5px; font-weight: 600; color: #334155; background: #f6f8fb; border: 1.5px solid transparent; cursor: pointer; text-align: left;
+}
+.ar-bascule svg { width: 17px; height: 17px; color: #94a3b8; }
+.ar-bascule i {
+  margin-left: auto; font-style: normal; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+  background: #e2e8f0; color: #475569;
+}
+.ar-bascule.is-on { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+.ar-bascule.is-on svg { color: #ea580c; }
+.ar-bascule.is-on i { background: #ea580c; color: #fff; }
+
+.ar-fichiers { display: grid; gap: 8px; padding: 12px; border-radius: 16px; background: #f8fafc; border: 1px dashed #cbd5e1; }
+.ar-fichiers.is-danger { background: #fff7ed; border-color: #fdba74; }
+.ar-fichiers-tete { display: flex; align-items: center; justify-content: space-between; }
+.ar-fichiers-tete span { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; color: #334155; }
+.ar-fichiers-tete svg { width: 15px; height: 15px; color: #64748b; }
+.ar-fichiers-tete em {
+  font-style: normal; font-size: 11px; font-weight: 800; min-width: 22px; text-align: center; padding: 2px 7px; border-radius: 999px;
+  background: #0f1b2e; color: #fff;
+}
+.ar-aide { font-size: 12px; color: #9a3412; }
+.ar-vignettes { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.ar-vignette, .ar-ajout {
+  aspect-ratio: 1; border-radius: 14px; overflow: hidden; display: grid; place-items: center;
+}
+.ar-vignette { background: #e2e8f0; }
+.ar-vignette img { width: 100%; height: 100%; object-fit: cover; }
+.ar-vignette-doc { display: grid; justify-items: center; gap: 2px; color: #b91c1c; }
+.ar-vignette-doc svg { width: 26px; height: 26px; }
+.ar-vignette-doc small { font-size: 10px; font-weight: 800; }
+.ar-ajout {
+  gap: 2px; align-content: center; background: #fff; border: 1.5px dashed #94a3b8; color: #1b63ff; cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+.ar-ajout:hover { border-color: #1b63ff; background: rgba(27, 99, 255, 0.04); }
+.ar-ajout svg { width: 22px; height: 22px; }
+.ar-ajout small { font-size: 11px; font-weight: 700; }
+
+.ar-pied {
+  position: sticky; bottom: 12px; z-index: 5; display: flex; gap: 10px; margin-top: 18px; padding: 10px;
+  border-radius: 20px; background: rgba(255, 255, 255, 0.86); border: 1px solid rgba(15, 23, 42, 0.07);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  box-shadow: 0 10px 30px rgba(11, 18, 32, 0.12);
+}
+.ar-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 50px; padding: 0 18px;
+  border-radius: 15px; font-size: 15px; font-weight: 700; border: 0; cursor: pointer; white-space: nowrap;
+}
+.ar-btn svg { width: 18px; height: 18px; }
+.ar-btn:active { transform: scale(0.97); }
+.ar-btn.is-doux { background: transparent; color: #64748b; }
+.ar-btn.is-ok { flex: 1; background: #1b63ff; color: #fff; box-shadow: 0 6px 18px rgba(27, 99, 255, 0.3); }
+.ar-btn:disabled { opacity: 0.6; }
+
+/* L'app iPhone : la barre du bas flotte, le pied se pose au-dessus. */
+html[data-app="ios"] .ar-pied { bottom: calc(var(--tm-barre-ios, 64px) + var(--tm-bas-ios, 22px) + 10px); }
+html[data-app="ios"] .ar-recherche { top: 4px; }
+
+@media (max-width: 600px) {
+  .ar-hero h1 { font-size: 23px; }
+  .ar-deux { grid-template-columns: 1fr; }
+  .ar-recherche { height: 56px; border-radius: 18px; }
+}
+
+/* Sombre */
+.dark .ar { color: #e2e8f0; }
+.dark .ar-recherche, .dark .ar-carte, .dark .ar-bloc { background: #1e293b; border-color: rgba(255, 255, 255, 0.08); }
+.dark .ar-recherche input, .dark .ar-carte-titre, .dark .ar-champ input, .dark .ar-texte, .dark .ar-compteur input { color: #f1f5f9; }
+.dark .ar-champ input, .dark .ar-texte, .dark .ar-compteur, .dark .ar-bascule, .dark .ar-fichiers { background: #0f172a; }
+.dark .ar-puce { background: #0f172a; color: #cbd5e1; }
+.dark .ar-puce.is-on { background: #e2e8f0; color: #0f172a; }
+.dark .ar-champ > span, .dark .ar-cartons > span, .dark .ar-fichiers-tete span { color: #cbd5e1; }
+.dark .ar-pied { background: rgba(15, 23, 42, 0.86); }
+.dark .ar-compteur button, .dark .ar-ajout { background: #1e293b; color: #e2e8f0; }
+
+@media (prefers-reduced-motion: reduce) { .ar-carte { animation: none; } }
+
+/* Le thème Signal cerne chaque champ au focus : ici, c'est la barre entière qui s'allume. */
+.ar .ar-recherche input, .ar .ar-recherche input:focus, .ar .ar-recherche input:focus-visible {
+  border: 0 !important; box-shadow: none !important; outline: none !important; background: transparent !important; padding: 0 !important;
+}
