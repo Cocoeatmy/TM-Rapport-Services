@@ -338,7 +338,13 @@ type Reponse = { answer: string } | { error: string; status: number };
 async function repondre(user: { name: string; email: string }, message: string, historique: MessageIa[]): Promise<Reponse> {
   /* Ce qu'on cherche dans la base : la question, et les deux précédentes de
      la conversation — « et son numéro ? » ne nomme plus personne. */
-  const recherche = [...historique.filter((m) => m.role === "user").slice(-2).map((m) => m.texte), message].join(" ");
+  /* …mais seulement quand la question ne désigne rien elle-même : « et le
+     +41 78… ? » cherche CE numéro, pas aussi celui d'avant. */
+  const propre = analyserQuestion(message);
+  const designeQuelqueChose = propre.telephones.length + propre.refs.length + propre.emails.length > 0;
+  const recherche = designeQuelqueChose
+    ? message
+    : [...historique.filter((m) => m.role === "user").slice(-2).map((m) => m.texte), message].join(" ");
 
   /* L'argent : jamais. Refus décidé ici, avant le modèle et avant toute
      lecture — chiffre d'affaires, prix, montants, factures, paiements. */
@@ -521,6 +527,14 @@ Règles :
       return `${dateOnly} (${wdFmt.format(d)})`;
     };
 
+    /* Une question de NUMÉRO reçoit une réponse directe, sans modèle :
+       elle ne dépend que de la recherche, et ne doit jamais dépendre d'un
+       quota. */
+    if (question.telephones.length > 0
+        && (question.mots.length === 0 || /\b(qui|appartient|apartient|numero|numéro|tel|téléphone|telephone)\b/i.test(message))) {
+      return { answer: reponseTelephone(question.telephones, resultats, { couverture, nonLues, voitCarnet, dossiersDe, resoudre }) };
+    }
+
     /* Le détail des dossiers concernés — les cinq premiers relus FRAIS
        (modifications récentes), dans un budget de temps ; les autres depuis
        la copie partagée. */
@@ -570,14 +584,6 @@ Règles :
     const projectsContext = selected
       .map((p) => `- ${p.ofrTM} | ${p.projet} | Statut: ${p.etatCMD} | Collab: ${p.collaborateurs || "—"} | Montage: ${fmtDate(p.dateMontage)}${p.sav}`)
       .join("\n");
-
-    /* Une question de NUMÉRO reçoit une réponse directe, sans modèle :
-       elle ne dépend que de la recherche, et ne doit jamais dépendre d'un
-       quota. */
-    if (question.telephones.length > 0
-        && (question.mots.length === 0 || /\b(qui|appartient|apartient|numero|numéro|tel|téléphone|telephone)\b/i.test(message))) {
-      return { answer: reponseTelephone(question.telephones, resultats, { couverture, nonLues, voitCarnet, dossiersDe, resoudre }) };
-    }
 
     /* Heures de SAV : par année et par collaborateur, comptées sur les passages
        datés. Un projet dont les heures ne sont pas ventilées par passage est

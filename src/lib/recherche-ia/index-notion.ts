@@ -265,23 +265,30 @@ export async function lireIndex(opts: { budgetMs?: number; fraicheurMs?: number;
      budget de temps doit lui revenir avant les statistiques. */
   const rang = { carnet: 0, technique: 1, stats: 2 } as const;
   bases = [...bases].sort((a, b) => rang[a.categorie] - rang[b.categorie]);
-  const stockages = await Promise.all(bases.map((b) => lireStockage(b.id)));
+  const stockages: (Stockage | null)[] = await Promise.all(bases.map((b) => lireStockage(b.id)));
 
+  /* Les pages MODIFIÉES d'abord, toutes bases ensemble : une requête par
+     base, presque toujours vide — c'est ce qui rend les changements récents
+     visibles sans relire quoi que ce soit d'autre. */
+  const erreurs = new Map<string, string>();
+  await Promise.all(bases.map(async (b, i) => {
+    const s = stockages[i];
+    if (!s || Date.now() - s.increment <= fraicheur) return;
+    try { stockages[i] = await rafraichirBase(s); } catch (e) { erreurs.set(b.id, (e as Error).message); }
+  }));
+  /* Les bases jamais lues, ENSUITE, l'une après l'autre (des centaines de
+     pages chacune) : neuf lancées ensemble saturaient la file Notion
+     (3 req/s) et tout expirait. Dans le budget de temps seulement. */
   const etats: EtatBase[] = [];
   const docs: DocIndex[] = [];
-  /* L'une après l'autre : neuf bases lancées ensemble saturaient la file
-     Notion (3 req/s) et tout expirait. */
   for (let i = 0; i < bases.length; i++) {
     const b = bases[i];
     let s = stockages[i];
-    let erreur: string | undefined;
-    try {
-      if (!s && Date.now() < budget) s = await reconstruireBase(b);
-      else if (s && Date.now() - s.increment > fraicheur && Date.now() < budget) s = await rafraichirBase(s);
-    } catch (e) {
-      erreur = (e as Error).message;
-      console.error(`[index-ia] base « ${b.titre} » : ${erreur}`);
+    if (!s && Date.now() < budget) {
+      try { s = await reconstruireBase(b); } catch (e) { erreurs.set(b.id, (e as Error).message); }
     }
+    const erreur = erreurs.get(b.id);
+    if (erreur) console.error(`[index-ia] base « ${b.titre} » : ${erreur}`);
     if (s) docs.push(...s.docs);
     etats.push({
       ...b, etat: s ? "ok" : "non-lue", docs: s?.docs.length || 0,
