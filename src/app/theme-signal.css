@@ -6158,3 +6158,32 @@ html[data-ui="signal"] .sg-mes-interventions .sg-int-empl { font-size: 11.5px; f
 html[data-ui="signal"] .sg-mes-interventions .sg-int-cab { font-size: 12px; color: var(--sg-text-3); white-space: nowrap; }
 html[data-ui="signal"] .sg-mes-interventions .sg-int-cab b { font-size: 16px; font-weight: 800; color: var(--sg-text); margin-right: 2px; }
 
+/* ── Le nombre de cabines AU CŒUR de l'anneau (20.10.2026) ────────────────
+   À côté, il était recouvert par l'anneau, plus large que l'ancienne
+   pastille. Au centre, il se lit comme un compteur : anneau de 28 px,
+   chiffre gras ; rouge en surcharge ; sur le disque noir d'une absence
+   (travail prévu malgré tout), en rose vif. */
+html[data-ui="signal"] .sg-dispo-case {
+  grid-template-columns: auto; column-gap: 0;
+  grid-template-areas: "anneau";
+}
+html[data-ui="signal"] .sg-dispo-case > .sg-dispo-pastille,
+html[data-ui="signal"] .sg-dispo-case > b { grid-area: anneau; }
+html[data-ui="signal"] .sg-dispo-case > .sg-dispo-pastille { width: 28px; height: 28px; }
+html[data-ui="signal"] .sg-dispo-case > b {
+  display: block; position: relative; z-index: 1; pointer-events: none;
+  justify-self: center; align-self: center; text-align: center;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 800; letter-spacing: -0.03em;
+  color: var(--sg-text);
+}
+html[data-ui="signal"] .sg-dispo-case:has(.is-surcharge) > b { color: #e11d48; }
+html[data-ui="signal"] .sg-dispo-case > b.is-conflit { color: #ff8aa0; }
+html[data-ui="signal"] .sg-dispo-case:hover > b { transform: scale(1.12); }
+@media (max-width: 767px) {
+  html[data-ui="signal"] .sg-dispo-case { grid-template-columns: auto; }
+  html[data-ui="signal"] .sg-dispo-case > .sg-dispo-pastille { width: 26px; height: 26px; }
+  html[data-ui="signal"] .sg-dispo-case > b { display: block; font-size: 10.5px; }
+}
+
+/* App iPhone/iPad : chiffre en tout petit au centre — l'anneau reste la lecture principale. */
+html[data-ui="signal"][data-app="ios"] .sg-dispo-case > b { font-size: 9.5px; font-weight: 750; }
