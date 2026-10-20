@@ -451,3 +451,21 @@ html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre::before {
   html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre::before { background: var(--tm-verre-encre-fort); }
 }
 
+
+/* ── La bande de l'heure, dans l'app de l'écran d'accueil (20.10.2026) ────
+   Avec « viewport-fit=cover », la page passe sous la barre d'état ; on y
+   pose une bande FIXE du même gris que l'en-tête de verre (son encre sur le
+   fond de page), pour que l'heure, le réseau et la batterie se lisent en
+   blanc sur la couleur de l'app, page défilée ou non. L'en-tête descend
+   d'autant, et les fenêtres plein écran aussi. L'app native, elle, garde la
+   barre d'état hors de la page : rien n'y change (la marge vaut zéro). */
+html[data-app-source="ecran-accueil"] body::before {
+  content: ""; position: fixed; top: 0; left: 0; right: 0; z-index: 2147483000;
+  height: env(safe-area-inset-top, 0px); pointer-events: none;
+  background: linear-gradient(var(--tm-verre-encre, rgba(12, 22, 38, 0.68)), var(--tm-verre-encre, rgba(12, 22, 38, 0.68))), var(--sg-canvas, #eef1f5);
+}
+html[data-app-source="ecran-accueil"] #main-header { padding-top: env(safe-area-inset-top, 0px); }
+html[data-app-source="ecran-accueil"] .fixed.inset-0 { padding-top: env(safe-area-inset-top, 0px); }
+@media (prefers-reduced-transparency: reduce) {
+  html[data-app-source="ecran-accueil"][data-ui="signal"] body::before { background: var(--sg-ink, #0c1626); }
+}

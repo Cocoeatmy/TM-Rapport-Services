@@ -1740,6 +1740,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     : id === "active" ? voitEquipe
     : true;
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
+  /* « Mes interventions » : le jour dont l'onglet est ouvert (AAAA-MM-JJ). */
+  const [jourInterventions, setJourInterventions] = useState<string | null>(null);
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
 
   // Horodatage de l'ordre local courant (pour la réconciliation au chargement).
@@ -3705,19 +3707,60 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               .sort((x, y) => x.brut.localeCompare(y.brut));
             const COULEURS: Record<string, string> = { montage: "#1b63ff", mesures: "#0e7490", services: "#6d28d9", sav: "#b45309" };
             const MODES: Record<string, string> = { montage: "cmd", mesures: "mesures", services: "services", sav: "sav" };
+            /* Un onglet par jour de travail, comme le tableau de bord de
+               l'administrateur (20.10.2026) : la journée ouverte d'abord —
+               aujourd'hui s'il y a du travail, sinon la prochaine. */
+            const parJour = new Map<string, typeof prochaines>();
+            for (const l of prochaines) {
+              const k = (l.brut || "").slice(0, 10) || "—";
+              parJour.set(k, [...(parJour.get(k) || []), l]);
+            }
+            const jours = [...parJour.keys()];
+            const jourOuvert = jourInterventions && parJour.has(jourInterventions)
+              ? jourInterventions
+              : (parJour.has(aujourdhui) ? aujourdhui : jours[0]);
+            const dateDe = (k: string) => new Date(k + "T12:00:00");
+            const valide = (k: string) => /^\d{4}-\d{2}-\d{2}$/.test(k);
+            const titreJour = (k: string) => valide(k)
+              ? `${dateDe(k).toLocaleDateString("fr-CH", { weekday: "long" })} ${dateDe(k).toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric" })}`
+              : "Date à fixer";
+            const duJour = jourOuvert ? parJour.get(jourOuvert) || [] : [];
+            const cabJour = duJour.reduce((s, l) => s + (l.p.nbCabines || 0), 0);
             return (
               <div className="sg-section sg-mes-interventions">
                 <div className="sg-section-head">
                   <span>Mes interventions</span>
                   <i className="sg-rule" />
                 </div>
+                {jours.length > 0 && (
+                  <div className="sg-int-onglets" role="tablist" aria-label="Jours de travail">
+                    {jours.map((k) => {
+                      const n = parJour.get(k)?.length || 0;
+                      return (
+                        <button key={k} type="button" role="tab" aria-selected={k === jourOuvert}
+                          className={`sg-int-onglet${k === jourOuvert ? " is-on" : ""}${k === aujourdhui ? " is-auj" : ""}`}
+                          onClick={() => setJourInterventions(k)}>
+                          <span>{valide(k) ? dateDe(k).toLocaleDateString("fr-CH", { weekday: "long" }) : "À fixer"}</span>
+                          <b>{valide(k) ? dateDe(k).toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" }) : "—"}</b>
+                          <i>{n}</i>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <div className="sg-card">
                   {prochaines.length === 0 && (
                     <div className="sg-row sg-row-static"><span className="sg-row-label">Aucune intervention prévue d&apos;ici la fin de la semaine prochaine</span></div>
                   )}
-                  {prochaines.map(({ p, source, brut }) => {
+                  {jourOuvert && (
+                    <div className="sg-int-tete">
+                      <b>{titreJour(jourOuvert)}</b>
+                      <span>{duJour.length} intervention{duJour.length > 1 ? "s" : ""} · {cabJour} cab.</span>
+                    </div>
+                  )}
+                  {duJour.map(({ p, source, brut }) => {
                     const quand = brut ? new Date(brut.includes("T") ? brut : brut + "T12:00:00") : null;
-                    const jour = quand ? quand.toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" }) : "";
+                    const jour = { montage: "Montage", mesures: "Mesures", services: "Service", sav: "SAV" }[source] || "";
                     const heure = quand && brut.includes("T") ? quand.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" }) : "";
                     /* Trois colonnes, sans cadre : QUAND (date, puis l'heure
                        dessous), QUOI (le titre ENTIER, sur deux ou trois
@@ -3731,8 +3774,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         onClick={() => openSignalPreview(p, MODES[source] || "cmd")}>
                         <span className="sg-row-bar" style={{ background: COULEURS[source] || "var(--sg-line-strong)" }} />
                         <span className="sg-int-quand">
-                          <span className="sg-int-jour">{jour || "—"}</span>
-                          {heure && <span className="sg-int-heure">{heure}</span>}
+                          <span className="sg-int-jour">{heure || "Journée"}</span>
+                          <span className="sg-int-heure" style={{ color: COULEURS[source] }}>{jour}</span>
                         </span>
                         <span className="sg-int-titre">{p.projet}</span>
                         <span className="sg-int-ou">

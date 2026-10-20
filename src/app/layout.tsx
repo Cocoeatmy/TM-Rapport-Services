@@ -123,11 +123,13 @@ export default function RootLayout({
                19.10.2026 sur la page Appareils).
             Jamais selon la largeur d'écran : un onglet Safari ordinaire,
             l'iPad et le Mac gardent la navigation d'aujourd'hui.
-            `viewport-fit` (app native seulement) donne accès à la zone de
-            sécurité sous la barre d'accueil ; l'app web garde son réglage. */}
+            `viewport-fit=cover` dans les deux cas : sans lui, l'app de
+            l'écran d'accueil laissait iOS peindre la bande de l'heure d'un gris
+            clair étranger à l'en-tête (20.10.2026). Elle dessine désormais
+            elle-même cette bande (navigation-ios.css). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var u=navigator.userAgent,d=document.documentElement;var natif=u.indexOf('TMRapportApp/')>=0&&u.indexOf('(iOS)')>=0;var web=!natif&&/iPhone|iPod/.test(u)&&(navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));if(natif||web){d.setAttribute('data-app','ios');d.setAttribute('data-app-source',natif?'natif':'ecran-accueil');if(natif){var v=document.querySelector('meta[name="viewport"]');if(v&&v.content.indexOf('viewport-fit')<0)v.content+=', viewport-fit=cover';}}}catch(e){}})();`,
+            __html: `(function(){try{var u=navigator.userAgent,d=document.documentElement;var natif=u.indexOf('TMRapportApp/')>=0&&u.indexOf('(iOS)')>=0;var web=!natif&&/iPhone|iPod/.test(u)&&(navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));if(natif||web){d.setAttribute('data-app','ios');d.setAttribute('data-app-source',natif?'natif':'ecran-accueil');var v=document.querySelector('meta[name="viewport"]');if(v&&v.content.indexOf('viewport-fit')<0)v.content+=', viewport-fit=cover';}}catch(e){}})();`,
           }}
         />
       </head>
