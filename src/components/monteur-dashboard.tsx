@@ -1695,6 +1695,11 @@ const PANEL_ETAT_CHAMP: Record<string, { champ: string; cle: string; libelle: st
 };
 
 // Ordre canonique d'affichage des chips d'état par panneau.
+/** Filtres d'état sans objet dans une liste « à fixer » : retirés. */
+const ETATS_SANS_OBJET: Record<string, Set<string>> = {
+  "rdv-montage-a-fixer": new Set(["En attente de mesures", "Cabines mesurées", "OFR envoyées sans mesures", "Annulé", "Terminé"]),
+};
+
 const RDV_STATUS_ORDER: Record<string, string[]> = {
   "rdv-montage-a-fixer":  ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel"],
   "rdv-services-a-fixer": ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel"],
@@ -7982,6 +7987,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
           });
           if (hidden.size > 0) panelProjects = panelProjects.filter((p) => !hidden.has(rdvStatusFieldFn(p)));
+          /* États sans objet pour cette liste : ni pastille, ni projet
+             (21.10.2026 — un montage à fixer n'est ni « en attente de
+             mesures », ni annulé, ni terminé). */
+          const sansObjet = ETATS_SANS_OBJET[showSummaryPanel || ""];
+          if (sansObjet) {
+            rdvStatusOptions = rdvStatusOptions.filter((st) => !sansObjet.has(st));
+            panelProjects = panelProjects.filter((p) => !sansObjet.has(rdvStatusFieldFn(p)));
+          }
         }
 
         /* ── Type de client, et fournisseur ────────────────────────────────
