@@ -9359,7 +9359,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           </>
                         )}
                         <div className={isRdvAFixerPanel ? "hidden" : "contents"}>
-                        <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
+                        {/* Soucis en cours : le numéro ouvre l'aperçu du projet, au
+                            survol comme au clic — comme sur les listes RDV
+                            (21.10.2026). Le reste de la ligne ouvre le projet. */}
+                        <span className={`w-20 shrink-0 flex flex-col justify-center gap-px${showSummaryPanel === "soucis-en-cours" ? " cursor-pointer hover:text-blue-600" : ""}`}
+                          {...(showSummaryPanel === "soucis-en-cours" ? {
+                            title: "Aperçu du projet",
+                            onMouseEnter: () => survolerApercu(`souci-${p.id}`, () => ouvrirApercuSurvol(p, "dashboard")),
+                            onMouseLeave: () => quitterApercu(`souci-${p.id}`),
+                            onClick: (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); quitterApercu(`souci-${p.id}`); openSignalPreview(p, "dashboard"); },
+                          } : {})}>
                         {parseTMNumbers(p.ofrTM || "").length > 0
                           ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
                               <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
