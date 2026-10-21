@@ -67,7 +67,8 @@ import { BlocFacturation } from "@/components/bloc-facturation";
 // StockUsage supprimée (section retirée)
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
-import { Star, Share2, RefreshCw, PenLine, ImageDown, Lock, Search, Save, AlertCircle, FolderOpen } from "lucide-react";
+import { Star, Share2, RefreshCw, PenLine, ImageDown, Lock, Search, Save, AlertCircle, FolderOpen, ChevronRight } from "lucide-react";
+import "@/app/projet-ios.css";
 import { toggleFavorite, isFavorite } from "@/lib/favorites";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -4957,6 +4958,9 @@ function ProjectPageContent({ id }: { id: string }) {
     // Sur iPhone, Signal reprend le comportement historique des boutons ronds
     // (ouverture/fermeture libre) : l'exclusivité ne vaut que sur ordinateur.
     if (isSignalUi && !isIOS) return prev.has(id) && prev.size === 1 ? prev : new Set([id]);
+    /* iPhone Signal (21.10.2026) : une rubrique à la fois, comme une page
+       qu'on ouvre depuis le sommaire — la retoucher la referme. */
+    if (isSignalUi && isIOS) return prev.has(id) ? new Set() : new Set([id]);
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
@@ -9126,7 +9130,7 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Barre d'onglets horizontale (iOS). Même principe que le rail macOS mais
           à l'horizontale, sous l'en-tête. "rapport" est exclu : sur iOS il reste
           piloté par le bouton dédié. Cachée en mode rapport. */}
-      {isIOS && !showRapport && (
+      {isIOS && !isSignalUi && !showRapport && (
         <div className="px-4 mt-3">
           {/* `flex-wrap` : avec la pastille « documents Notion » réservée aux
               administrateurs, les huit icônes de 44 px dépassaient de l'écran
@@ -9165,7 +9169,85 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* Bouton démarrer/consulter le rapport — placé juste sous le header,
             au-dessus des cartes d'informations (demande utilisateur).
             Caché pour les modes ayant leur propre flux (mesures, services, sav). */}
-        {!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && !showRapport && !isMac && (
+        {/* iPhone, thème Signal : le sommaire du chantier (21.10.2026).
+            L'action principale d'abord, en grand ; puis une carte par
+            rubrique, avec ce qu'elle contient en une ligne — au lieu d'une
+            rangée d'icônes qu'il fallait deviner. */}
+        {isIOS && isSignalUi && !showRapport && (() => {
+          const avecRapport = !["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode);
+          const jj = (d?: string | null) => {
+            const v = String(d || "").slice(0, 10);
+            return /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "";
+          };
+          const nbDocs = (project.documentsMontagee?.length || 0) + (project.documentsMesures?.length || 0);
+          const nbComm = notionCommentsCount
+            + ((project.commentairesMesures || "").trim() ? 1 : 0)
+            + ((project.commentairesMontages || "").trim() ? 1 : 0);
+          const totalCab = cabines.length || project.nbCabines || 0;
+          const resume: Record<string, string> = {
+            projet: project.adresseChantier || project.emplacementCabine || "Adresse, client, statuts",
+            dates: [jj(project.dateMesures) && `Mesures ${jj(project.dateMesures)}`, jj(project.dateMontage) && `Montage ${jj(project.dateMontage)}`].filter(Boolean).join(" · ") || "Aucune date fixée",
+            client: (project.contactsRDV || "").split(/\n/)[0]?.trim() || "Contacts du chantier",
+            cabines: totalCab ? `${totalCab} cabine${totalCab > 1 ? "s" : ""} · ${installedCabineCount} posée${installedCabineCount > 1 ? "s" : ""}` : "Aucune cabine",
+            mesures: nbDocs ? `${nbDocs} document${nbDocs > 1 ? "s" : ""}` : "Mesures et montage",
+            commentaires: nbComm ? `${nbComm} commentaire${nbComm > 1 ? "s" : ""}` : "Aucun commentaire",
+            fiche: "Fiche de travail du chantier",
+          };
+          const COURT: Record<string, string> = { projet: "Projet", dates: "Dates", client: "Contacts", cabines: "Cabines", mesures: "Documents", commentaires: "Commentaires", fiche: "Fiche de travail" };
+          const TEINTE: Record<string, string> = { projet: "#1b63ff", dates: "#0e7490", client: "#7c3aed", cabines: "#0284c7", mesures: "#0d9488", commentaires: "#d97706", fiche: "#4f46e5" };
+          const pastille: Record<string, number> = { cabines: totalCab, mesures: nbDocs, commentaires: nbComm };
+          const ouvrir = (tid: string) => {
+            const fermer = macTabs.has(tid);
+            toggleMacTab(tid);
+            /* La rubrique s'ouvre juste SOUS l'en-tête collé du projet — sinon
+               il en recouvrait le titre. */
+            if (!fermer) setTimeout(() => {
+              const ancre = document.getElementById("pj-contenu");
+              if (!ancre) return;
+              const bas = document.getElementById("project-header-card")?.getBoundingClientRect().bottom ?? 0;
+              window.scrollTo({ top: window.scrollY + ancre.getBoundingClientRect().top - bas - 12, behavior: "smooth" });
+            }, 60);
+          };
+          return (
+            <div className="tm-pj">
+              {avecRapport && (
+                <button type="button" className={`tm-pj-cta${project.rapportMonteur ? " is-suite" : ""}`}
+                  onClick={() => { setShowRapport(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                  <span className="tm-pj-cta-icone"><FileText className="w-5 h-5" /></span>
+                  <span className="tm-pj-cta-txt">
+                    <b>{project.rapportMonteur ? "Consulter le rapport de montage" : "Démarrer le rapport de montage"}</b>
+                    <small>{totalCab ? `${installedCabineCount} / ${totalCab} cabine${totalCab > 1 ? "s" : ""} posée${installedCabineCount > 1 ? "s" : ""}` : "Photos, heures et signature"}</small>
+                  </span>
+                  <ChevronRight className="w-5 h-5 tm-pj-cta-fleche" />
+                </button>
+              )}
+              <div className="tm-pj-grille">
+                {tabDefs.filter((t) => t.id !== "rapport" && (t.id !== "fiche" || isAdmin)).map((t) => {
+                  const on = macTabs.has(t.id);
+                  const n = pastille[t.id] || 0;
+                  return (
+                    <button key={t.id} type="button" className={`tm-pj-carte${on ? " is-on" : ""}`} aria-pressed={on}
+                      style={{ ["--c" as string]: TEINTE[t.id] } as React.CSSProperties} onClick={() => ouvrir(t.id)}>
+                      <span className="tm-pj-carte-icone"><t.Icon className="w-[18px] h-[18px]" /></span>
+                      {n > 0 && <em className="tm-pj-carte-n">{n}</em>}
+                      <b>{COURT[t.id] || t.label}</b>
+                      <small>{resume[t.id]}</small>
+                    </button>
+                  );
+                })}
+                {isAdmin && (
+                  <button type="button" className="tm-pj-carte" style={{ ["--c" as string]: "#e11d48" } as React.CSSProperties} onClick={openOffres}>
+                    <span className="tm-pj-carte-icone"><FolderOpen className="w-[18px] h-[18px]" /></span>
+                    <b>Documents Notion</b>
+                    <small>Offres, commandes, factures</small>
+                  </button>
+                )}
+              </div>
+              <div id="pj-contenu" className="tm-pj-ancre" />
+            </div>
+          );
+        })()}
+        {!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && !showRapport && !isMac && !(isIOS && isSignalUi) && (
           <button
             onClick={() => { setShowRapport(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
             className={`w-full py-4 rounded-2xl active:scale-[0.98] text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg transition-all ${
