@@ -3678,11 +3678,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {" · "}Bonjour {firstName}
               </p>
             </div>
-            {/* Le dépôt reçoit un carton : un geste quotidien, à portée de
-                main dès l'accueil (20.10.2026). */}
-            <button type="button" className="sg-arrivage-btn" onClick={() => onNavigate?.("arrivage")}>
-              <Truck className="w-4 h-4" /> Arrivage
-            </button>
           </div>
 
           {/* Compte collaborateur : SES interventions de la semaine, une carte

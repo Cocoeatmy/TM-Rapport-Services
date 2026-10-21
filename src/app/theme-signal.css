@@ -6262,23 +6262,6 @@ html[data-ui="signal"] .sg-int-semaine .sg-card { padding-bottom: 6px; }
 html[data-ui="signal"] .sg-int-semaine .sg-card.is-folded { padding-bottom: 10px; }
 html[data-ui="signal"] .sg-int-semaine .sg-card-head { margin-bottom: 4px; }
 
-/* ── Le bouton « Arrivage » de l'accueil (20.10.2026) ─────────────────────
-   À droite du titre : le dépôt reçoit des cartons tous les jours. */
-html[data-ui="signal"] .sg-dash-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-html[data-ui="signal"] .sg-arrivage-btn {
-  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; margin-top: 4px;
-  height: 40px; padding: 0 16px; border-radius: 999px; cursor: pointer;
-  font-size: 13.5px; font-weight: 700; color: #fff; border: 0;
-  background: linear-gradient(135deg, #1b63ff, #0e7490);
-  box-shadow: 0 6px 16px rgba(27, 99, 255, 0.28);
-  transition: transform 0.12s ease, box-shadow 0.18s ease;
-}
-html[data-ui="signal"] .sg-arrivage-btn:hover { box-shadow: 0 8px 22px rgba(27, 99, 255, 0.36); }
-html[data-ui="signal"] .sg-arrivage-btn:active { transform: scale(0.96); }
-@media (max-width: 600px) {
-  html[data-ui="signal"] .sg-arrivage-btn { height: 36px; padding: 0 12px; font-size: 13px; margin-top: 2px; }
-  html[data-ui="signal"] .sg-dash-head .sg-sub { font-size: 13px; }
-}
 
 /* ── Grille des disponibilités : lignes droites (20.10.2026) ──────────────
    Les cases étaient CENTRÉES dans leur ligne : une case sans pastilles,
