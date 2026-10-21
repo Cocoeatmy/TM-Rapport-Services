@@ -946,7 +946,13 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                « photo prise »   — l'heure inscrite par l'appareil photo
                dans le fichier (EXIF), seulement quand le fichier la porte. */
             const SousHeure = ({ h, quoi }: { h: DeuxHorloges | null; quoi: "premiere" | "derniere" }) => {
-              if (!h) return null;
+              /* Photos prises avec l'appareil de l'app : l'heure d'ajout est
+                 celle du cliché, et c'est elle qui a rempli l'arrivée et le
+                 départ — l'afficher dessous ne dirait rien de plus. Les deux
+                 lignes n'apparaissent que pour des photos reprises de la
+                 galerie après coup, là où elles apprennent quelque chose
+                 (21.10.2026). */
+              if (!h || !h.prise) return null;
               const prise = h.prise;
               return (
                 <>
