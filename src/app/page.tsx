@@ -423,7 +423,11 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
       mode.endsWith("-accueil") ? null :
       mode.startsWith("grossistes") ? (sansLogos ? null : "grossistes") :
       mode.startsWith("fournisseurs") ? (sansLogos ? null : "fournisseurs-menu") :
-      mode.startsWith("services") || mode.startsWith("mesures") || mode.startsWith("cmd") || mode.startsWith("sav") ? "services" :
+      /* iPhone : la bande Mesures / Montages / Services / SAV, coupée et
+         sombre sous l'en-tête, faisait doublon avec la page d'accueil
+         Services et son retour « ‹ Services » (21.10.2026). */
+      mode.startsWith("services") || mode.startsWith("mesures") || mode.startsWith("cmd") || mode.startsWith("sav")
+        ? (document.documentElement.getAttribute("data-app") === "ios" ? null : "services") :
       mode.startsWith("clients") ? (sansLogos ? null : "clients") :
       null);
   }, [mode, isSignal]);
@@ -5831,7 +5835,7 @@ function HomePage() {
       {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
       {/* ======================================================== */}
       {(() => {
-        return mode !== "dashboard" && !mode.endsWith("-accueil") && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "kanban" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage";
+        return mode !== "dashboard" && !mode.endsWith("-accueil") && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "kanban" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && mode !== "a-facturer";
       })() && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {

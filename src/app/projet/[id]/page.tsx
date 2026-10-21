@@ -9020,8 +9020,31 @@ function ProjectPageContent({ id }: { id: string }) {
                   </>
                 )}
 
+                {/* Mode rapport, iPhone : la ligne ne tient pas tout — le menu
+                    d'état (180 px au moins) chevauchait les icônes. OFR et
+                    icônes d'abord, l'état sur sa propre ligne (21.10.2026). */}
+                {showRapport && isIOS && (
+                  <>
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      {project.ofrTM ? <p className="text-xs text-gray-500 truncate min-w-0">OFR {project.ofrTM}</p> : <span />}
+                      <div className="flex items-center shrink-0">{actionButtons}</div>
+                    </div>
+                    {isAdmin && (
+                      <div className="mt-1.5">
+                        <StatusDropdown
+                          project={project}
+                          mode="cmd"
+                          label="État – CMD"
+                          onUpdate={(field, value) => {
+                            setProject((prev) => prev ? { ...prev, [field]: value } : prev);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
                 {/* Mode rapport : OFR + État – CMD + icônes sur une ligne. */}
-                {showRapport && (
+                {showRapport && !isIOS && (
                   <div className="flex items-center justify-between gap-2 mt-1">
                     <div className="flex items-center gap-2 min-w-0">
                       {project.ofrTM && (
@@ -9883,7 +9906,7 @@ function ProjectPageContent({ id }: { id: string }) {
             )}
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <div className="grid grid-cols-2 gap-3 mt-3">
-                <div className="flex items-start gap-2">
+                <div className="tm-champ flex items-start gap-2">
                   <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <EmplacementSelect
