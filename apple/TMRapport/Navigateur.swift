@@ -91,6 +91,10 @@ final class Navigateur: NSObject, ObservableObject {
             try { Object.defineProperty(navigator, 'standalone', { get: function () { return true; }, configurable: true }); } catch (e) {}
             """, injectionTime: .atDocumentStart, forMainFrameOnly: false))
         #if os(iOS)
+        // L'échelle de la page, posée AVANT le premier affichage (voir « Échelle »).
+        conf.userContentController.addUserScript(WKUserScript(
+            source: Navigateur.scriptEchelle(Navigateur.echelleRetenue),
+            injectionTime: .atDocumentStart, forMainFrameOnly: true))
         conf.allowsInlineMediaPlayback = true
         conf.mediaTypesRequiringUserActionForPlayback = []
         #endif
@@ -126,6 +130,10 @@ final class Navigateur: NSObject, ObservableObject {
         vue.isOpaque = false
         vue.backgroundColor = .clear
         vue.scrollView.backgroundColor = .clear
+        // La fenêtre change de taille (Mac) : la page suit, à la même échelle.
+        observations.append(vue.observe(\.frame, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor in self?.appliquerEchelle() }
+        })
         #else
         vue.setValue(false, forKey: "drawsBackground")
         #endif
@@ -292,14 +300,18 @@ final class Navigateur: NSObject, ObservableObject {
 
     /// L'app iPad installée sur un Mac (TestFlight) : macOS l'affiche réduite
     /// à 77 % ; texte et cases y étaient plus petits que le même site dans un
-    /// navigateur (relevé du 21.10.2026). Un zoom de page grossissait l'image
-    /// SANS refaire la mise en page (débordement à droite), et la vue web de
-    /// l'iPad ignore une balise viewport réécrite après l'affichage. On fait
-    /// donc au niveau de la vue : la page est mise en page dans un cadre 1,3 ×
-    /// plus petit, puis agrandie d'autant (ConteneurEchelle). Elle remplit la
-    /// fenêtre sans défilement horizontal, au gabarit du navigateur — et, sur
-    /// un écran Retina, l'agrandissement compense exactement la réduction de
-    /// macOS : le texte reste net. Sur iPhone et iPad : échelle 1.
+    /// navigateur (relevé du 21.10.2026).
+    ///
+    /// Trois essais avant celui-ci, à ne pas refaire :
+    ///  - `pageZoom` : grossit sans refaire la mise en page (débordement) ;
+    ///  - balise viewport réécrite APRÈS l'affichage : la vue web de l'iPad
+    ///    garde l'échelle maximale fixée au chargement (1) et l'ignore ;
+    ///  - vue réduite puis agrandie (transform) : juste, mais un peu flou.
+    ///
+    /// Ici, la balise viewport est posée DÈS le début du document : la page
+    /// est mise en page pour la largeur ÷ 1,3 et DESSINÉE à l'échelle 1,3 par
+    /// WebKit lui-même — net comme dans un navigateur, sans défilement
+    /// horizontal. Sur iPhone et iPad : échelle 1, balise du site intacte.
     /// ⌘+ / ⌘− / ⌘0 l'ajustent, et le choix est retenu.
     static var echelleParDefaut: CGFloat {
         #if os(iOS)
@@ -313,10 +325,64 @@ final class Navigateur: NSObject, ObservableObject {
         return v > 0 ? CGFloat(v) : echelleParDefaut
     }
 
+    static func scriptEchelle(_ f: CGFloat) -> String {
+        """
+        (function () {
+          window.__tmEchelleF = \(Double(f));
+          window.__tmEchelle = function (f, w) {
+            try {
+              window.__tmEchelleF = f; if (w) window.__tmLargeurVue = w;
+              var largeur = window.__tmLargeurVue || window.outerWidth || screen.width;
+              var metas = document.querySelectorAll('meta[name="viewport"]');
+              var neutre = f > 0.999 && f < 1.001;
+              for (var i = 0; i < metas.length; i++) {
+                var m = metas[i];
+                if (m.dataset.tmOrigine === undefined && !m.dataset.tmPosee) m.dataset.tmOrigine = m.content;
+                var voulu = neutre ? (m.dataset.tmOrigine || 'width=device-width, initial-scale=1')
+                  : 'width=' + Math.round(largeur / f) + ', initial-scale=' + f + ', minimum-scale=' + f + ', maximum-scale=' + f + ', user-scalable=no, viewport-fit=cover';
+                if (m.content !== voulu) m.content = voulu;
+              }
+            } catch (e) {}
+          };
+          if (window.__tmEchelleF > 0.999 && window.__tmEchelleF < 1.001) return;
+          var m = document.createElement('meta');
+          m.name = 'viewport'; m.dataset.tmPosee = '1';
+          (document.head || document.documentElement).appendChild(m);
+          window.__tmEchelle(window.__tmEchelleF);
+          /* La balise du site arrive ensuite : elle prend aussitôt la même valeur. */
+          new MutationObserver(function () { window.__tmEchelle(window.__tmEchelleF); })
+            .observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['content'] });
+        })();
+        """
+    }
+
+    func appliquerEchelle() {
+        #if os(iOS)
+        let w = vue.bounds.width
+        guard w > 50 else { return }
+        vue.evaluateJavaScript("window.__tmEchelle && window.__tmEchelle(\(Double(echelle)), \(Double(w)));") { [weak self] _, _ in
+            guard Configuration.diagnostic else { return }
+            self?.vue.evaluateJavaScript("[innerWidth, outerWidth, visualViewport.scale, Array.from(document.querySelectorAll('meta[name=viewport]')).map(function(m){return m.content}).join(' // ')].join(' | ')") { r, _ in
+                self?.journal("ÉCHELLE \(self?.echelle ?? 0) w=\(w) → \(r ?? "?")")
+            }
+        }
+        #endif
+    }
+
     func zoomer(_ pas: CGFloat?) {
         let nouvelle = pas.map { min(2, max(0.7, ((echelle + $0) * 100).rounded() / 100)) } ?? Navigateur.echelleParDefaut
         UserDefaults.standard.set(Double(nouvelle), forKey: "TMEchellePage")
         echelle = nouvelle
+        #if os(iOS)
+        /* Une échelle changée en cours de route n'est pas reprise par la vue
+           web : on remplace le script et on recharge la page. */
+        let ucc = vue.configuration.userContentController
+        let autres = ucc.userScripts.filter { !$0.source.contains("__tmEchelleF") }
+        ucc.removeAllUserScripts()
+        autres.forEach { ucc.addUserScript($0) }
+        ucc.addUserScript(WKUserScript(source: Navigateur.scriptEchelle(nouvelle), injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        vue.reload()
+        #endif
     }
 
     func reculer() { if vue.canGoBack { vue.goBack() } }
@@ -536,6 +602,7 @@ extension Navigateur: WKNavigationDelegate {
         if webView === vue {
             etat = .pret
             controlerCompatibilite()
+            appliquerEchelle()
             #if os(iOS)
             for delai in [0.3, 1.0] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delai) { [weak self] in self?.releverCouleurHaut() }

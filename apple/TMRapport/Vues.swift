@@ -73,7 +73,7 @@ struct Ecran: View {
             }
             .ignoresSafeArea()
 
-            VueWeb(vue: navigateur.vue, echelle: navigateur.echelle)
+            VueWeb(vue: navigateur.vue)
                 #if os(iOS)
                 // En bas, la page continue sous la barre d'accueil, comme
                 // dans Safari : la vue web garde elle-même le bas du contenu
