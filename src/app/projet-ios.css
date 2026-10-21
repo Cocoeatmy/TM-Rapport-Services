@@ -198,8 +198,11 @@ html.dark[data-app="ios"][data-ui="signal"] #project-header-card { background: #
 
 /* Onglet SAV : le titre « Réclamation » et ses deux boutons ne tiennent pas
    sur une ligne — ils débordaient et faisaient glisser tout l'onglet. */
-.tm-pj-sections div.flex.items-center.justify-between:has(> label) { flex-wrap: wrap; row-gap: 8px; }
-.tm-pj-sections div.flex.items-center.justify-between:has(> label) > div.shrink-0 { flex-wrap: wrap; }
+/* Même chose dans la feuille SAV ouverte depuis le pas à pas. */
+.tm-pj-sections div.flex.items-center.justify-between:has(> label),
+.tm-assistant-feuille div.flex.items-center.justify-between:has(> label) { flex-wrap: wrap; row-gap: 8px; }
+.tm-pj-sections div.flex.items-center.justify-between:has(> label) > div.shrink-0,
+.tm-assistant-feuille div.flex.items-center.justify-between:has(> label) > div.shrink-0 { flex-wrap: wrap; }
 
 /* ── Tuiles compactes (21.10.2026, retour de Micael) ─────────────────────
    Trop hautes pour si peu, et rien n'y ressortait. L'icône passe sur la

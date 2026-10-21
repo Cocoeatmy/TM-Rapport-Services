@@ -58,7 +58,10 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { brancherFixtures, projetFictif, sansServiceWorker, seConnecter, PROJET_ID } from "./harnais";
+import { brancherFixtures, projetFictif, sansServiceWorker, seConnecter, PROJET_ID, ADMIN } from "./harnais";
+/* Compte admin : depuis le 21.10.2026, un collaborateur ne voit plus les
+   onglets manuels (pas à pas seul). La file hors ligne éprouvée ici est la
+   même pour tous ; seul l'admin garde ce chemin-là pour l'atteindre. */
 
 const BASE = "http://127.0.0.1:3137";
 const A = PROJET_ID;
@@ -191,7 +194,7 @@ class Banc {
   async brancher(page: Page): Promise<void> {
     /* Le harnais commun sert l'authentification, les droits et les menus ;
        ce banc passe devant lui pour tout ce qui porte des données. */
-    await brancherFixtures(page, { projet: this.projets[A] });
+    await brancherFixtures(page, { projet: this.projets[A], compte: ADMIN });
 
     /* Ce que la page envoie VRAIMENT à Cloudinary. Dans WebKit, Playwright
        ne voit pas les octets d'un Blob construit en mémoire (il ne voit que
@@ -544,7 +547,7 @@ async function lancerIphone(playwright: typeof import("playwright"), profil: str
     ? await playwright.chromium.launchPersistentContext(profil, { ...devices["Pixel 7"], viewport: { width: 390, height: 844 }, baseURL: BASE })
     : await playwright.webkit.launchPersistentContext(profil, { ...(iphone as object), baseURL: BASE });
   await sansServiceWorker(ctx);
-  await seConnecter(ctx);
+  await seConnecter(ctx, ADMIN);
   return ctx;
 }
 

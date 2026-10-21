@@ -4239,6 +4239,8 @@ function AssistantRapport({
   onEnvoyer, envoiEnCours,
   onFermer,
   lot,
+  signalements,
+  sav,
 }: {
   projectId: string;
   project: Project;
@@ -4265,6 +4267,10 @@ function AssistantRapport({
   onFermer: () => void;
   /** Absent = chantier à une seule cabine. */
   lot?: LotAssistant;
+  /** Contenu « Signalement » (pièces, défauts, ajout), ouvrable à toute étape. */
+  signalements?: React.ReactNode;
+  /** Contenu « SAV », ouvrable à toute étape. */
+  sav?: React.ReactNode;
 }) {
   /* Tout ce qui suit lit et écrit SOIT le projet, SOIT le lot. Les deux
      chemins restent côte à côte, nommés, plutôt que dispersés dans le
@@ -4308,6 +4314,11 @@ function AssistantRapport({
      sera facturée, et une photo prise en partant puis un détour imprévu
      suffisent à la décaler. Une relecture coûte trois secondes. */
   const [departConfirme, setDepartConfirme] = useState(false);
+
+  /* Signaler un souci ou noter un SAV ne doit pas obliger à quitter le
+     déroulé : la feuille s'ouvre par-dessus l'étape en cours et se referme
+     dessus, sans rien perdre de ce qui est saisi. */
+  const [feuille, setFeuille] = useState<"signalements" | "sav" | null>(null);
 
   /** Lequel des deux envois a été demandé — pour n'en faire pâlir qu'un. */
   const [envoiChoisi, setEnvoiChoisi] = useState<"interne" | "client" | null>(null);
@@ -4474,7 +4485,7 @@ function AssistantRapport({
       {/* Fil des étapes : on voit où l'on en est et ce qu'il reste. */}
       <div className="bg-[#1e3a5f] px-3 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] shrink-0">
         <div className="flex items-center justify-between gap-2 mb-2">
-          <p className="text-sm font-semibold text-white truncate">
+          <p className="text-sm font-semibold text-white truncate min-w-0">
             {index + 1}/{etapes.length} · {etapes[index].titre}
             {lot && <span className="font-normal text-blue-100"> · {lot.titre}</span>}
           </p>
@@ -4483,17 +4494,40 @@ function AssistantRapport({
             Quitter l&apos;assistant
           </button>
         </div>
-        <div className="flex gap-1">
+        {/* Fil des étapes, intitulé : un trait seul ne disait pas à quoi il
+            menait. Chaque étape porte son nom, la courante en gras. */}
+        <div className="tm-assistant-fil flex gap-1">
           {etapes.map((e, i) => (
             <button key={e.cle} type="button"
               /* On revient librement en arrière ; on n'avance pas en sautant
                  ce qui n'est pas fait, sinon la règle des photos se contourne
                  d'un clic sur le fil. */
               onClick={() => { if (i <= index || peutAvancer()) aller(i); }}
-              title={e.titre}
-              className={`h-1.5 flex-1 rounded-full transition-colors ${i <= index ? "bg-white" : "bg-white/25"}`} />
+              aria-current={i === index ? "step" : undefined}
+              className="flex-1 min-w-0 flex flex-col items-stretch gap-1 bg-transparent p-0 border-0">
+              <span className={`block h-1 rounded-full transition-colors ${i <= index ? "bg-white" : "bg-white/25"}`} />
+              <span className={`block text-[10px] leading-tight text-center break-words ${i === index ? "text-white font-bold" : i < index ? "text-blue-100" : "text-blue-100/60"}`}>
+                {i < index ? "✓ " : ""}{e.titre}
+              </span>
+            </button>
           ))}
         </div>
+        {(signalements || sav) && (
+          <div className="flex gap-2 mt-2.5">
+            {signalements && (
+              <button type="button" onClick={() => setFeuille("signalements")}
+                className="flex-1 h-9 rounded-lg bg-white/12 border border-white/25 text-white text-xs font-semibold flex items-center justify-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Signaler un souci
+              </button>
+            )}
+            {sav && (
+              <button type="button" onClick={() => setFeuille("sav")}
+                className="flex-1 h-9 rounded-lg bg-white/12 border border-white/25 text-white text-xs font-semibold flex items-center justify-center gap-1.5">
+                <Wrench className="w-3.5 h-3.5 shrink-0" /> SAV
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div id="assistant-haut" className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
@@ -4833,6 +4867,26 @@ function AssistantRapport({
           </button>
         )}
       </div>
+
+      {/* Feuille Signalement / SAV : par-dessus l'étape, sans la quitter. */}
+      {feuille && (
+        <div className="absolute inset-0 z-10 flex flex-col bg-white dark:bg-slate-900">
+          <div className={`${feuille === "sav" ? "bg-amber-600" : "bg-orange-600"} px-3 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] shrink-0 flex items-center justify-between gap-2`}>
+            <p className="text-sm font-semibold text-white truncate min-w-0 flex items-center gap-1.5">
+              {feuille === "sav" ? <Wrench className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+              {feuille === "sav" ? "SAV" : "Signalement"}
+              {lot && <span className="font-normal text-white/80"> · {lot.titre}</span>}
+            </p>
+            <button type="button" onClick={() => setFeuille(null)}
+              className="h-9 px-3 rounded-lg bg-white text-sm font-semibold text-gray-900 shrink-0">
+              Retour à l&apos;étape
+            </button>
+          </div>
+          <div className="tm-assistant-feuille flex-1 overflow-y-auto overscroll-contain py-4 px-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            {feuille === "sav" ? sav : signalements}
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );
@@ -8557,6 +8611,9 @@ function ProjectPageContent({ id }: { id: string }) {
       .filter((n): n is number => n !== null && n < cabines.length)
   );
   const installedCabineCount = installedCabineIndices.size;
+  /** Mono : cabine posée (photo de montage ou commande terminée) → le pas à
+      pas devient « Consulter le rapport ». */
+  const monoInstallee = (project.photosMontage || []).length > 0 || project.etatCMD === "Terminé";
 
   // Ordre d'AFFICHAGE réconcilié : on part de l'ordre personnalisé (liste de
   // CabN), on ne garde que les CabN valides (1..N), puis on ajoute à la fin les
@@ -8826,6 +8883,400 @@ function ProjectPageContent({ id }: { id: string }) {
           </span>
         )}
       </button>
+    );
+  };
+
+  /* Contenus Signalements et SAV : les mêmes servent à l'onglet (admin)
+     et à la feuille ouverte depuis l'assistant pas à pas (tous). */
+  const renderSignalementsMono = () => {
+    if (!project) return null;
+    return (
+      <div className="space-y-3">
+        {/* Un encadré pour ce qui EXISTE — les signalements du
+            dossier et les références produit qui servent à les
+            traiter — et un autre, plus bas, pour ce qu'on
+            AJOUTE. Les deux ne se mélangent plus. */}
+        <div className="rounded-2xl border border-gray-200 dark:border-slate-700 p-3 space-y-3">
+          <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
+          <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
+          <PhotosReference projectId={id} project={project} setProject={setProject} mode="apercu" />
+        </div>
+        <AjoutSignalement
+          projectId={id}
+          projectName={project.projet}
+          project={project}
+          setProject={setProject}
+          onDefaut={() => setDefautRefreshKey((k) => k + 1)}
+          onPiece={() => setPieceRefreshKey((k) => k + 1)}
+        />
+      </div>
+    );
+  };
+  const renderSavMono = () => {
+    if (!project) return null;
+    return (
+      <div className="space-y-4">
+        {/* Titre + bouton « Générer rapport SAV » sur la même ligne. */}
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+              <Wrench className="w-4 h-4" />
+              Réclamation — SAV à traiter
+            </Label>
+            <div className="shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                disabled={downloadingSavCab === 1}
+                onClick={() => handleDownloadSavCabine(1)}
+                className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
+              >
+                {downloadingSavCab === 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                Générer rapport SAV
+              </button>
+              <button
+                type="button"
+                disabled={copyingSavCabLink === 1}
+                onClick={() => handleCopySavCabineLink(1)}
+                className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold border border-amber-600 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 active:scale-95 transition-all disabled:opacity-60"
+              >
+                {copyingSavCabLink === 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                Copier le lien
+              </button>
+            </div>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
+            Brève explication du SAV / retouche demandé. Enregistré automatiquement.
+          </p>
+          <div className="mb-2">
+            <Label>Date de réception SAV</Label>
+            <input
+              type="date"
+              value={(parseCabineTextMulti(project?.dateSAVRecu || "")[1] || "").slice(0, 10)}
+              onChange={(e) => { saveCabineText("dateSAVRecu", 0, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+              className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
+            />
+          </div>
+          <CabineSavInput
+            value={parseCabineTextMulti(project?.commentairesSav || "")[1] || ""}
+            onSave={(v) => saveCabineText("commentairesSav", 0, v)}
+            placeholder="Ex. : porte qui frotte, joint à refaire, fuite constatée…"
+          />
+        </div>
+        {/* Ce qu'on a REÇU du client, juste après la réclamation : la
+            page suit l'ordre des choses — on reçoit, on regarde, puis on
+            cherche la cause. */}
+        <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
+        {/* Le suivi des appels du SAV et qui appeler, juste après ce que le
+            client a envoyé — avant de chercher la cause (21.10.2026). Le journal
+            est celui du projet, commun à toutes les cabines, synchronisé avec
+            la colonne Notion « Journal d'appel SAV ». */}
+        <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/40 p-3 space-y-3">
+          <EditableTextField label="Journal d'appel SAV" value={project.journalAppelSav || ""} projectId={id}
+            fieldName="journalAppelSav" notionField="Journal d'appel SAV" multiline
+            onUpdate={(v) => setProject((prev) => (prev ? { ...prev, journalAppelSav: v } : prev))} />
+          <ContactsProjet project={project} sansRdv />
+          <EditableTextField label="Contacts pour RDV" value={project.contactsRDV || ""} projectId={id}
+            fieldName="contactsRDV" notionField="Contacts pour RDV" multiline
+            onUpdate={(v) => setProject((prev) => (prev ? { ...prev, contactsRDV: v } : prev))} />
+        </div>
+        <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
+          <div>
+            <Label>Cause du SAV</Label>
+            {/* Champ libre + liste de suggestions (datalist) : on peut choisir
+                une cause existante OU en saisir une nouvelle → enregistrée sur Notion. */}
+            <input
+              key={`cause-sav-${parseCabineTextMulti(project?.causeSavCabines || "")[1] || ""}`}
+              list="cause-sav-options"
+              defaultValue={parseCabineTextMulti(project?.causeSavCabines || "")[1] || ""}
+              onBlur={(e) => { saveCabineText("causeSavCabines", 0, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+              placeholder="Choisir ou saisir une cause…"
+              className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+            />
+            <datalist id="cause-sav-options">
+              {causeSavOptions.map((o) => <option key={o} value={o} />)}
+            </datalist>
+          </div>
+          {renderSavHoursEditor()}
+          {renderPiecesSav(0)}
+          <div>
+            <Label>Collaborateur(s) SAV</Label>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {nomsAProposer(COLLABORATEURS_LIST, parseCabineTextMulti(project?.collaborateursSavCabines || "")[1] || "").map((name) => {
+                const sel = (parseCabineTextMulti(project?.collaborateursSavCabines || "")[1] || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
+                const active = sel.includes(name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => {
+                      const next = active ? sel.filter((n) => n !== name) : [...sel, name];
+                      saveCabineText("collaborateursSavCabines", 0, next.join(" & "));
+                      if (!project?.sav) saveProjectField({ sav: true });
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
+                      active
+                        ? "border-blue-600 bg-blue-600 text-white"
+                        : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
+                    }`}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        <div>
+          <Label>Ce que nous avons fait</Label>
+          <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
+            Décrire l&apos;intervention réalisée. Enregistré automatiquement.
+          </p>
+          <CabineSavInput
+            value={parseCabineTextMulti(project?.savRetouchesCabines || "")[1] || ""}
+            onSave={(v) => saveCabineText("savRetouchesCabines", 0, v)}
+          />
+        </div>
+        {/* La preuve que c'est réglé vient APRÈS le récit de
+            l'intervention, pas avant. */}
+        <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
+        <div>
+          <Label>Date SAV clôturé</Label>
+          <input
+            type="date"
+            value={(parseCabineTextMulti(project?.datesSavClotureCabines || "")[1] || "").slice(0, 10)}
+            onChange={(e) => saveCabineText("datesSavClotureCabines", 0, e.target.value)}
+            className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
+          />
+        </div>
+        {(() => {
+          const clotureDate = (parseCabineTextMulti(project?.datesSavClotureCabines || "")[1] || "").slice(0, 10);
+          const isCloture = !!clotureDate;
+          return (
+            <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isCloture}
+                  onChange={(e) => {
+                    const today = new Date().toISOString().slice(0, 10);
+                    saveCabineText("datesSavClotureCabines", 0, e.target.checked ? today : "");
+                  }}
+                  className="w-4 h-4 accent-green-600"
+                />
+                <span className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
+                  <Check className="w-4 h-4" /> SAV clôturé
+                </span>
+              </label>
+              {isCloture && (
+                <p className="text-[11px] text-gray-400 mt-1 pl-6">
+                  Clôturé le {clotureDate.split("-").reverse().join(".")}
+                </p>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+    );
+  };
+  const renderSignalementsLot = (idx: number) => {
+    if (!project) return null;
+    const cabine = cabines[idx];
+    if (!cabine) return null;
+    return (
+      <div id={`signalement-cab-${idx}`} className="space-y-3 px-4">
+        <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalement — {cabine.nom}</p>
+        <div className="rounded-2xl border border-gray-200 dark:border-slate-700 p-3 space-y-3">
+          <PiecesList projectId={id} refreshKey={pieceRefreshKey} cabineLabel={cabine.nom} cabineIdx={idx + 1} />
+          <DefautsList projectId={id} refreshKey={defautRefreshKey} cabineLabel={cabine.nom} cabineIdx={idx + 1} project={project} setProject={setProject} />
+        </div>
+        <AjoutSignalement
+          projectId={id}
+          projectName={project.projet}
+          cabineLabel={cabine.nom}
+          cabineIdx={idx + 1}
+          project={project}
+          setProject={setProject}
+          onDefaut={() => setDefautRefreshKey((k) => k + 1)}
+          onPiece={() => setPieceRefreshKey((k) => k + 1)}
+        />
+      </div>
+    );
+  };
+  const renderSavLot = (idx: number) => {
+    if (!project) return null;
+    const cabine = cabines[idx];
+    if (!cabine) return null;
+    return (
+      <div className="space-y-4 px-4">
+        {/* Réclamation : brève description du SAV à traiter → « Commentaires SAV ».
+            Titre + bouton « Générer rapport SAV » sur la même ligne. */}
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+              <Wrench className="w-4 h-4" />
+              Réclamation — SAV à traiter
+            </Label>
+            <div className="shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                disabled={downloadingSavCab === idx + 1}
+                onClick={() => handleDownloadSavCabine(idx + 1)}
+                className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
+              >
+                {downloadingSavCab === idx + 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                Générer rapport SAV
+              </button>
+              <button
+                type="button"
+                disabled={copyingSavCabLink === idx + 1}
+                onClick={() => handleCopySavCabineLink(idx + 1)}
+                className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold border border-amber-600 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 active:scale-95 transition-all disabled:opacity-60"
+              >
+                {copyingSavCabLink === idx + 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                Copier le lien
+              </button>
+            </div>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
+            Brève explication du SAV / retouche demandé. Enregistré automatiquement.
+          </p>
+          <div className="mb-2">
+            <Label>Date de réception SAV</Label>
+            <input
+              type="date"
+              value={(parseCabineTextMulti(project?.dateSAVRecu || "")[idx + 1] || "").slice(0, 10)}
+              onChange={(e) => { saveCabineText("dateSAVRecu", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+              className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
+            />
+          </div>
+          <CabineSavInput
+            value={parseCabineTextMulti(project?.commentairesSav || "")[idx + 1] || ""}
+            onSave={(v) => saveCabineText("commentairesSav", idx, v)}
+            placeholder="Ex. : porte qui frotte, joint à refaire, fuite constatée…"
+          />
+        </div>
+
+        {/* Ce qu'on a REÇU du client, juste après la réclamation : la
+            page suit l'ordre des choses — on reçoit, on regarde, puis
+            on cherche la cause. Ces documents étaient tout en bas,
+            après les pièces de rechange. */}
+        <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
+        {/* Le suivi des appels du SAV et qui appeler, juste après ce que le
+            client a envoyé — avant de chercher la cause (21.10.2026). Le journal
+            est celui du projet, commun à toutes les cabines, synchronisé avec
+            la colonne Notion « Journal d'appel SAV ». */}
+        <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/40 p-3 space-y-3">
+          <EditableTextField label="Journal d'appel SAV" value={project.journalAppelSav || ""} projectId={id}
+            fieldName="journalAppelSav" notionField="Journal d'appel SAV" multiline
+            onUpdate={(v) => setProject((prev) => (prev ? { ...prev, journalAppelSav: v } : prev))} />
+          <ContactsProjet project={project} sansRdv />
+          <EditableTextField label="Contacts pour RDV" value={project.contactsRDV || ""} projectId={id}
+            fieldName="contactsRDV" notionField="Contacts pour RDV" multiline
+            onUpdate={(v) => setProject((prev) => (prev ? { ...prev, contactsRDV: v } : prev))} />
+        </div>
+
+        {/* Détails SAV (niveau projet) : cause, date d'intervention, collaborateur(s). */}
+        <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
+          <div>
+            <Label>Cause du SAV</Label>
+            <input
+              key={`cause-sav-${idx}-${parseCabineTextMulti(project?.causeSavCabines || "")[idx + 1] || ""}`}
+              list="cause-sav-options"
+              defaultValue={parseCabineTextMulti(project?.causeSavCabines || "")[idx + 1] || ""}
+              onBlur={(e) => { saveCabineText("causeSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+              placeholder="Choisir ou saisir une cause…"
+              className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+            />
+            <datalist id="cause-sav-options">
+              {causeSavOptions.map((o) => <option key={o} value={o} />)}
+            </datalist>
+          </div>
+          {renderInterventionsSav(idx)}
+          {renderPiecesSav(idx)}
+        </div>
+
+        {/* Ce que nous avons fait → « SAV / Retouches cabines ». */}
+        <div>
+          <Label>Ce que nous avons fait</Label>
+          <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
+            Décrire l&apos;intervention réalisée. Enregistré automatiquement.
+          </p>
+          <CabineSavInput
+            value={parseCabineTextMulti(project?.savRetouchesCabines || "")[idx + 1] || ""}
+            onSave={(v) => saveCabineText("savRetouchesCabines", idx, v)}
+          />
+        </div>
+
+        {/* La preuve que c'est réglé vient APRÈS le récit de
+            l'intervention, pas avant. */}
+        <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
+
+        {/* SAV clôturé PAR CABINE : la présence d'une date dans
+            « Dates SAV clôturé cabines » = clôturé (+ la date du jour). */}
+        <div>
+          <Label>Date SAV clôturé</Label>
+          <input
+            type="date"
+            value={(parseCabineTextMulti(project?.datesSavClotureCabines || "")[idx + 1] || "").slice(0, 10)}
+            onChange={(e) => saveCabineText("datesSavClotureCabines", idx, e.target.value)}
+            className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
+          />
+        </div>
+        {(() => {
+          const clotureDate = (parseCabineTextMulti(project?.datesSavClotureCabines || "")[idx + 1] || "").slice(0, 10);
+          const isCloture = !!clotureDate;
+          return (
+            <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isCloture}
+                  onChange={(e) => {
+                    const today = new Date().toISOString().slice(0, 10);
+                    saveCabineText("datesSavClotureCabines", idx, e.target.checked ? today : "");
+                  }}
+                  className="w-4 h-4 accent-green-600"
+                />
+                <span className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
+                  <Check className="w-4 h-4" /> SAV clôturé
+                </span>
+              </label>
+              {isCloture && (
+                <p className="text-[11px] text-gray-400 mt-1 pl-6">
+                  Clôturé le {clotureDate.split("-").reverse().join(".")}
+                </p>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Bouton Enregistrer — onglet SAV (les champs s'enregistrent
+            déjà en auto ; ce bouton est un filet de sécurité). */}
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => handleSaveCabineData(idx)}
+          className="w-full py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-medium flex items-center justify-center gap-2 active:opacity-80 disabled:opacity-50 transition-all"
+        >
+          {saving ? (
+            <><Loader2 className="w-4 h-4 animate-spin" />Enregistrement...</>
+          ) : (
+            <><Check className="w-4 h-4" />Enregistrer</>
+          )}
+        </button>
+
+        {/* Remonter en haut — onglet SAV */}
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/40 dark:hover:text-blue-400 transition-colors"
+            title="Remonter en haut de page"
+          >
+            <ArrowUp className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
     );
   };
 
@@ -11230,8 +11681,10 @@ function ProjectPageContent({ id }: { id: string }) {
                   {/* ── Onglets (mono-cabine) : même présentation que le multi-cabine
                         (Infos / Photos / Rapport / Signalements / SAV). Les données
                         restent au niveau PROJET (format mono inchangé) ; le SAV
-                        utilise l'encodage par cabine avec l'index 1 (Cab1). ── */}
-                  {(() => {
+                        utilise l'encodage par cabine avec l'index 1 (Cab1).
+                        Réservés à l'admin : un collaborateur passe par le pas
+                        à pas, du début à la fin. ── */}
+                  {isAdmin && (() => {
                     const monoHasSav = !!(
                       (parseCabineTextMulti(project?.commentairesSav || "")[1]) ||
                       (parseCabineTextMulti(project?.causeSavCabines || "")[1]) ||
@@ -11304,20 +11757,27 @@ function ProjectPageContent({ id }: { id: string }) {
                         onEnvoyer={(client) => handleSendReport({ client })}
                         envoiEnCours={sending}
                         onFermer={() => setAssistantActif(false)}
+                        signalements={renderSignalementsMono()}
+                        sav={renderSavMono()}
                       />
                     )}
                     {!assistantActif && (
                       <button type="button"
                         /* En simple contour, il se confondait avec le reste
                            et personne ne le voyait. C'est la porte d'entrée
-                           du travail : elle doit sauter aux yeux. */
+                           du travail : elle doit sauter aux yeux. Une fois la
+                           cabine posée, on y revient pour consulter ou
+                           compléter — le libellé le dit. */
                         onClick={() => { setAssistantActif(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                         className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#1e3a5f] to-blue-600 text-white text-base font-bold shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
-                        <Sparkles className="w-5 h-5 shrink-0" />
-                        Remplir pas à pas
+                        {monoInstallee ? <FileText className="w-5 h-5 shrink-0" /> : <Sparkles className="w-5 h-5 shrink-0" />}
+                        {monoInstallee ? "Consulter le rapport" : "Remplir pas à pas"}
                       </button>
                     )}
-                    {!assistantActif && monoActiveTab === "infos" && (
+                    {/* Collaborateur : le pas à pas seul, et les interventions
+                        juste dessous (un retour sur place s'y ajoute). */}
+                    {!assistantActif && !isAdmin && renderMonoHoursEditor()}
+                    {isAdmin && !assistantActif && monoActiveTab === "infos" && (
                       <div className="space-y-3">
                         <div>
                           <Label>Nom / Emplacement</Label>
@@ -11337,7 +11797,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         <p className="text-[11px] text-gray-400">Les numéros, l&apos;adresse et les dates du projet sont modifiables dans la carte « Informations projet » ci-dessus.</p>
                       </div>
                     )}
-                    {!assistantActif && monoActiveTab === "rapport" && (
+                    {isAdmin && !assistantActif && monoActiveTab === "rapport" && (
                       <>
                         <div className="rounded-2xl border-2 border-blue-200 dark:border-blue-900/50 bg-blue-50/40 dark:bg-blue-950/20 p-4 space-y-3">
                           <div className="flex items-center gap-2">
@@ -11433,7 +11893,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         )}
                       </>
                     )}
-                    {!assistantActif && monoActiveTab === "photos" && (
+                    {isAdmin && !assistantActif && monoActiveTab === "photos" && (
                       <>
 {/* Le numéro du lot n'a de sens qu'en immeuble : sur une villa,
                             il n'y a rien à distinguer. */}
@@ -11462,190 +11922,12 @@ function ProjectPageContent({ id }: { id: string }) {
                       </>
                     )}
                     {/* ── Onglet Signalements (pièces + défauts, niveau projet) ── */}
-                    {!assistantActif && monoActiveTab === "signalements" && (
-                      <div className="space-y-3">
-                        {/* Un encadré pour ce qui EXISTE — les signalements du
-                            dossier et les références produit qui servent à les
-                            traiter — et un autre, plus bas, pour ce qu'on
-                            AJOUTE. Les deux ne se mélangent plus. */}
-                        <div className="rounded-2xl border border-gray-200 dark:border-slate-700 p-3 space-y-3">
-                          <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
-                          <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
-                          <PhotosReference projectId={id} project={project} setProject={setProject} mode="apercu" />
-                        </div>
-                        <AjoutSignalement
-                          projectId={id}
-                          projectName={project.projet}
-                          project={project}
-                          setProject={setProject}
-                          onDefaut={() => setDefautRefreshKey((k) => k + 1)}
-                          onPiece={() => setPieceRefreshKey((k) => k + 1)}
-                        />
-                      </div>
+                    {isAdmin && !assistantActif && monoActiveTab === "signalements" && (
+                      renderSignalementsMono()
                     )}
                     {/* ── Onglet SAV / Retouches (niveau projet, encodage Cab1) ── */}
-                    {!assistantActif && monoActiveTab === "sav" && (
-                      <div className="space-y-4">
-                        {/* Titre + bouton « Générer rapport SAV » sur la même ligne. */}
-                        <div>
-                          <div className="flex items-center justify-between gap-2">
-                            <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                              <Wrench className="w-4 h-4" />
-                              Réclamation — SAV à traiter
-                            </Label>
-                            <div className="shrink-0 flex items-center gap-2">
-                              <button
-                                type="button"
-                                disabled={downloadingSavCab === 1}
-                                onClick={() => handleDownloadSavCabine(1)}
-                                className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
-                              >
-                                {downloadingSavCab === 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-                                Générer rapport SAV
-                              </button>
-                              <button
-                                type="button"
-                                disabled={copyingSavCabLink === 1}
-                                onClick={() => handleCopySavCabineLink(1)}
-                                className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold border border-amber-600 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 active:scale-95 transition-all disabled:opacity-60"
-                              >
-                                {copyingSavCabLink === 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
-                                Copier le lien
-                              </button>
-                            </div>
-                          </div>
-                          <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
-                            Brève explication du SAV / retouche demandé. Enregistré automatiquement.
-                          </p>
-                          <div className="mb-2">
-                            <Label>Date de réception SAV</Label>
-                            <input
-                              type="date"
-                              value={(parseCabineTextMulti(project?.dateSAVRecu || "")[1] || "").slice(0, 10)}
-                              onChange={(e) => { saveCabineText("dateSAVRecu", 0, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-                              className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
-                            />
-                          </div>
-                          <CabineSavInput
-                            value={parseCabineTextMulti(project?.commentairesSav || "")[1] || ""}
-                            onSave={(v) => saveCabineText("commentairesSav", 0, v)}
-                            placeholder="Ex. : porte qui frotte, joint à refaire, fuite constatée…"
-                          />
-                        </div>
-                        {/* Ce qu'on a REÇU du client, juste après la réclamation : la
-                            page suit l'ordre des choses — on reçoit, on regarde, puis on
-                            cherche la cause. */}
-                        <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
-                        {/* Le suivi des appels du SAV et qui appeler, juste après ce que le
-                            client a envoyé — avant de chercher la cause (21.10.2026). Le journal
-                            est celui du projet, commun à toutes les cabines, synchronisé avec
-                            la colonne Notion « Journal d'appel SAV ». */}
-                        <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/40 p-3 space-y-3">
-                          <EditableTextField label="Journal d'appel SAV" value={project.journalAppelSav || ""} projectId={id}
-                            fieldName="journalAppelSav" notionField="Journal d'appel SAV" multiline
-                            onUpdate={(v) => setProject((prev) => (prev ? { ...prev, journalAppelSav: v } : prev))} />
-                          <ContactsProjet project={project} sansRdv />
-                          <EditableTextField label="Contacts pour RDV" value={project.contactsRDV || ""} projectId={id}
-                            fieldName="contactsRDV" notionField="Contacts pour RDV" multiline
-                            onUpdate={(v) => setProject((prev) => (prev ? { ...prev, contactsRDV: v } : prev))} />
-                        </div>
-                        <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
-                          <div>
-                            <Label>Cause du SAV</Label>
-                            {/* Champ libre + liste de suggestions (datalist) : on peut choisir
-                                une cause existante OU en saisir une nouvelle → enregistrée sur Notion. */}
-                            <input
-                              key={`cause-sav-${parseCabineTextMulti(project?.causeSavCabines || "")[1] || ""}`}
-                              list="cause-sav-options"
-                              defaultValue={parseCabineTextMulti(project?.causeSavCabines || "")[1] || ""}
-                              onBlur={(e) => { saveCabineText("causeSavCabines", 0, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-                              placeholder="Choisir ou saisir une cause…"
-                              className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-                            />
-                            <datalist id="cause-sav-options">
-                              {causeSavOptions.map((o) => <option key={o} value={o} />)}
-                            </datalist>
-                          </div>
-                          {renderSavHoursEditor()}
-                          {renderPiecesSav(0)}
-                          <div>
-                            <Label>Collaborateur(s) SAV</Label>
-                            <div className="mt-1 flex flex-wrap gap-1.5">
-                              {nomsAProposer(COLLABORATEURS_LIST, parseCabineTextMulti(project?.collaborateursSavCabines || "")[1] || "").map((name) => {
-                                const sel = (parseCabineTextMulti(project?.collaborateursSavCabines || "")[1] || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
-                                const active = sel.includes(name);
-                                return (
-                                  <button
-                                    key={name}
-                                    type="button"
-                                    onClick={() => {
-                                      const next = active ? sel.filter((n) => n !== name) : [...sel, name];
-                                      saveCabineText("collaborateursSavCabines", 0, next.join(" & "));
-                                      if (!project?.sav) saveProjectField({ sav: true });
-                                    }}
-                                    className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
-                                      active
-                                        ? "border-blue-600 bg-blue-600 text-white"
-                                        : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
-                                    }`}
-                                  >
-                                    {name}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <Label>Ce que nous avons fait</Label>
-                          <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
-                            Décrire l&apos;intervention réalisée. Enregistré automatiquement.
-                          </p>
-                          <CabineSavInput
-                            value={parseCabineTextMulti(project?.savRetouchesCabines || "")[1] || ""}
-                            onSave={(v) => saveCabineText("savRetouchesCabines", 0, v)}
-                          />
-                        </div>
-                        {/* La preuve que c'est réglé vient APRÈS le récit de
-                            l'intervention, pas avant. */}
-                        <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
-                        <div>
-                          <Label>Date SAV clôturé</Label>
-                          <input
-                            type="date"
-                            value={(parseCabineTextMulti(project?.datesSavClotureCabines || "")[1] || "").slice(0, 10)}
-                            onChange={(e) => saveCabineText("datesSavClotureCabines", 0, e.target.value)}
-                            className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
-                          />
-                        </div>
-                        {(() => {
-                          const clotureDate = (parseCabineTextMulti(project?.datesSavClotureCabines || "")[1] || "").slice(0, 10);
-                          const isCloture = !!clotureDate;
-                          return (
-                            <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
-                              <label className="flex items-center gap-2 cursor-pointer select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={isCloture}
-                                  onChange={(e) => {
-                                    const today = new Date().toISOString().slice(0, 10);
-                                    saveCabineText("datesSavClotureCabines", 0, e.target.checked ? today : "");
-                                  }}
-                                  className="w-4 h-4 accent-green-600"
-                                />
-                                <span className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
-                                  <Check className="w-4 h-4" /> SAV clôturé
-                                </span>
-                              </label>
-                              {isCloture && (
-                                <p className="text-[11px] text-gray-400 mt-1 pl-6">
-                                  Clôturé le {clotureDate.split("-").reverse().join(".")}
-                                </p>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
+                    {isAdmin && !assistantActif && monoActiveTab === "sav" && (
+                      renderSavMono()
                     )}
                   </CardContent>
                 </Card>
@@ -12056,11 +12338,15 @@ function ProjectPageContent({ id }: { id: string }) {
                             <button type="button"
                               onClick={() => setAssistantLot(idx)}
                               className="w-full py-3 rounded-xl bg-gradient-to-r from-[#1e3a5f] to-blue-600 text-white text-sm font-bold shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
-                              <Sparkles className="w-4 h-4 shrink-0" />
-                              Remplir pas à pas
+                              {installedCabineIndices.has(idx) ? <FileText className="w-4 h-4 shrink-0" /> : <Sparkles className="w-4 h-4 shrink-0" />}
+                              {installedCabineIndices.has(idx) ? "Consulter le rapport" : "Remplir pas à pas"}
                             </button>
                           </div>
-                          {/* ── Onglets Infos / Photos / Signalements ──────────── */}
+                          {/* Collaborateur : le pas à pas seul, et les passages
+                              du lot juste dessous. Les onglets restent à l'admin. */}
+                          {!isAdmin && <div className="px-4 pt-3">{renderInterventionsMontage(idx)}</div>}
+                          {/* ── Onglets Infos / Photos / Signalements (admin) ── */}
+                          {isAdmin && (
                           <div className="tm-cab-onglets flex justify-evenly sm:justify-normal border-b border-gray-100 dark:border-slate-700 mb-4">
                             <button
                               type="button"
@@ -12162,9 +12448,10 @@ function ProjectPageContent({ id }: { id: string }) {
                               )}
                             </button>
                           </div>
+                          )}
 
                           {/* ── Onglet Infos ────────────────────────────────── */}
-                          {cabine.activeTab === "infos" && (
+                          {isAdmin && cabine.activeTab === "infos" && (
                             <div className="space-y-4 px-4">
                               {/* Nom de la cabine */}
                               <div>
@@ -12303,27 +12590,11 @@ function ProjectPageContent({ id }: { id: string }) {
 
                           {/* ── Onglet Photos ────────────────────────────────── */}
                           {/* ── Onglet Signalements (pièces manquantes + défauts) ── */}
-                          {cabine.activeTab === "signalements" && (
-                            <div id={`signalement-cab-${idx}`} className="space-y-3 px-4">
-                              <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalement — {cabine.nom}</p>
-                              <div className="rounded-2xl border border-gray-200 dark:border-slate-700 p-3 space-y-3">
-                                <PiecesList projectId={id} refreshKey={pieceRefreshKey} cabineLabel={cabine.nom} cabineIdx={idx + 1} />
-                                <DefautsList projectId={id} refreshKey={defautRefreshKey} cabineLabel={cabine.nom} cabineIdx={idx + 1} project={project} setProject={setProject} />
-                              </div>
-                              <AjoutSignalement
-                                projectId={id}
-                                projectName={project.projet}
-                                cabineLabel={cabine.nom}
-                                cabineIdx={idx + 1}
-                                project={project}
-                                setProject={setProject}
-                                onDefaut={() => setDefautRefreshKey((k) => k + 1)}
-                                onPiece={() => setPieceRefreshKey((k) => k + 1)}
-                              />
-                            </div>
+                          {isAdmin && cabine.activeTab === "signalements" && (
+                            renderSignalementsLot(idx)
                           )}
 
-                          {cabine.activeTab === "photos" && (
+                          {isAdmin && cabine.activeTab === "photos" && (
                             <div className="space-y-4 px-4">
                               {/* Démontage (rare) : replié derrière une case, comme QR/Garantie.
                                   Déplié si coché OU si des photos démontage existent déjà. */}
@@ -12442,7 +12713,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           )}
 
                           {/* ── Onglet Rapport ──────────────────────────────── */}
-                          {cabine.activeTab === "rapport" && (
+                          {isAdmin && cabine.activeTab === "rapport" && (
                             <div className="space-y-4 px-4">
                               <div>
                                 <Label>Rapport cabine</Label>
@@ -12540,177 +12811,8 @@ function ProjectPageContent({ id }: { id: string }) {
                           )}
 
                           {/* ── Onglet SAV / Retouches ──────────────────────── */}
-                          {cabine.activeTab === "sav" && (
-                            <div className="space-y-4 px-4">
-                              {/* Réclamation : brève description du SAV à traiter → « Commentaires SAV ».
-                                  Titre + bouton « Générer rapport SAV » sur la même ligne. */}
-                              <div>
-                                <div className="flex items-center justify-between gap-2">
-                                  <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                                    <Wrench className="w-4 h-4" />
-                                    Réclamation — SAV à traiter
-                                  </Label>
-                                  <div className="shrink-0 flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      disabled={downloadingSavCab === idx + 1}
-                                      onClick={() => handleDownloadSavCabine(idx + 1)}
-                                      className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
-                                    >
-                                      {downloadingSavCab === idx + 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-                                      Générer rapport SAV
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={copyingSavCabLink === idx + 1}
-                                      onClick={() => handleCopySavCabineLink(idx + 1)}
-                                      className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold border border-amber-600 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 active:scale-95 transition-all disabled:opacity-60"
-                                    >
-                                      {copyingSavCabLink === idx + 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
-                                      Copier le lien
-                                    </button>
-                                  </div>
-                                </div>
-                                <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
-                                  Brève explication du SAV / retouche demandé. Enregistré automatiquement.
-                                </p>
-                                <div className="mb-2">
-                                  <Label>Date de réception SAV</Label>
-                                  <input
-                                    type="date"
-                                    value={(parseCabineTextMulti(project?.dateSAVRecu || "")[idx + 1] || "").slice(0, 10)}
-                                    onChange={(e) => { saveCabineText("dateSAVRecu", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-                                    className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
-                                  />
-                                </div>
-                                <CabineSavInput
-                                  value={parseCabineTextMulti(project?.commentairesSav || "")[idx + 1] || ""}
-                                  onSave={(v) => saveCabineText("commentairesSav", idx, v)}
-                                  placeholder="Ex. : porte qui frotte, joint à refaire, fuite constatée…"
-                                />
-                              </div>
-
-                              {/* Ce qu'on a REÇU du client, juste après la réclamation : la
-                                  page suit l'ordre des choses — on reçoit, on regarde, puis
-                                  on cherche la cause. Ces documents étaient tout en bas,
-                                  après les pièces de rechange. */}
-                              <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
-                              {/* Le suivi des appels du SAV et qui appeler, juste après ce que le
-                                  client a envoyé — avant de chercher la cause (21.10.2026). Le journal
-                                  est celui du projet, commun à toutes les cabines, synchronisé avec
-                                  la colonne Notion « Journal d'appel SAV ». */}
-                              <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/40 p-3 space-y-3">
-                                <EditableTextField label="Journal d'appel SAV" value={project.journalAppelSav || ""} projectId={id}
-                                  fieldName="journalAppelSav" notionField="Journal d'appel SAV" multiline
-                                  onUpdate={(v) => setProject((prev) => (prev ? { ...prev, journalAppelSav: v } : prev))} />
-                                <ContactsProjet project={project} sansRdv />
-                                <EditableTextField label="Contacts pour RDV" value={project.contactsRDV || ""} projectId={id}
-                                  fieldName="contactsRDV" notionField="Contacts pour RDV" multiline
-                                  onUpdate={(v) => setProject((prev) => (prev ? { ...prev, contactsRDV: v } : prev))} />
-                              </div>
-
-                              {/* Détails SAV (niveau projet) : cause, date d'intervention, collaborateur(s). */}
-                              <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
-                                <div>
-                                  <Label>Cause du SAV</Label>
-                                  <input
-                                    key={`cause-sav-${idx}-${parseCabineTextMulti(project?.causeSavCabines || "")[idx + 1] || ""}`}
-                                    list="cause-sav-options"
-                                    defaultValue={parseCabineTextMulti(project?.causeSavCabines || "")[idx + 1] || ""}
-                                    onBlur={(e) => { saveCabineText("causeSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-                                    placeholder="Choisir ou saisir une cause…"
-                                    className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-                                  />
-                                  <datalist id="cause-sav-options">
-                                    {causeSavOptions.map((o) => <option key={o} value={o} />)}
-                                  </datalist>
-                                </div>
-                                {renderInterventionsSav(idx)}
-                                {renderPiecesSav(idx)}
-                              </div>
-
-                              {/* Ce que nous avons fait → « SAV / Retouches cabines ». */}
-                              <div>
-                                <Label>Ce que nous avons fait</Label>
-                                <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
-                                  Décrire l&apos;intervention réalisée. Enregistré automatiquement.
-                                </p>
-                                <CabineSavInput
-                                  value={parseCabineTextMulti(project?.savRetouchesCabines || "")[idx + 1] || ""}
-                                  onSave={(v) => saveCabineText("savRetouchesCabines", idx, v)}
-                                />
-                              </div>
-
-                              {/* La preuve que c'est réglé vient APRÈS le récit de
-                                  l'intervention, pas avant. */}
-                              <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
-
-                              {/* SAV clôturé PAR CABINE : la présence d'une date dans
-                                  « Dates SAV clôturé cabines » = clôturé (+ la date du jour). */}
-                              <div>
-                                <Label>Date SAV clôturé</Label>
-                                <input
-                                  type="date"
-                                  value={(parseCabineTextMulti(project?.datesSavClotureCabines || "")[idx + 1] || "").slice(0, 10)}
-                                  onChange={(e) => saveCabineText("datesSavClotureCabines", idx, e.target.value)}
-                                  className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
-                                />
-                              </div>
-                              {(() => {
-                                const clotureDate = (parseCabineTextMulti(project?.datesSavClotureCabines || "")[idx + 1] || "").slice(0, 10);
-                                const isCloture = !!clotureDate;
-                                return (
-                                  <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
-                                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                                      <input
-                                        type="checkbox"
-                                        checked={isCloture}
-                                        onChange={(e) => {
-                                          const today = new Date().toISOString().slice(0, 10);
-                                          saveCabineText("datesSavClotureCabines", idx, e.target.checked ? today : "");
-                                        }}
-                                        className="w-4 h-4 accent-green-600"
-                                      />
-                                      <span className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
-                                        <Check className="w-4 h-4" /> SAV clôturé
-                                      </span>
-                                    </label>
-                                    {isCloture && (
-                                      <p className="text-[11px] text-gray-400 mt-1 pl-6">
-                                        Clôturé le {clotureDate.split("-").reverse().join(".")}
-                                      </p>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-
-                              {/* Bouton Enregistrer — onglet SAV (les champs s'enregistrent
-                                  déjà en auto ; ce bouton est un filet de sécurité). */}
-                              <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => handleSaveCabineData(idx)}
-                                className="w-full py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-medium flex items-center justify-center gap-2 active:opacity-80 disabled:opacity-50 transition-all"
-                              >
-                                {saving ? (
-                                  <><Loader2 className="w-4 h-4 animate-spin" />Enregistrement...</>
-                                ) : (
-                                  <><Check className="w-4 h-4" />Enregistrer</>
-                                )}
-                              </button>
-
-                              {/* Remonter en haut — onglet SAV */}
-                              <div className="flex justify-center">
-                                <button
-                                  type="button"
-                                  onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                                  className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/40 dark:hover:text-blue-400 transition-colors"
-                                  title="Remonter en haut de page"
-                                >
-                                  <ArrowUp className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
+                          {isAdmin && cabine.activeTab === "sav" && (
+                            renderSavLot(idx)
                           )}
                         </CardContent>
                       )}
@@ -13429,6 +13531,8 @@ function ProjectPageContent({ id }: { id: string }) {
           onEnvoyer={(client) => handleSendReport({ client })}
           envoiEnCours={sending}
           onFermer={() => setAssistantLot(null)}
+          signalements={renderSignalementsLot(assistantLot)}
+          sav={renderSavLot(assistantLot)}
           lot={{
             numero: assistantLot + 1,
             titre: cabines[assistantLot].nom || `Lot ${assistantLot + 1}`,

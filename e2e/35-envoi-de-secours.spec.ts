@@ -12,7 +12,10 @@
  *     rattachement (qui écarte les doublons par leur nom) en perdait une.
  */
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { brancherFixtures, seConnecter, sansServiceWorker, projetFictif, PROJET_ID } from "./harnais";
+import { brancherFixtures, seConnecter, sansServiceWorker, projetFictif, PROJET_ID, ADMIN } from "./harnais";
+/* Compte admin : depuis le 21.10.2026, un collaborateur ne voit plus les
+   onglets manuels (pas à pas seul). La file d'envoi éprouvée ici est la
+   même pour tous ; seul l'admin garde ce chemin-là pour l'atteindre. */
 
 /** Un Cloudinary de banc : une image par identifiant, comme le vrai. */
 class FauxCloudinary {
@@ -78,8 +81,8 @@ test.describe("l'envoi de secours", () => {
   test("défaut : réponse perdue deux fois, puis la file — une seule image, un seul défaut", async ({ page, context }) => {
     test.setTimeout(90_000);
     await sansServiceWorker(context);
-    await seConnecter(context);
-    await brancherFixtures(page, { projet: projetFictif() });
+    await seConnecter(context, ADMIN);
+    await brancherFixtures(page, { projet: projetFictif(), compte: ADMIN });
     const cloud = new FauxCloudinary();
     const journal = { defauts: [] as unknown[], attaches: [] as { name: string }[][] };
     await brancherEnvois(page, cloud, journal);
@@ -113,8 +116,8 @@ test.describe("l'envoi de secours", () => {
   test("cartons : deux photos sans réseau, l'une après l'autre — les deux arrivent", async ({ page, context }) => {
     test.setTimeout(90_000);
     await sansServiceWorker(context);
-    await seConnecter(context);
-    await brancherFixtures(page, { projet: projetFictif() });
+    await seConnecter(context, ADMIN);
+    await brancherFixtures(page, { projet: projetFictif(), compte: ADMIN });
     const cloud = new FauxCloudinary();
     const journal = { defauts: [] as unknown[], attaches: [] as { name: string }[][] };
     await brancherEnvois(page, cloud, journal);
