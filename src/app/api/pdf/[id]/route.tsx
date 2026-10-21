@@ -944,19 +944,21 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
             /* Les deux horloges, l'une sous l'autre (21.10.2026) :
                « photo ajoutée » — l'entrée de la photo dans l'app ;
                « photo prise »   — l'heure inscrite par l'appareil photo
-               dans le fichier (EXIF). Sans EXIF, on le dit plutôt que de
-               se taire : l'absence est aussi une information. */
+               dans le fichier (EXIF), seulement quand le fichier la porte. */
             const SousHeure = ({ h, quoi }: { h: DeuxHorloges | null; quoi: "premiere" | "derniere" }) => {
               if (!h) return null;
               const prise = h.prise;
               return (
                 <>
                   {h.ajout && <Text style={styles.timePhoto}>photo ajoutée {h.ajout[quoi]}</Text>}
-                  {prise
-                    ? prise.source === "prise-autre"
-                      ? <Text style={{ ...styles.timePhoto, color: "#b91c1c" }}>photo prise le {fmtDate(prise.jourReel || "")} à {prise[quoi]}</Text>
-                      : <Text style={styles.timePhoto}>photo prise {prise[quoi]}</Text>
-                    : <Text style={{ ...styles.timePhoto, color: "#cbd5e1" }}>heure de prise inconnue</Text>}
+                  {/* Une photo prise avec l'appareil de l'app n'a pas d'EXIF
+                      (l'iPhone ne le transmet pas) : son heure d'ajout EST
+                      son heure de prise, à quelques secondes près — rien à
+                      ajouter. La ligne n'apparaît que pour les photos reprises
+                      de la galerie après coup (21.10.2026). */}
+                  {prise && (prise.source === "prise-autre"
+                    ? <Text style={{ ...styles.timePhoto, color: "#b91c1c" }}>photo prise le {fmtDate(prise.jourReel || "")} à {prise[quoi]}</Text>
+                    : <Text style={styles.timePhoto}>photo prise {prise[quoi]}</Text>)}
                 </>
               );
             };
