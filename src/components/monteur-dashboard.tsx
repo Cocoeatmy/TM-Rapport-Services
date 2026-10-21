@@ -8141,7 +8141,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           /* L'aperçu parle la langue du panneau : sur les rendez-vous de
              mesures il montre l'état des mesures, et les champs qui ne servent
              qu'à cette étape — commentaires et documents de prise de mesures. */
-          const sgApercuMode = showSummaryPanel === "rdv-mesures-a-fixer" ? "mesures" : "dashboard";
+          const sgApercuMode = showSummaryPanel === "rdv-mesures-a-fixer" ? "mesures"
+            : String(showSummaryPanel || "").startsWith("rdv-sav") ? "sav" : "dashboard";
           /* NPA cherché dans l'adresse PUIS dans le nom du projet : s'arrêter à
              la première chaîne non vide envoyait « Rue de la Gare 11 » (sans
              code postal) dans « Sans code postal » alors que le nom du projet

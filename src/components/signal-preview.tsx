@@ -23,6 +23,7 @@ import { X, Phone, FileText, MessageSquare, Package, AlertTriangle, Info } from 
 import { supplierLogo } from "@/lib/supplier-logos";
 import type { Project } from "@/lib/notion";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
+import { BUCKET_PREFIX, extractCabine } from "@/lib/photo-buckets";
 import { offlineFetch } from "@/lib/offline";
 import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
 import { creerArbitreSurvol } from "@/lib/survol-apercu";
@@ -277,6 +278,10 @@ export function SignalPreviewCard({
           </div>
         </div>
       )}
+
+      {/* SAV : la réclamation de chaque cabine, et ce que le client a envoyé —
+          de quoi rappeler le client sans ouvrir le projet (21.10.2026). */}
+      {mode.startsWith("sav") && <ReclamationsSav project={avecPieces} />}
 
       {/* Documents pour Montage */}
       {(avecPieces.documentsMontagee || []).length > 0 && (
@@ -689,5 +694,52 @@ export function SignalPreviewHost() {
         )}
       </aside>
     </>
+  );
+}
+
+/* ── Réclamations SAV, cabine par cabine ─────────────────────────────── */
+
+/** « Cab3: texte | Cab5: texte » → { 3: "texte", 5: "texte" }. */
+function parCabine(brut: string): Record<number, string> {
+  const out: Record<number, string> = {};
+  const re = /Cab(\d+)\s*:([^|]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(brut || ""))) { const v = m[2].trim(); if (v) out[parseInt(m[1], 10)] = v; }
+  return out;
+}
+
+function ReclamationsSav({ project: p }: { project: Project }) {
+  const textes = parCabine(String((p as { commentairesSav?: string }).commentairesSav || ""));
+  const noms = parCabine(String((p as { nomsCabines?: string }).nomsCabines || ""));
+  /* La colonne « Documents SAV » porte aussi les cartons de pièces de
+     rechange : pièces internes, écartées ici comme dans le rapport SAV. */
+  const docs = ((p as { documentsSavDemande?: { name: string; url: string }[] }).documentsSavDemande || [])
+    .filter((f) => !(f.name || "").startsWith(BUCKET_PREFIX.SAV_PIECES + "."));
+  const cabDe = (f: { name: string }) => extractCabine(f.name) || 0;
+  const cabines = [...new Set([...Object.keys(textes).map(Number), ...docs.map(cabDe).filter(Boolean)])].sort((a, b) => a - b);
+  const sansCabine = docs.filter((f) => !cabDe(f));
+  if (!cabines.length && !sansCabine.length) return null;
+  const libelle = (u: string, i: number) => (/\.pdf(\?|$)/i.test(u) ? `PDF ${i + 1}` : /\/video\/upload\/|\.(mp4|mov|webm|m4v)(\?|$)/i.test(u) ? `Vidéo ${i + 1}` : `Photo ${i + 1}`);
+  const liens = (liste: { name: string; url: string }[]) => liste.length > 0 && (
+    <div className="sg-pv-docs">
+      {liste.map((d, i) => (
+        <a key={`${d.url}-${i}`} href={d.url} target="_blank" rel="noopener noreferrer" className="sg-pv-doc" title={d.name}>
+          {libelle(d.url, i)}
+        </a>
+      ))}
+    </div>
+  );
+  return (
+    <div className="sg-pv-bloc">
+      <span className="sg-pv-titre"><AlertTriangle className="w-3.5 h-3.5" /> Réclamation SAV</span>
+      {cabines.map((c) => (
+        <div key={c} className="sg-pv-sav">
+          <b>{noms[c] ? `${noms[c]} · cabine ${c}` : `Cabine ${c}`}</b>
+          {textes[c] && <p className="sg-pv-journal">{linkifyTel(textes[c])}</p>}
+          {liens(docs.filter((f) => cabDe(f) === c))}
+        </div>
+      ))}
+      {liens(sansCabine)}
+    </div>
   );
 }
