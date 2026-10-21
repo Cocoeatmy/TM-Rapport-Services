@@ -83,3 +83,68 @@ html[data-app="ios"][data-ui="signal"] #project-header-card h1 {
 .dark .tm-pj-carte.is-on { background: #e2e8f0; color: #0f172a; }
 .dark .tm-pj-carte.is-on small { color: #475569; }
 html.dark[data-app="ios"][data-ui="signal"] #project-header-card { background: #1e293b; border-color: rgba(255, 255, 255, 0.08); }
+
+/* ── L'intérieur des rubriques (21.10.2026) ──────────────────────────────
+   Même langue que le sommaire : cartes blanches arrondies, titre net,
+   chaque information dans une petite tuile — le libellé en petit, la valeur
+   bien lisible. Seul l'habillage change : champs, crayons et enregistrement
+   restent ceux de toujours. */
+.tm-pj-retour {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 11px 14px; border-radius: 16px;
+  background: #fff; border: 1px solid rgba(15, 23, 42, 0.07); color: #1b63ff; cursor: pointer;
+  font-size: 14px; font-weight: 650; text-align: left;
+  box-shadow: 0 1px 2px rgba(11, 18, 32, 0.04);
+}
+.tm-pj-retour-fleche { transform: rotate(180deg); }
+.tm-pj-retour b { margin-left: auto; font-size: 13px; color: #0f172a; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #f1f5f9; }
+
+.tm-pj-sections [data-slot="card"] {
+  border-radius: 22px; gap: 12px; padding: 16px 0 14px;
+  background: #fff; box-shadow: 0 1px 2px rgba(11, 18, 32, 0.04), 0 8px 22px rgba(11, 18, 32, 0.06);
+  --tw-ring-shadow: 0 0 #0000; border: 1px solid rgba(15, 23, 42, 0.06);
+  animation: tm-pj-entree 0.28s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.tm-pj-sections [data-slot="card-header"] { padding-left: 16px; padding-right: 16px; }
+.tm-pj-sections [data-slot="card-content"] { padding-left: 16px; padding-right: 16px; }
+.tm-pj-sections [data-slot="card-title"] {
+  font-size: 17px !important; font-weight: 750 !important; letter-spacing: -0.015em; color: #0f172a !important;
+}
+/* Le liseré vertical du titre devient une pastille arrondie. */
+.tm-pj-sections [data-slot="card-title"] > span.w-1.h-4 {
+  width: 8px !important; height: 8px !important; border-radius: 999px; background: #1b63ff !important;
+  box-shadow: 0 0 0 4px rgba(27, 99, 255, 0.14);
+}
+
+/* Les champs en tuiles — tous ceux qui ont la forme « icône, libellé,
+   valeur », quel que soit le composant qui les dessine (champ éditable,
+   date, adresse…). L'icône passe au-dessus : la valeur garde toute la
+   largeur de la tuile et ne se coupe plus au milieu d'un numéro. */
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) {
+  flex-direction: column; align-items: stretch; gap: 6px; min-width: 0;
+  padding: 10px 12px 11px; border-radius: 14px; background: #f6f8fb;
+}
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > svg:first-child {
+  width: 26px; height: 26px; padding: 6px; border-radius: 9px; margin: 0;
+  background: #fff; color: #1b63ff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div > p:first-child {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; line-height: 1.3;
+}
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div :is(p, a):not(:first-child) {
+  font-size: 15px; font-weight: 650; color: #0f172a; word-break: normal; overflow-wrap: anywhere;
+}
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div a:not(:first-child) { color: #1b63ff; }
+.tm-pj-sections .tm-champ input, .tm-pj-sections .tm-champ textarea, .tm-pj-sections .tm-champ select {
+  font-size: 16px; border-radius: 10px; padding: 8px 10px; background: #fff;
+}
+/* Trois colonnes de tuiles ne tiennent pas sur un iPhone : deux. */
+.tm-pj-sections [data-slot="card-content"] .grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tm-pj-sections [data-slot="card-content"] .grid { gap: 10px; }
+
+.dark .tm-pj-retour, .dark .tm-pj-sections [data-slot="card"] { background: #1e293b; border-color: rgba(255, 255, 255, 0.08); }
+.dark .tm-pj-sections [data-slot="card-title"] { color: #f1f5f9 !important; }
+.dark .tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) { background: #0f172a; }
+.dark .tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > svg:first-child,
+.dark .tm-pj-sections .tm-champ input, .dark .tm-pj-sections .tm-champ textarea { background: #1e293b; }
+.dark .tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div :is(p, a):not(:first-child) { color: #f1f5f9; }
+.dark .tm-pj-retour b { background: #0f172a; color: #e2e8f0; }

@@ -60,7 +60,6 @@ import {
   Database,
 } from "lucide-react";
 // MontageChecklist supprimée (section retirée)
-import { ProjectChat } from "@/components/project-chat";
 // GPS DÉSACTIVÉ — décommenter pour réactiver le pointage GPS automatique
 import { SiteTimer } from "@/components/site-timer";
 import { BlocFacturation } from "@/components/bloc-facturation";
@@ -1286,7 +1285,7 @@ function InlineField({
   };
 
   return (
-    <div className="flex items-start gap-2 py-1">
+    <div className="tm-champ flex items-start gap-2 py-1">
       {Icon && <Icon className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />}
       <div className="flex-1 min-w-0">
         <p className="text-xs text-gray-500">{label}</p>
@@ -3478,7 +3477,7 @@ function InfoRow({
 }) {
   if (!value) return null;
   return (
-    <div className="flex items-start gap-3 py-2">
+    <div className="tm-champ flex items-start gap-3 py-2">
       <Icon className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
       <div>
         <p className="text-xs text-gray-500">{label}</p>
@@ -9157,7 +9156,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
 
-      <div className={`px-4 sm:px-6 mt-4 ${
+      <div className={`px-4 sm:px-6 mt-4 ${isIOS && isSignalUi ? "tm-pj-sections " : ""}${
         isSignalUi ? "w-full space-y-4"
         : isMac ? "w-full space-y-4 !pl-24"
         : showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4"
@@ -9244,6 +9243,17 @@ function ProjectPageContent({ id }: { id: string }) {
                 )}
               </div>
               <div id="pj-contenu" className="tm-pj-ancre" />
+              {macTabs.size > 0 && (() => {
+                const ouverte = tabDefs.find((t) => macTabs.has(t.id));
+                return (
+                  <button type="button" className="tm-pj-retour"
+                    onClick={() => { setMacTabs(new Set()); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                    <ChevronRight className="w-4 h-4 tm-pj-retour-fleche" />
+                    <span>Sommaire</span>
+                    {ouverte && <b>{COURT[ouverte.id] || ouverte.label}</b>}
+                  </button>
+                );
+              })()}
             </div>
           );
         })()}
@@ -13277,8 +13287,8 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* Chat flottant */}
-      <ProjectChat projectId={id} />
+      {/* Le chat flottant a été retiré le 21.10.2026 : jamais utilisé. Le
+          composant et ses messages restent en place, rien n'est effacé. */}
 
       {/* Aperçu CRM d'un contact / entreprise (Informations contact) */}
       {contactPreview && typeof document !== "undefined" && (
