@@ -1699,6 +1699,13 @@ const PANEL_ETAT_CHAMP: Record<string, { champ: string; cle: string; libelle: st
 const ETATS_SANS_OBJET: Record<string, Set<string>> = {
   "rdv-montage-a-fixer": new Set(["En attente de mesures", "Cabines mesurées", "OFR envoyées sans mesures", "Annulé", "Terminé"]),
 };
+/** Pastilles d'état retirées SANS masquer les projets qui portent cet état
+ *  (21.10.2026) : le filtre ne servait à rien, le projet reste dans la liste. */
+const PASTILLES_RETIREES: Record<string, Set<string>> = (() => {
+  const mesures = new Set(["OFR envoyée sans mesures", "OFR envoyées sans mesures", "Mesures non relevées - attendre news",
+    "Annulé", "Projet sans mesures", "Projet sans de mesures", "Terminé"]);
+  return { "rdv-mesures-a-fixer": mesures, "rdv-mesures-fixe": mesures };
+})();
 
 const RDV_STATUS_ORDER: Record<string, string[]> = {
   "rdv-montage-a-fixer":  ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel"],
@@ -7970,7 +7977,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         let rdvHiddenCount = 0;
         const rdvTotalCount = panelProjects.length;
         if (rdvStatusFieldFn) {
-          const hidden = hiddenStatusOf(showSummaryPanel);
+          const retirees = PASTILLES_RETIREES[showSummaryPanel || ""];
+          const hidden = retirees
+            ? new Set([...hiddenStatusOf(showSummaryPanel)].filter((st) => !retirees.has(st)))
+            : hiddenStatusOf(showSummaryPanel);
           rdvHiddenCount = hidden.size;
           // Chips = états PRÉSENTS ∪ états MASQUÉS. Inclure les masqués garantit
           // qu'on peut TOUJOURS réactiver un état, même s'il ne reste plus aucun
@@ -7995,6 +8005,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             rdvStatusOptions = rdvStatusOptions.filter((st) => !sansObjet.has(st));
             panelProjects = panelProjects.filter((p) => !sansObjet.has(rdvStatusFieldFn(p)));
           }
+          if (retirees) rdvStatusOptions = rdvStatusOptions.filter((st) => !retirees.has(st));
         }
 
         /* ── Type de client, et fournisseur ────────────────────────────────
