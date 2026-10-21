@@ -55,6 +55,14 @@ struct TMRapportApp: App {
         WindowGroup {
             Ecran(navigateur: navigateur)
         }
+        // Avec un clavier (iPad, et l'app iPad sur un Mac) : le zoom de la page.
+        .commands {
+            CommandMenu("Présentation") {
+                Button("Agrandir") { navigateur.zoomer(0.1) }.keyboardShortcut("+", modifiers: .command)
+                Button("Réduire") { navigateur.zoomer(-0.1) }.keyboardShortcut("-", modifiers: .command)
+                Button("Taille par défaut") { navigateur.zoomer(nil) }.keyboardShortcut("0", modifiers: .command)
+            }
+        }
         .onChange(of: phase) { _, p in
             switch p {
             case .background: ArrierePlan.auDepart()
