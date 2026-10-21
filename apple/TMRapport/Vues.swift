@@ -11,12 +11,40 @@ import AppKit
 #if os(iOS)
 struct VueWeb: UIViewRepresentable {
     let vue: WKWebView
-    func makeUIView(context: Context) -> WKWebView { vue }
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
+    var echelle: CGFloat = 1
+    func makeUIView(context: Context) -> ConteneurEchelle { ConteneurEchelle(vue: vue, echelle: echelle) }
+    func updateUIView(_ conteneur: ConteneurEchelle, context: Context) { conteneur.echelle = echelle }
+}
+
+/// La vue web, mise en page dans un cadre réduit puis agrandie d'autant
+/// (voir Navigateur, « Échelle »). À l'échelle 1, elle occupe simplement
+/// tout le conteneur.
+final class ConteneurEchelle: UIView {
+    let vue: WKWebView
+    var echelle: CGFloat { didSet { if echelle != oldValue { setNeedsLayout() } } }
+
+    init(vue: WKWebView, echelle: CGFloat) {
+        self.vue = vue
+        self.echelle = echelle
+        super.init(frame: .zero)
+        clipsToBounds = true
+        addSubview(vue)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) non pris en charge") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let f = max(0.5, echelle)
+        vue.transform = .identity
+        vue.layer.anchorPoint = .zero
+        vue.frame = CGRect(x: 0, y: 0, width: bounds.width / f, height: bounds.height / f)
+        if f != 1 { vue.transform = CGAffineTransform(scaleX: f, y: f) }
+    }
 }
 #else
 struct VueWeb: NSViewRepresentable {
     let vue: WKWebView
+    var echelle: CGFloat = 1 // l'app Mac native s'affiche déjà à 100 %
     func makeNSView(context: Context) -> WKWebView { vue }
     func updateNSView(_ nsView: WKWebView, context: Context) {}
 }
@@ -45,7 +73,7 @@ struct Ecran: View {
             }
             .ignoresSafeArea()
 
-            VueWeb(vue: navigateur.vue)
+            VueWeb(vue: navigateur.vue, echelle: navigateur.echelle)
                 #if os(iOS)
                 // En bas, la page continue sous la barre d'accueil, comme
                 // dans Safari : la vue web garde elle-même le bas du contenu

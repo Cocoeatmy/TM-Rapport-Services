@@ -47,6 +47,8 @@ final class Navigateur: NSObject, ObservableObject {
     /// elle qui passe derrière l'heure et la batterie, pour que la barre
     /// système et l'en-tête ne fassent qu'un.
     @Published private(set) var couleurHaut: Color?
+    /// L'agrandissement de la page (voir « Échelle »).
+    @Published private(set) var echelle: CGFloat = Navigateur.echelleRetenue
     #if os(iOS)
     private var minuterieHaut: Timer?
     #endif
@@ -124,7 +126,6 @@ final class Navigateur: NSObject, ObservableObject {
         vue.isOpaque = false
         vue.backgroundColor = .clear
         vue.scrollView.backgroundColor = .clear
-        vue.pageZoom = Navigateur.zoom
         #else
         vue.setValue(false, forKey: "drawsBackground")
         #endif
@@ -287,28 +288,35 @@ final class Navigateur: NSObject, ObservableObject {
         resteAEnvoyer = n("photosEnAttente") + n("requetesEnAttente") + n("rapportsNonEnvoyes")
     }
 
-    // MARK: - Zoom
+    // MARK: - Échelle
 
     /// L'app iPad installée sur un Mac (TestFlight) : macOS l'affiche réduite
-    /// à 77 %, et le texte devenait trop petit face au même site dans un
-    /// navigateur (relevé du 21.10.2026). On compense par un zoom de page de
-    /// 130 % (≈ 1 / 0,77). Sur iPhone et iPad : 100 %, rien ne change.
+    /// à 77 % ; texte et cases y étaient plus petits que le même site dans un
+    /// navigateur (relevé du 21.10.2026). Un zoom de page grossissait l'image
+    /// SANS refaire la mise en page (débordement à droite), et la vue web de
+    /// l'iPad ignore une balise viewport réécrite après l'affichage. On fait
+    /// donc au niveau de la vue : la page est mise en page dans un cadre 1,3 ×
+    /// plus petit, puis agrandie d'autant (ConteneurEchelle). Elle remplit la
+    /// fenêtre sans défilement horizontal, au gabarit du navigateur — et, sur
+    /// un écran Retina, l'agrandissement compense exactement la réduction de
+    /// macOS : le texte reste net. Sur iPhone et iPad : échelle 1.
     /// ⌘+ / ⌘− / ⌘0 l'ajustent, et le choix est retenu.
-    static var zoomParDefaut: CGFloat {
+    static var echelleParDefaut: CGFloat {
         #if os(iOS)
         return ProcessInfo.processInfo.isiOSAppOnMac ? 1.3 : 1
         #else
         return 1
         #endif
     }
-    static var zoom: CGFloat {
-        let v = UserDefaults.standard.double(forKey: "TMZoomPage")
-        return v > 0 ? CGFloat(v) : zoomParDefaut
+    static var echelleRetenue: CGFloat {
+        let v = UserDefaults.standard.double(forKey: "TMEchellePage")
+        return v > 0 ? CGFloat(v) : echelleParDefaut
     }
+
     func zoomer(_ pas: CGFloat?) {
-        let nouveau = pas.map { min(2, max(0.6, ((vue.pageZoom + $0) * 100).rounded() / 100)) } ?? Navigateur.zoomParDefaut
-        vue.pageZoom = nouveau
-        UserDefaults.standard.set(Double(nouveau), forKey: "TMZoomPage")
+        let nouvelle = pas.map { min(2, max(0.7, ((echelle + $0) * 100).rounded() / 100)) } ?? Navigateur.echelleParDefaut
+        UserDefaults.standard.set(Double(nouvelle), forKey: "TMEchellePage")
+        echelle = nouvelle
     }
 
     func reculer() { if vue.canGoBack { vue.goBack() } }
@@ -604,7 +612,6 @@ extension Navigateur: WKUIDelegate {
         secondaire.navigationDelegate = self
         secondaire.uiDelegate = self
         secondaire.allowsBackForwardNavigationGestures = true
-        secondaire.pageZoom = vue.pageZoom
         if #available(iOS 16.4, macOS 13.3, *) { secondaire.isInspectable = true }
         let fenetre = FenetreSecondaire(vue: secondaire)
         #if os(iOS)
