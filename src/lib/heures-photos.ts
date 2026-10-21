@@ -262,3 +262,33 @@ export function heuresPhotosSourcees(
   const h = heuresPhotosDuJour(buckets, jourISO, options);
   return h ? { ...h, source: "ajout" } : null;
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   LES DEUX HORLOGES, CÔTE À CÔTE (21.10.2026)
+
+   Micael veut les voir ensemble, l'une sous l'autre :
+     « photo ajoutée 08:18 »  — l'instant où la photo est entrée dans l'app ;
+     « photo prise 08:05 »    — l'heure inscrite par l'appareil photo.
+   L'écart entre les deux est justement l'information : une photo prise le
+   matin et ajoutée le soir se voit d'un coup d'œil.
+   ──────────────────────────────────────────────────────────────────────── */
+
+export interface DeuxHorloges {
+  /** Heures d'ajout dans l'app, ce jour-là. */
+  ajout: HeuresPhotos | null;
+  /** Heures de prise de vue (EXIF), ce jour-là ou, à défaut, le jour où
+   *  les photos ont réellement été prises (`source: "prise-autre"`). */
+  prise: HeuresPhotosSourcees | null;
+}
+
+export function heuresPhotosDeuxHorloges(
+  buckets: Record<string, unknown>,
+  jourISO: string,
+  options: { lot?: number; fuseau?: string } = {},
+): DeuxHorloges | null {
+  const ajout = heuresPhotosDuJour(buckets, jourISO, options);
+  const sourcee = heuresPhotosSourcees(buckets, jourISO, options);
+  const prise = sourcee && sourcee.source !== "ajout" ? sourcee : null;
+  if (!ajout && !prise) return null;
+  return { ajout, prise };
+}

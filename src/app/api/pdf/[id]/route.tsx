@@ -29,7 +29,7 @@ import { emailEnabled } from "@/lib/email-prefs";
 import { formatSwissDate, formatSwissDateTime } from "@/lib/time-utils";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
 import { parseInterventions, minutesInterventions, type InterventionSav } from "@/lib/sav-interventions";
-import { heuresPhotosSourcees } from "@/lib/heures-photos";
+import { heuresPhotosDeuxHorloges, type DeuxHorloges } from "@/lib/heures-photos";
 import {
   type PhotoBucketKey,
   BUCKET_LABEL,
@@ -933,7 +933,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                moment de la prise. */
             const photosDe = (jour: string, lot?: number) =>
               heuresPhotosVisibles
-                ? heuresPhotosSourcees(project as unknown as Record<string, unknown>, jour, { lot })
+                ? heuresPhotosDeuxHorloges(project as unknown as Record<string, unknown>, jour, { lot })
                 : null;
             /* Deux horloges, deux mots. « prise » vient de l'EXIF de la
                photo — l'heure du cliché. « ajoutée » est l'instant où la
@@ -941,25 +941,23 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                affichait, et c'est ce qui a fait dire « 9 h 02 pour une
                photo d'avant montage ». Les confondre serait pire que de
                ne rien afficher du tout. */
-            const SousHeure = ({ h, quoi }: {
-              h: { premiere: string; derniere: string; source: "prise" | "prise-autre" | "ajout"; jourReel?: string } | null;
-              quoi: "premiere" | "derniere";
-            }) => {
+            /* Les deux horloges, l'une sous l'autre (21.10.2026) :
+               « photo ajoutée » — l'entrée de la photo dans l'app ;
+               « photo prise »   — l'heure inscrite par l'appareil photo
+               dans le fichier (EXIF). Sans EXIF, on le dit plutôt que de
+               se taire : l'absence est aussi une information. */
+            const SousHeure = ({ h, quoi }: { h: DeuxHorloges | null; quoi: "premiere" | "derniere" }) => {
               if (!h) return null;
-              /* Des photos d'un AUTRE jour sur un montage, cela se
-                 remarque : on affiche alors leur date, en rouge. C'est
-                 exactement ce qu'on cherche à voir. */
-              if (h.source === "prise-autre") {
-                return (
-                  <Text style={{ ...styles.timePhoto, color: "#b91c1c" }}>
-                    photo prise le {fmtDate(h.jourReel || "")} à {h[quoi]}
-                  </Text>
-                );
-              }
+              const prise = h.prise;
               return (
-                <Text style={styles.timePhoto}>
-                  {h.source === "prise" ? "photo prise " : "photo ajoutée "}{h[quoi]}
-                </Text>
+                <>
+                  {h.ajout && <Text style={styles.timePhoto}>photo ajoutée {h.ajout[quoi]}</Text>}
+                  {prise
+                    ? prise.source === "prise-autre"
+                      ? <Text style={{ ...styles.timePhoto, color: "#b91c1c" }}>photo prise le {fmtDate(prise.jourReel || "")} à {prise[quoi]}</Text>
+                      : <Text style={styles.timePhoto}>photo prise {prise[quoi]}</Text>
+                    : <Text style={{ ...styles.timePhoto, color: "#cbd5e1" }}>heure de prise inconnue</Text>}
+                </>
               );
             };
             /* Sans passage daté, la journée de référence est celle du

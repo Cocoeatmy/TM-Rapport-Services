@@ -238,3 +238,26 @@ describe("plusieurs jours parmi les photos datées", () => {
     expect(heuresPhotosSourcees(projet, "2026-10-16")?.jourReel).toBe("2026-10-12");
   });
 });
+
+describe("les deux horloges côte à côte", () => {
+  const ms = (iso: string) => new Date(iso).getTime();
+  it("rend l'heure d'ajout ET l'heure de prise de vue", async () => {
+    const { heuresPhotosDeuxHorloges } = await import("@/lib/heures-photos");
+    const nom = (ajout: string, prise?: string) =>
+      `Avant montage.1.${ms(ajout)}${prise ? `.p${ms(prise)}` : ""}.jpg`;
+    const h = heuresPhotosDeuxHorloges({
+      photosAvantMontage: [{ name: nom("2026-10-21T08:18:00+02:00", "2026-10-21T08:05:00+02:00") }],
+      photosMontage: [{ name: nom("2026-10-21T10:39:00+02:00", "2026-10-21T10:30:00+02:00") }],
+    }, "2026-10-21");
+    expect(h?.ajout).toMatchObject({ premiere: "08:18", derniere: "10:39" });
+    expect(h?.prise).toMatchObject({ premiere: "08:05", derniere: "10:30", source: "prise" });
+  });
+  it("sans EXIF : l'ajout seul, la prise vide", async () => {
+    const { heuresPhotosDeuxHorloges } = await import("@/lib/heures-photos");
+    const h = heuresPhotosDeuxHorloges({
+      photosAvantMontage: [{ name: `Avant montage.1.${ms("2026-10-21T08:18:00+02:00")}.jpg` }],
+    }, "2026-10-21");
+    expect(h?.ajout?.premiere).toBe("08:18");
+    expect(h?.prise).toBeNull();
+  });
+});
