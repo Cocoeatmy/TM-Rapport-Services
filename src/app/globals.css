@@ -854,3 +854,18 @@ html[data-ui="aurora"] .save-btn:active { transform: translateY(0) scale(0.98); 
    toggle de tri) devenait quasi inratable (clic perdu car mouseup hors cible).
    La classe .no-lift fige la carte → les clics internes répondent du 1er coup.
    ============================================================================ */
+
+/* ── Dates et heures centrées dans leur case (21.10.2026) ────────────────
+   Sur iPhone et iPad, WebKit colle la valeur d'un champ date / heure en
+   HAUT de sa case dès que celle-ci est plus haute que le texte : « 21 oct.
+   2026 » et « 08:17 » flottaient au-dessus du milieu, dans toute l'app.
+   On centre verticalement la valeur et on lui retire la marge que WebKit
+   ajoute. Écrans tactiles seulement : le Mac garde ses champs. */
+@media (pointer: coarse) {
+  input:is([type="date"], [type="time"], [type="datetime-local"], [type="month"]) {
+    display: inline-flex; align-items: center;
+  }
+  input:is([type="date"], [type="time"], [type="datetime-local"], [type="month"])::-webkit-date-and-time-value {
+    margin: 0; padding: 0; text-align: left; line-height: 1.2; min-height: 0;
+  }
+}

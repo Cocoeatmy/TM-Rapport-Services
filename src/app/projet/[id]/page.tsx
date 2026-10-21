@@ -8971,6 +8971,10 @@ function ProjectPageContent({ id }: { id: string }) {
             <div className="flex items-start gap-3">
               <button
                 onClick={() => {
+                  /* Dans le rapport (téléphone) : la flèche ramène à la fiche du
+                     projet, pas au tableau de bord — on n'avait aucun moyen d'y
+                     revenir sans tout quitter (21.10.2026). */
+                  if (showRapport && !isMac) { setShowRapport(false); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
                   // Retour à la VRAIE page précédente (une page à la fois). Repli
                   // sur le dashboard du bon onglet si le projet a été ouvert
                   // directement (deep-link, nouvel onglet → pas d'historique).
@@ -10363,6 +10367,16 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
         {/* Colonne droite - Rapport. macOS : visible via l'onglet "Rapport". */}
         <div className={`space-y-4 ${isMac ? (macHidden("rapport") ? "!hidden" : "") : (!showRapport ? "hidden" : "")}`}>
+        {/* Retour à la fiche du projet, en tête du rapport : le bouton du bas
+            vivait dans la colonne masquée sur téléphone (21.10.2026). */}
+        {showRapport && !isMac && (
+          <button type="button" className="tm-pj-retour lg:!hidden"
+            onClick={() => { setShowRapport(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+            <ChevronRight className="w-4 h-4 tm-pj-retour-fleche" />
+            <span>Projet</span>
+            <b>Rapport de montage</b>
+          </button>
+        )}
         {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (() => {
           // ── Progression ──────────────────────────────────────────────────
           // Multi-cabine : % basé uniquement sur les cabines installées (photosMontage présentes)

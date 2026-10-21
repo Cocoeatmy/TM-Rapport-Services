@@ -150,7 +150,7 @@ html.dark[data-app="ios"][data-ui="signal"] #project-header-card { background: #
 .dark .tm-pj-retour b { background: #0f172a; color: #e2e8f0; }
 
 /* Champ à un niveau de plus (Emplacement cabine) : même libellé, même valeur. */
-.tm-pj-sections .tm-champ > div > div > p:first-child {
+.tm-pj-sections .tm-champ > div > div > p.text-xs:first-child {
   font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; line-height: 1.3;
 }
 .tm-pj-sections .tm-champ > div > div :is(p, span):not(:first-child) { font-size: 15px; font-weight: 650; color: #0f172a; }
@@ -200,3 +200,55 @@ html.dark[data-app="ios"][data-ui="signal"] #project-header-card { background: #
    sur une ligne — ils débordaient et faisaient glisser tout l'onglet. */
 .tm-pj-sections div.flex.items-center.justify-between:has(> label) { flex-wrap: wrap; row-gap: 8px; }
 .tm-pj-sections div.flex.items-center.justify-between:has(> label) > div.shrink-0 { flex-wrap: wrap; }
+
+/* ── Tuiles compactes (21.10.2026, retour de Micael) ─────────────────────
+   Trop hautes pour si peu, et rien n'y ressortait. L'icône passe sur la
+   ligne du libellé (petite, sans carré), la valeur devient l'élément fort :
+   grande, grasse, foncée. Une tuile ≈ 58 px au lieu de 110. */
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) {
+  position: relative; display: block; padding: 9px 12px 10px; border-radius: 13px;
+  background: #f4f7fb; border: 1px solid rgba(15, 23, 42, 0.05);
+}
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > svg:first-child {
+  position: absolute; top: 10px; left: 12px; width: 13px; height: 13px; padding: 0;
+  background: none; box-shadow: none; border-radius: 0; color: #1b63ff;
+}
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div > p:first-child,
+.tm-pj-sections .tm-champ > div > div > p.text-xs:first-child {
+  padding-left: 19px; margin-bottom: 3px; font-size: 10px; letter-spacing: 0.06em; color: #64748b;
+}
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div :is(p, a, span):not(:first-child) {
+  font-size: 15.5px; font-weight: 750; color: #0f172a; letter-spacing: -0.01em; font-family: inherit;
+}
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div a:not(:first-child) { color: #1b4fd8; text-decoration: none; }
+.dark .tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div :is(p, a, span):not(:first-child) { color: #f1f5f9; }
+.dark .tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) { background: #0f172a; border-color: rgba(255, 255, 255, 0.06); }
+
+/* Les champs EMPILÉS dans une colonne de grille (N° TM, N° grossistes…)
+   s'étalent sur toute la largeur, deux par ligne, au lieu de laisser la
+   moitié droite vide. */
+.tm-pj-sections [data-slot="card-content"] .grid.grid-cols-2 > .flex.flex-col:only-child,
+.tm-pj-sections [data-slot="card-content"] .grid.grid-cols-2 > .flex.flex-col:has(> .tm-champ ~ .tm-champ) {
+  grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+}
+/* Les petits sous-titres (« N° TM », « N° GROSSISTES ») : plus marqués. */
+.tm-pj-sections [data-slot="card-content"] span.text-\[11px\].uppercase { color: #1b63ff; font-weight: 750; letter-spacing: 0.08em; }
+/* La valeur peut être rangée un niveau plus bas (champ éditable : un bloc
+   valeur + crayon) — on l'atteint là aussi. */
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div > *:not(:first-child),
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div > *:not(:first-child) :is(p, a, span:not(.animate-pulse)) {
+  font-size: 15.5px; font-weight: 750; color: #0f172a; letter-spacing: -0.01em;
+}
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div > *:not(:first-child) :is(span.italic, span.text-gray-300) { color: #94a3b8; font-weight: 600; }
+.dark .tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) > div > *:not(:first-child) :is(p, a, span) { color: #f1f5f9; }
+/* Un numéro ne se coupe plus en deux (« TM-999999 / 9 ») : on ne coupe
+   qu'entre deux mots, et jamais au milieu d'un numéro. */
+.tm-pj-sections [data-slot="card-content"] :is(.tm-champ, div.flex.items-start:has(> svg:first-child + div > p:first-child)) :is(p, a, span) {
+  word-break: normal !important; overflow-wrap: break-word !important;
+}
+
+/* La valeur d'un champ éditable est elle aussi « premier paragraphe » de son
+   bloc : elle ne prend ni le retrait ni les capitales du libellé. */
+.tm-pj-sections .tm-champ > div > div > p.text-sm:first-child {
+  padding-left: 0; margin-bottom: 0; text-transform: none; letter-spacing: -0.01em; font-size: 15px;
+}
