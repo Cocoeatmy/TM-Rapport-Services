@@ -290,6 +290,8 @@ export interface Project {
   infoDefautsSignale: string;
   diversInfosChantier: string;
   journalEchanges: string;
+  /** « Journal d'appel SAV » : les appels passés pour un SAV (21.10.2026). */
+  journalAppelSav: string;
   photosPiecesManquantes: FileItem[];
   photosDefautsSignale: FileItem[];
   /** « Photos numéro de Lot » — le numéro affiché sur la porte de
@@ -666,6 +668,7 @@ export function mapPageToProject(page: any): Project {
     infoDefautsSignale: extractText(p["Infos - Défauts signalé"]),
     diversInfosChantier: extractText(p["Divers infos chantier"]),
     journalEchanges: extractText(p["Journal des échanges"]),
+    journalAppelSav: extractText(p["Journal d'appel SAV"]),
     photosPiecesManquantes: extractFiles(p["Photos - Pièces manquante"]),
     photosDefautsSignale: extractFiles(p["Photos - Défauts signalé"]),
     photosNumeroLot: extractFiles(p["Photos numéro de Lot"]),
@@ -1680,6 +1683,9 @@ export async function updateProject(
     properties["Commentaires Livraisons"] = {
       rich_text: toRichText((data as any).commentaireLivraison),
     };
+  }
+  if ((data as any).journalAppelSav !== undefined) {
+    properties["Journal d'appel SAV"] = { rich_text: toRichText((data as any).journalAppelSav) };
   }
   if ((data as any).journalEchanges !== undefined) {
     properties["Journal des échanges"] = {

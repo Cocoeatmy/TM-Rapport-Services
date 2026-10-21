@@ -181,6 +181,7 @@ import { relancerEnvoisDifferes } from "@/lib/envois-differes";
 import { ColoredSelect } from "@/components/colored-select";
 import { thumbnailUrl } from "@/lib/image-url";
 import { ZoneTexte } from "@/components/zone-texte";
+import { ContactsProjet } from "@/components/signal-preview";
 
 /** Photo upload tied to a logical bucket (sub-section dans une colonne Notion). */
 /**
@@ -11394,6 +11395,19 @@ function ProjectPageContent({ id }: { id: string }) {
                             page suit l'ordre des choses — on reçoit, on regarde, puis on
                             cherche la cause. */}
                         <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
+                        {/* Le suivi des appels du SAV et qui appeler, juste après ce que le
+                            client a envoyé — avant de chercher la cause (21.10.2026). Le journal
+                            est celui du projet, commun à toutes les cabines, synchronisé avec
+                            la colonne Notion « Journal d'appel SAV ». */}
+                        <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/40 p-3 space-y-3">
+                          <EditableTextField label="Journal d'appel SAV" value={project.journalAppelSav || ""} projectId={id}
+                            fieldName="journalAppelSav" notionField="Journal d'appel SAV" multiline
+                            onUpdate={(v) => setProject((prev) => (prev ? { ...prev, journalAppelSav: v } : prev))} />
+                          <ContactsProjet project={project} sansRdv />
+                          <EditableTextField label="Contacts pour RDV" value={project.contactsRDV || ""} projectId={id}
+                            fieldName="contactsRDV" notionField="Contacts pour RDV" multiline
+                            onUpdate={(v) => setProject((prev) => (prev ? { ...prev, contactsRDV: v } : prev))} />
+                        </div>
                         <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
                           <div>
                             <Label>Cause du SAV</Label>
@@ -12440,6 +12454,19 @@ function ProjectPageContent({ id }: { id: string }) {
                                   on cherche la cause. Ces documents étaient tout en bas,
                                   après les pièces de rechange. */}
                               <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
+                              {/* Le suivi des appels du SAV et qui appeler, juste après ce que le
+                                  client a envoyé — avant de chercher la cause (21.10.2026). Le journal
+                                  est celui du projet, commun à toutes les cabines, synchronisé avec
+                                  la colonne Notion « Journal d'appel SAV ». */}
+                              <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/40 p-3 space-y-3">
+                                <EditableTextField label="Journal d'appel SAV" value={project.journalAppelSav || ""} projectId={id}
+                                  fieldName="journalAppelSav" notionField="Journal d'appel SAV" multiline
+                                  onUpdate={(v) => setProject((prev) => (prev ? { ...prev, journalAppelSav: v } : prev))} />
+                                <ContactsProjet project={project} sansRdv />
+                                <EditableTextField label="Contacts pour RDV" value={project.contactsRDV || ""} projectId={id}
+                                  fieldName="contactsRDV" notionField="Contacts pour RDV" multiline
+                                  onUpdate={(v) => setProject((prev) => (prev ? { ...prev, contactsRDV: v } : prev))} />
+                              </div>
 
                               {/* Détails SAV (niveau projet) : cause, date d'intervention, collaborateur(s). */}
                               <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">

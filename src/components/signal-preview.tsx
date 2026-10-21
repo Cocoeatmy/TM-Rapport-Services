@@ -413,7 +413,9 @@ function useFicheComplete(projectId: string): Project | null {
   return fiche && fiche.id === projectId ? fiche : null;
 }
 
-function ContactsProjet({ project }: { project: Project }) {
+/** Les contacts du projet (relations Notion). `sansRdv` : « Contacts pour
+ *  RDV » est alors affiché — et modifiable — par l'appelant. */
+export function ContactsProjet({ project, sansRdv }: { project: Project; sansRdv?: boolean }) {
   const fiche = useFicheComplete(project.id);
   const p: any = fiche || project;
 
@@ -432,7 +434,7 @@ function ContactsProjet({ project }: { project: Project }) {
   /* Les deux champs libres de Notion complètent les relations sans les
      remplacer : on les garde tant qu'ils servent. */
   const libres = [
-    { t: "Pour RDV", v: String(p.contactsRDV || "").trim() },
+    { t: "Pour RDV", v: sansRdv ? "" : String(p.contactsRDV || "").trim() },
   ].filter((c) => c.v);
 
   if (familles.length === 0 && libres.length === 0) return null;
