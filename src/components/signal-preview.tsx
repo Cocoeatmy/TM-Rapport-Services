@@ -318,6 +318,11 @@ export function SignalPreviewCard({
 
       {/* Journal des échanges — modifiable ici : c'est juste après l'appel
           qu'on note le résultat, sans avoir à ouvrir le projet. */}
+      {/* SAV : le journal des appels du SAV, d'abord — c'est lui qu'on
+          relit avant de rappeler (21.10.2026). */}
+      {mode.startsWith("sav") && (
+        <JournalEditable project={p} champ="journalAppelSav" titre="Journal d'appel SAV" vide="Aucun appel noté." />
+      )}
       <JournalEditable project={p} />
       {total > 0 && (
         <div className="sg-gauge-wrap">
@@ -520,9 +525,14 @@ const journalEcrit = new Map<string, string>();
 
 /** Journal des échanges, modifiable depuis l'aperçu. Écrit dans le MÊME champ
  *  Notion que la page projet ; la fiche affichée est mise à jour sur place. */
-function JournalEditable({ project }: { project: Project }) {
-  const distant = String((project as any).journalEchanges || "");
-  const ecrit = journalEcrit.get(project.id);
+/** Un journal du projet, modifiable dans l'aperçu : « Journal des échanges »,
+ *  ou « Journal d'appel SAV » sur les listes SAV (21.10.2026). */
+function JournalEditable({ project, champ = "journalEchanges", titre = "Journal des échanges", vide = "Aucun échange noté." }: {
+  project: Project; champ?: "journalEchanges" | "journalAppelSav"; titre?: string; vide?: string;
+}) {
+  const cle = `${champ}:${project.id}`;
+  const distant = String((project as any)[champ] || "");
+  const ecrit = journalEcrit.get(cle);
   /* Notre écriture l'emporte tant que le serveur ne l'a pas rattrapée : une
      valeur plus ancienne qui repasse par la liste ne doit pas la recouvrir. */
   const affiche = ecrit !== undefined ? ecrit : distant;
@@ -532,8 +542,8 @@ function JournalEditable({ project }: { project: Project }) {
   const [echec, setEchec] = useState(false);
 
   useEffect(() => {
-    if (ecrit !== undefined && ecrit === distant) journalEcrit.delete(project.id);
-  }, [project.id, ecrit, distant]);
+    if (ecrit !== undefined && ecrit === distant) journalEcrit.delete(cle);
+  }, [cle, ecrit, distant]);
 
   /* On ne referme QUE sur changement de projet. Refermer parce que la fiche
      s'est rafraîchie effaçait la saisie en cours — c'est ce qui avait fait
@@ -549,15 +559,15 @@ function JournalEditable({ project }: { project: Project }) {
    */
   const enregistrer = () => {
     const valeur = brouillon;
-    journalEcrit.set(project.id, valeur);
-    (project as any).journalEchanges = valeur;
+    journalEcrit.set(cle, valeur);
+    (project as any)[champ] = valeur;
     setEdition(false);
     setEchec(false);
     emit();
     offlineFetch(`/api/projects/${project.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ journalEchanges: valeur }),
+      body: JSON.stringify({ [champ]: valeur }),
     })
       .then((res) => { if (!res.ok) throw new Error(String(res.status)); })
       .catch(() => {
@@ -571,7 +581,7 @@ function JournalEditable({ project }: { project: Project }) {
   return (
     <div className="sg-pv-bloc">
       <span className="sg-pv-titre">
-        <MessageSquare className="w-3.5 h-3.5" /> Journal des échanges
+        <MessageSquare className="w-3.5 h-3.5" /> {titre}
         {!edition && (
           <button type="button" className="sg-pv-edit" onClick={ouvrir}>
             {affiche.trim() ? "Modifier" : "Ajouter"}
@@ -601,7 +611,7 @@ function JournalEditable({ project }: { project: Project }) {
       ) : affiche.trim() ? (
         <p className="sg-pv-journal">{affiche}</p>
       ) : (
-        <p className="sg-pv-vide">Aucun échange noté.</p>
+        <p className="sg-pv-vide">{vide}</p>
       )}
       {echec && (
         <span className="sg-pv-erreur">
