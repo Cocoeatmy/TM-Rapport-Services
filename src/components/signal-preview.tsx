@@ -24,6 +24,7 @@ import { supplierLogo } from "@/lib/supplier-logos";
 import type { Project } from "@/lib/notion";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import { BUCKET_PREFIX, extractCabine } from "@/lib/photo-buckets";
+import { parseCabMap } from "@/lib/sav-cabines";
 import { offlineFetch } from "@/lib/offline";
 import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
 import { creerArbitreSurvol } from "@/lib/survol-apercu";
@@ -699,25 +700,25 @@ export function SignalPreviewHost() {
 
 /* ── Réclamations SAV, cabine par cabine ─────────────────────────────── */
 
-/** « Cab3: texte | Cab5: texte » → { 3: "texte", 5: "texte" }. */
-function parCabine(brut: string): Record<number, string> {
-  const out: Record<number, string> = {};
-  const re = /Cab(\d+)\s*:([^|]*)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(brut || ""))) { const v = m[2].trim(); if (v) out[parseInt(m[1], 10)] = v; }
-  return out;
-}
-
 function ReclamationsSav({ project: p }: { project: Project }) {
-  const textes = parCabine(String((p as { commentairesSav?: string }).commentairesSav || ""));
-  const noms = parCabine(String((p as { nomsCabines?: string }).nomsCabines || ""));
+  const textes = parseCabMap((p as { commentairesSav?: string }).commentairesSav);
+  const noms = parseCabMap((p as { nomsCabines?: string }).nomsCabines);
+  /* Seuls les SAV encore OUVERTS : une cabine dont le SAV porte une date de
+     clôture est réglée — même règle que « x réglés » dans la liste
+     (lib/sav-cabines). Rien à rappeler pour elle (21.10.2026). */
+  const reglees = parseCabMap((p as { datesSavClotureCabines?: string }).datesSavClotureCabines);
+  const ouverte = (c: number) => !(reglees[c] || "").trim();
   /* La colonne « Documents SAV » porte aussi les cartons de pièces de
      rechange : pièces internes, écartées ici comme dans le rapport SAV. */
   const docs = ((p as { documentsSavDemande?: { name: string; url: string }[] }).documentsSavDemande || [])
     .filter((f) => !(f.name || "").startsWith(BUCKET_PREFIX.SAV_PIECES + "."));
   const cabDe = (f: { name: string }) => extractCabine(f.name) || 0;
-  const cabines = [...new Set([...Object.keys(textes).map(Number), ...docs.map(cabDe).filter(Boolean)])].sort((a, b) => a - b);
-  const sansCabine = docs.filter((f) => !cabDe(f));
+  const toutes = [...new Set([...Object.keys(textes).map(Number), ...docs.map(cabDe).filter(Boolean)])];
+  const cabines = toutes.filter(ouverte).sort((a, b) => a - b);
+  const nbReglees = toutes.length - cabines.length;
+  /* Un document sans lot ne se rattache à rien : on ne le montre que tant
+     qu'un SAV reste ouvert. */
+  const sansCabine = cabines.length ? docs.filter((f) => !cabDe(f)) : [];
   if (!cabines.length && !sansCabine.length) return null;
   const libelle = (u: string, i: number) => (/\.pdf(\?|$)/i.test(u) ? `PDF ${i + 1}` : /\/video\/upload\/|\.(mp4|mov|webm|m4v)(\?|$)/i.test(u) ? `Vidéo ${i + 1}` : `Photo ${i + 1}`);
   const liens = (liste: { name: string; url: string }[]) => liste.length > 0 && (
@@ -731,7 +732,10 @@ function ReclamationsSav({ project: p }: { project: Project }) {
   );
   return (
     <div className="sg-pv-bloc">
-      <span className="sg-pv-titre"><AlertTriangle className="w-3.5 h-3.5" /> Réclamation SAV</span>
+      <span className="sg-pv-titre">
+        <AlertTriangle className="w-3.5 h-3.5" /> {cabines.length > 1 ? "Réclamations SAV ouvertes" : "Réclamation SAV ouverte"}
+        {nbReglees > 0 && <em className="sg-pv-regles">· {nbReglees} réglée{nbReglees > 1 ? "s" : ""}, masquée{nbReglees > 1 ? "s" : ""}</em>}
+      </span>
       {cabines.map((c) => (
         <div key={c} className="sg-pv-sav">
           <b>{noms[c] ? `${noms[c]} · cabine ${c}` : `Cabine ${c}`}</b>

@@ -6286,3 +6286,4 @@ html[data-ui="signal"] .sg-dispo-case:not(:has(> .sg-dispo-parts))::after { cont
 html[data-ui="signal"] .sg-pv-sav { display: grid; gap: 4px; padding: 8px 0; border-top: 1px dashed var(--sg-line); }
 html[data-ui="signal"] .sg-pv-sav:first-of-type { border-top: 0; padding-top: 2px; }
 html[data-ui="signal"] .sg-pv-sav > b { font-size: 11.5px; font-weight: 700; color: #b45309; }
+html[data-ui="signal"] .sg-pv-regles { font-style: normal; font-weight: 500; color: var(--sg-text-3); margin-left: 4px; text-transform: none; letter-spacing: 0; }
