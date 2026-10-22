@@ -143,6 +143,7 @@ import { fusionnerPassage } from "@/lib/passage-lot";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, avecSaisiesEnAttente, isOnline, offlineFetch } from "@/lib/offline";
 import { lectureFiable } from "@/lib/ecritures-projet";
+import { useVoitArgent } from "@/lib/use-argent";
 /* Importé STATIQUEMENT, et non au moment de signer. Le chargement à la
    demande se déclenchait exactement quand le réseau manque : sans service
    worker pour servir le fragment depuis sa réserve, la signature ne pouvait
@@ -5013,6 +5014,8 @@ function ProjectPageContent({ id }: { id: string }) {
   // Champs projet (dates, "traité par"…) édités inline récemment : le polling ne
   // doit pas les faire "clignoter" en réaffichant une relecture Notion périmée.
   const pendingFieldsRef = useRef<Record<string, number>>({});
+  /* L'argent (montant d'offre…) : au propriétaire seul. */
+  const voitArgent = useVoitArgent();
   // Notif discret si on n'a pas pu fusionner automatiquement (conflit).
   const [collabUpdateToast, setCollabUpdateToast] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email?: string } | null>(null);
@@ -10077,9 +10080,11 @@ function ProjectPageContent({ id }: { id: string }) {
                 {/* Montant de l'offre, en francs. Il se saisit ici parce que
                     c'est ici qu'on a le numéro d'offre sous les yeux. Sans lui,
                     aucune statistique ne peut parler d'argent. */}
-                <InlineField icon={Banknote} label="Montant OFR (CHF)" type="number"
+                {/* Au propriétaire seul (22.10.2026) : le serveur ne transmet
+                    le montant qu'à lui, et refuse sa modification aux autres. */}
+                {voitArgent && <InlineField icon={Banknote} label="Montant OFR (CHF)" type="number"
                   value={project.montantOFR} projectId={id} fieldName="montantOFR" isAdmin={isAdmin}
-                  onUpdate={(v) => setProject((prev) => prev ? { ...prev, montantOFR: v } : prev)} />
+                  onUpdate={(v) => setProject((prev) => prev ? { ...prev, montantOFR: v } : prev)} />}
               </div>
               <div />
             </div>

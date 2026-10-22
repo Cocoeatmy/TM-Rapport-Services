@@ -20,6 +20,7 @@ import {
 import { STATUS_CMD_COLORS } from "@/lib/constants";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { grouperParLot, pct, type Chantier, type Lot } from "@/lib/chantiers";
+import { useVoitArgent } from "@/lib/use-argent";
 
 const SEUILS = [10, 15, 20, 30];
 
@@ -727,17 +728,9 @@ export function ChantiersView() {
   const [etat, setEtat] = useState<Etat>("encours");
   const [ouvert, setOuvert] = useState<string | null>(null);
 
-  /* Le rôle sert uniquement à MASQUER le bloc de rentabilité ; les données
-     financières restent protégées par leur propre API. */
-  const [estAdmin, setEstAdmin] = useState(false);
-  useEffect(() => {
-    let vivant = true;
-    fetch("/api/auth")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (vivant) setEstAdmin(d?.user?.role === "admin"); })
-      .catch(() => {});
-    return () => { vivant = false; };
-  }, []);
+  /* Le bloc de rentabilité (coût en CHF) : au PROPRIÉTAIRE seul
+     (22.10.2026) ; les paramètres financiers sont protégés par leur API. */
+  const estAdmin = useVoitArgent();
 
   useEffect(() => {
     let vivant = true;

@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getData, setData } from "@/lib/kv-store";
+import { estProprietaire } from "@/lib/droits-serveur";
 
 const KEY = "finances";
 
@@ -20,7 +21,8 @@ async function admin(req: NextRequest) {
   if (!token) return null;
   try {
     const user = await verifyToken(token);
-    return user && (user as any).role === "admin" ? user : null;
+    /* Salaires, charges, trésorerie : au propriétaire seul (22.10.2026). */
+    return user && (user as any).role === "admin" && (await estProprietaire(user as any)) ? user : null;
   } catch { return null; }
 }
 

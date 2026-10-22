@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { notion as notionClient } from "@/lib/notion";
+import { estProprietaire } from "@/lib/droits-serveur";
+import { colonneArgent } from "@/lib/annuaire-ia";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -38,6 +40,13 @@ export async function GET(request: NextRequest) {
 
     if (!projectId || !field) {
       return NextResponse.json({ error: "Paramètres manquants" }, { status: 400 });
+    }
+
+    /* Fichiers d'argent (offres, factures…) : au propriétaire seul. */
+    if (colonneArgent(field) || /offre/i.test(field)) {
+      if (!(await estProprietaire(user as { email?: string; role?: string }))) {
+        return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
+      }
     }
 
     // Récupère l'URL fraîche depuis Notion

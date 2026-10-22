@@ -6,6 +6,9 @@ import { getProject, updateProject } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
 import { onStatusChange } from "@/lib/projets-cache";
 import { besoinDeFusion, fusionnerAvecExistant } from "@/lib/fusion-cabines";
+import { sansArgent } from "@/lib/argent-projets";
+import { estProprietaire } from "@/lib/droits-serveur";
+import { getUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -40,7 +43,9 @@ export async function GET(
        repasser par le contrôle d'accès ci-dessus. La charge Notion reste
        bornée par le cache serveur (server-cache, avec ses garde-fous
        d'écriture). */
-    return NextResponse.json(project, {
+    // L'argent du projet : au propriétaire seulement (voir argent-projets).
+    const lisible = (await estProprietaire(await getUser())) ? project : sansArgent(project);
+    return NextResponse.json(lisible, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error: any) {
@@ -78,6 +83,12 @@ export async function PATCH(
        quelqu'un l'avancement des mesures sans lui confier celui des
        commandes. Le contrôle est ici, et non dans le Kanban, parce que ces
        deux propriétés se modifient aussi depuis d'autres écrans. */
+    /* L'argent ne se modifie que par le propriétaire (montant de l'offre,
+       état de facturation). */
+    if ("montantOFR" in body || "facturations" in body) {
+      const a = await exigerDroit("argent.voir");
+      if ("refus" in a) return a.refus;
+    }
     if ("etatMesures" in body) {
       const m = await exigerDroit("kanban.mesures");
       if ("refus" in m) return m.refus;

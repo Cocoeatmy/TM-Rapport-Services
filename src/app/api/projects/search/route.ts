@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { notion, databaseId, mapPageToProject } from "@/lib/notion";
 import { errorResponse } from "@/lib/edge-cache";
 import { filtrerListe } from "@/lib/perimetre-serveur";
+import { sansArgent } from "@/lib/argent-projets";
 
 /* Reconstruire cette liste depuis Notion demande une trentaine de
    secondes. Sans durée déclarée, la requête est coupée bien avant, et
@@ -118,7 +119,8 @@ export async function GET(req: NextRequest) {
        que les colonnes lui cachent. */
     const { projets } = await filtrerListe(projects);
 
-    return NextResponse.json(projets, {
+    // Jamais d'argent dans une liste (voir argent-projets).
+    return NextResponse.json(projets.map((p) => sansArgent(p)), {
       headers: { "Cache-Control": "private, max-age=10" },
     });
   } catch (error) {

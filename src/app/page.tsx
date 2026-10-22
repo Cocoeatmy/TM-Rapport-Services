@@ -35,6 +35,8 @@ import { getCache } from "@/lib/offline";
 import { NouveauProjet } from "@/components/nouveau-projet";
 import { AccueilCrm, AccueilLogos, AccueilServices } from "@/components/accueils-rubriques";
 import "./accueils.css";
+import { useMontants, useVoitArgent } from "@/lib/use-argent";
+import { useDroits } from "@/lib/use-droits";
 
 /* La pastille de chaque état de commande, dans les cartes de « Projets en
    cours » (écran tactile) : une teinte franche par état, regroupées par
@@ -1262,11 +1264,16 @@ function HomePage() {
     return () => { vivant = false; };
   }, [currentUser]);
 
+  /* L'argent : au propriétaire seul (22.10.2026) — droits confirmés. */
+  const voitArgent = useVoitArgent();
+  const droitsCharges = !!useDroits().mes;
+  const montantsProjets = useMontants();
   useEffect(() => {
+    if (droitsCharges && !voitArgent && mode === "a-facturer") setMode("dashboard" as Mode);
     if (currentUser && currentUser.role !== "admin" && mode === "stats") setMode("dashboard" as Mode);
     if (currentUser && currentUser.role !== "admin" && mode === "facturation") setMode("dashboard" as Mode);
     if (currentUser && currentUser.role !== "admin" && mode === "ca-bexio") setMode("dashboard" as Mode);
-  }, [currentUser, mode]);
+  }, [currentUser, mode, voitArgent, droitsCharges]);
 
   // Pré-cache les projets du jour pour l'accès hors ligne (silencieux, best-effort)
   useEffect(() => {
@@ -3105,6 +3112,8 @@ function HomePage() {
                       se fait sur la sélection en cours, pas sur toute la base —
                       c'est la facture qu'on a sous les yeux qu'on pointe. Un
                       second clic sur le même bouton rend toute la liste. */}
+                  {/* Payé / reste à payer : au propriétaire seul (22.10.2026). */}
+                  {voitArgent && <>
                   <button onClick={() => setFPaiement((v) => (v === "payes" ? "tous" : "payes"))}
                     title="N'afficher que les lignes déjà pointées comme payées"
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300 ${fPaiement === "payes" ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
@@ -3115,6 +3124,7 @@ function HomePage() {
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-300 ${fPaiement === "non-payes" ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
                     Reste à payer
                   </button>
+                  </>}
                   {/* Un pointage en vol se voit : on sait qu'il part, et l'on
                       n'a pas à se demander si la coche a bien été prise. */}
                   {pointageEnCours && (
@@ -3176,12 +3186,12 @@ function HomePage() {
                         className={`flex items-center gap-2 pl-2 pr-1 rounded-lg transition-colors sgv-row ${rowBg}${paye ? " ring-1 ring-emerald-300 dark:ring-emerald-800" : ""}`}>
                         {/* Pointage de facture : réglé ou non. Hors du lien,
                             sinon cocher ouvrirait le projet. */}
-                        <label className="shrink-0 flex items-center p-1.5 cursor-pointer"
+                        {voitArgent && <label className="shrink-0 flex items-center p-1.5 cursor-pointer"
                                title={paye ? "Payé — décocher pour annuler" : "Marquer comme payé"}
                                onClick={(e) => e.stopPropagation()}>
                           <input type="checkbox" checked={paye} onChange={() => basculerPaiement(clePaiement)}
                                  className="w-4 h-4 accent-emerald-600 cursor-pointer" />
-                        </label>
+                        </label>}
                       <Link href={`/projet/${project.id}?mode=${fTypeCardMode}`} prefetch={!isFloatingWindow}
                         className="flex-1 min-w-0 flex items-center gap-2 px-1 py-2 rounded-lg hover:bg-blue-100/60 dark:hover:bg-blue-900/30 transition-colors">
                         <div className="flex-1 min-w-0">
@@ -4102,7 +4112,7 @@ function HomePage() {
                   { label: "Montages",       valA: totalMontages, valB: bMontages,  color: "text-[#1e3a5f] dark:text-white",  size: "text-3xl" },
                   { label: "Cabines mesurées",valA: totalCabines,  valB: bCabines,   color: "text-[#1e3a5f] dark:text-white",  size: "text-3xl" },
                   { label: "Mesures",        valA: totalMesures,  valB: bMesures,   color: "text-green-600",                   size: "text-3xl" },
-                  { label: "CA (CHF)",       valA: totalCA,       valB: bCA,        color: "text-blue-600",                    size: "text-3xl", fmt: (v: number) => v > 0 ? `${(v / 1000).toFixed(0)}k` : "0" },
+                  ...(voitArgent ? [{ label: "CA (CHF)",       valA: totalCA,       valB: bCA,        color: "text-blue-600",                    size: "text-3xl", fmt: (v: number) => v > 0 ? `${(v / 1000).toFixed(0)}k` : "0" }] : []),
                   { label: "Services",       valA: totalServices, valB: bServices,  color: "text-purple-600",                  size: "text-2xl" },
                   { label: "SAV",            valA: totalSAV,      valB: bSAV,       color: "text-red-500",                     size: "text-2xl", sub: savPct ? `${savPct}% des montages` : undefined },
                   { label: "Offres",         valA: totalOFR,      valB: bOFR,       color: "text-amber-600",                   size: "text-2xl" },
@@ -4272,7 +4282,7 @@ function HomePage() {
                   { key: "sav",        label: "SAV" },
                   { key: "demontages", label: "Démontages" },
                   { key: "ofr",        label: "Nb. OFR" },
-                  { key: "ca",         label: "CA" },
+                  ...(voitArgent ? [{ key: "ca",         label: "CA" }] : []),
                 ];
                 const metric = METRICS.some((m) => m.key === compareMetric) ? compareMetric : "montages";
                 // Objectif disponible uniquement pour Montages / Mesures / CA.
@@ -5562,8 +5572,9 @@ function HomePage() {
         // 3 conditions cumulatives : le statut Notion « Facturations » vaut
         // « A facturer » par défaut sur presque tous les projets → il faut aussi
         // État-CMD = « Terminé » ET Rapport de montage = « Rapport traité ».
-        const afProjects = allActive.filter(
-          (p: any) => p.facturations === "A facturer" && p.etatCMD === "Terminé" && p.rapportDeMontage === "Rapport traité",
+        const afProjects = !voitArgent ? [] : allActive.filter(
+          (p: any) => (montantsProjets?.get(p.id)?.facturations ?? p.facturations) === "A facturer"
+            && p.etatCMD === "Terminé" && p.rapportDeMontage === "Rapport traité",
         );
         const q = deferredSearch.toLowerCase();
         const afFiltered = afProjects.filter((p: any) => matchesSearch(p, q, searchIndex.get(p.id)));

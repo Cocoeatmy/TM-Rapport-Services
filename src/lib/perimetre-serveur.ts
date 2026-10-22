@@ -23,6 +23,7 @@ import { droitsDe } from "./droits-serveur";
 import { filtrerPerimetre, type Perimetre, type PorteurDeCollaborateurs } from "./perimetre-projets";
 import { NextResponse } from "next/server";
 import { cachedJson, type EdgeCacheOptions } from "./edge-cache";
+import { sansArgent } from "@/lib/argent-projets";
 
 export interface Restriction {
   /** Le nom du compte, pour reconnaître ses chantiers. */
@@ -102,8 +103,11 @@ export async function reponseProjets<T extends PorteurDeCollaborateurs>(
   projets: T[],
   options: EdgeCacheOptions = {},
 ): Promise<NextResponse> {
-  const { projets: gardes, restreint, masques } = await filtrerListe(projets);
-  if (!restreint) return cachedJson(projets, options);
+  /* Jamais d'argent dans une liste : elle est mise en cache et partagée
+     (voir argent-projets). */
+  const { projets: gardes0, restreint, masques } = await filtrerListe(projets);
+  const gardes = gardes0.map((p) => sansArgent(p));
+  if (!restreint) return cachedJson(projets.map((p) => sansArgent(p)), options);
   if (masques > 0) {
     console.log(`[perimetre] ${masques} projet(s) masqué(s) pour cette session`);
   }

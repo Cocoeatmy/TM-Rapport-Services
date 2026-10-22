@@ -7,6 +7,8 @@ import { thumbnailUrl } from "@/lib/image-url";
 import { StatsPartenaire } from "@/components/stats-partenaire";
 import { useDroits } from "@/lib/use-droits";
 import { joursOuvresEntre } from "@/lib/jours-ouvres";
+import { useMontants, useVoitArgent } from "@/lib/use-argent";
+import { avecMontants } from "@/lib/argent-projets";
 
 interface CRMEntry {
   id: string;
@@ -503,10 +505,15 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
   const filter: StatsFilter = { year: filterYear, month: filterMonth, from: filterFrom, to: filterTo };
   const hasFilter = !!(filterYear || filterMonth || filterFrom || filterTo);
 
+  /* Le montant : au propriétaire seul ; les listes n'en portent plus, on
+     recolle les montants qui lui sont réservés (22.10.2026). */
+  const voitArgent = useVoitArgent();
+  const montants = useMontants();
   const stats = useMemo(() => {
     if (!allProjects) return null;
-    return computeEntityStats(allProjects, entityName, entityType, hasFilter ? filter : undefined, new Set(exclus.keys()));
-  }, [allProjects, entityName, entityType, filterYear, filterMonth, filterFrom, filterTo, exclus]);
+    return computeEntityStats(avecMontants(allProjects, montants), entityName, entityType, hasFilter ? filter : undefined, new Set(exclus.keys()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allProjects, entityName, entityType, filterYear, filterMonth, filterFrom, filterTo, exclus, montants]);
 
   const resetFilter = () => { setFilterYear(null); setFilterMonth(null); setFilterFrom(""); setFilterTo(""); setShowRange(false); };
 
@@ -723,7 +730,7 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
               );
             })()}
           </div>
-          <div title={stats.montantManquants > 0
+          {voitArgent && <div title={stats.montantManquants > 0
             ? `${stats.montantManquants} projet(s) sans montant renseigné : le total est partiel`
             : "Somme des montants d'offre des projets terminés"}>
             <p className="text-[9px] text-gray-400 uppercase tracking-wider">Montant</p>
@@ -735,7 +742,7 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
                 ? `${stats.montantManquants} projet${stats.montantManquants > 1 ? "s" : ""} sans montant`
                 : "tous chiffrés"}
             </p>
-          </div>
+          </div>}
         </div>
         {(stats.premier || stats.dernier) && (
           <p className="text-[10px] text-gray-400 mt-2">

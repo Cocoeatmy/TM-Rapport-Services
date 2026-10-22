@@ -12,6 +12,7 @@ import ReactPDF, {
   StyleSheet,
 } from "@react-pdf/renderer";
 import React from "react";
+import { estProprietaire } from "@/lib/droits-serveur";
 
 export const dynamic = "force-dynamic";
 
@@ -370,8 +371,11 @@ export async function GET(request: NextRequest) {
   if (!entryId) return NextResponse.json({ error: "id requis" }, { status: 400 });
 
   const all = await getData<StockCabine>("destockage");
-  const entry = all.find((e) => e.id === entryId);
-  if (!entry) return NextResponse.json({ error: "Entrée introuvable" }, { status: 404 });
+  const trouvee = all.find((e) => e.id === entryId);
+  if (!trouvee) return NextResponse.json({ error: "Entrée introuvable" }, { status: 404 });
+  /* Le prix de vente n'est imprimé que pour le propriétaire (22.10.2026). */
+  const entry = (await estProprietaire(user as { email?: string; role?: string }))
+    ? trouvee : { ...trouvee, prixAchat: undefined, prixVente: undefined };
 
   const now = formatSwissDateTime(Date.now());
 

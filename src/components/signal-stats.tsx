@@ -23,6 +23,7 @@ import { conformitePhotos, totalPhotos } from "@/lib/photos-stats";
 import { filterByStatsDate, describeStatsRange, getRolling12Range, type StatsDateState, DEFAULT_STATS_DATE_STATE } from "@/components/stats-date-filter";
 
 import { getTeamColor, getCollaboratorColor } from "@/lib/collaborators";
+import { useVoitArgent } from "@/lib/use-argent";
 
 export type SignalStatsMonth = {
   mesures: number; cabines: number; montages: number; demontages: number;
@@ -1022,11 +1023,15 @@ export function SignalStats({
   /* Prix moyen d'un montage sur la période : le seul prix dont on dispose,
      Notion ne portant pas de montant par projet. Le dénominateur est le
      nombre de MONTAGES, pas les cabines mesurées. */
+  /* Le chiffre d'affaires : au propriétaire seul (22.10.2026) — le serveur
+     ne le transmet qu'à lui, l'écran ne montre ni la tuile ni le CHF/heure. */
+  const voitArgent = useVoitArgent();
   const caParCabine = useMemo(() => {
+    if (!voitArgent) return null;
     const ca = Number(totals?.ca) || 0;
     const n = Number(totals?.montages) || 0;
     return ca > 0 && n > 0 ? ca / n : null;
-  }, [totals]);
+  }, [totals, voitArgent]);
 
   /* ── Comparaison « à date » ───────────────────────────────────────────────
      L'ancien badge comparait les deux derniers mois de la période : sur une
@@ -1230,7 +1235,7 @@ export function SignalStats({
       {/* Indicateurs clés */}
       {tab === "activite" && (<>
       <div className="sgs-kpis">
-        {KPIS.map((k, i) => {
+        {KPIS.filter((k) => voitArgent || !k.money).map((k, i) => {
           const d = delta(k.id);
           const spark = rows.map((r) => r.v[k.id] || 0);
           const sMax = Math.max(1, ...spark);
@@ -1934,7 +1939,7 @@ export function SignalStats({
                   { titre: axeRendement === "serie" ? "Série" : "Marque" },
                   { titre: "Cabines", num: true }, { titre: "Pose", num: true },
                   { titre: "SAV", num: true }, { titre: "Temps / cabine", num: true },
-                  { titre: "CHF / heure", num: true },
+                  ...(voitArgent ? [{ titre: "CHF / heure", num: true }] : []),
                 ]}>
                   {(() => {
                     const pire = Math.max(1, ...analyses.rendement[axeRendement].map((x: any) => x.minutesParCabine));
@@ -1951,13 +1956,13 @@ export function SignalStats({
                             {Math.floor(l.minutesParCabine / 60)}h{String(l.minutesParCabine % 60).padStart(2, "0")}
                             <Part valeur={l.minutesParCabine} sur={pire} />
                           </td>
-                          <td className="num fort">{chf === null ? "—" : `${chf}`}</td>
+                          {voitArgent && <td className="num fort">{chf === null ? "—" : `${chf}`}</td>}
                         </tr>
                       );
                     });
                   })()}
                 </Tableau>
-                <p className="sgs-note">
+                {voitArgent && <p className="sgs-note">
                   Notion ne porte pas de prix par projet, seulement un chiffre d&apos;affaires
                   mensuel : la colonne CHF/heure applique donc le MÊME prix moyen
                   {caParCabine !== null ? ` (${Math.round(caParCabine)} CHF par montage sur la période)` : ""}
@@ -1965,7 +1970,7 @@ export function SignalStats({
                   c&apos;est le TEMPS que chaque {axeRendement === "serie" ? "série" : "marque"} dévore —
                   pose plus SAV — pour un produit vendu au même tarif. Une série posée en
                   1 h 20 sans SAV vaut mieux qu&apos;une série 15 % plus chère qui en prend trois.
-                </p>
+                </p>}
               </>
             ) : (
               <p className="sgs-empty">Pas assez de cabines posées avec des heures pointées sur la période.</p>

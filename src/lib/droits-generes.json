@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-22T20:26:22.527Z",
+  "genereLe": "2026-10-22T21:50:07.349Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -244,6 +244,16 @@
       "methodes": [
         "GET",
         "POST"
+      ]
+    },
+    {
+      "url": "/api/argent/montants",
+      "type": "api",
+      "fichier": "src/app/api/argent/montants/route.ts",
+      "niveau": "droit",
+      "gardePage": false,
+      "methodes": [
+        "GET"
       ]
     },
     {

@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProject } from "@/lib/notion";
 import { verifyToken } from "@/lib/auth";
+import { estProprietaire } from "@/lib/droits-serveur";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -12,7 +13,8 @@ export const maxDuration = 20;
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const token = req.cookies.get("auth-token")?.value;
   const user = token ? await verifyToken(token).catch(() => null) : null;
-  if (!user || user.role !== "admin") {
+  // Offres, commandes et factures : au propriétaire seul (22.10.2026).
+  if (!user || user.role !== "admin" || !(await estProprietaire(user))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   try {

@@ -223,7 +223,9 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
   const [hoveredPhoto, setHoveredPhoto] = useState<{ src: string; x: number; y: number } | null>(null);
   /* Le crayon et la corbeille ne s'affichent que si le droit existe : le
      serveur refuserait de toute façon, autant ne pas le proposer. */
-  const { peut } = useDroits();
+  const { peut, mes } = useDroits();
+  /* Les prix : au propriétaire seul (22.10.2026). */
+  const voitArgent = !!mes && peut("argent.voir");
   const peutModifier = peut("stock.modifier");
   // Déstockage : modal (remplace prompt(), bloqué dans les PWA installées).
   const [destockTarget, setDestockTarget] = useState<StockCabine | null>(null);
@@ -418,7 +420,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
           <span>{counts.stock} entrée{counts.stock > 1 ? "s" : ""} en stock{counts.totalCabines > 0 && ` · ${counts.totalCabines} cabines`}</span>
-          {isAdmin && (counts.valeurBrut > 0 || counts.valeurNet > 0) && (
+          {isAdmin && voitArgent && (counts.valeurBrut > 0 || counts.valeurNet > 0) && (
             <span className="flex items-center gap-3 text-xs font-medium">
               <span className="flex items-center gap-1">
                 <span className="text-gray-400">BRUT</span>
@@ -560,8 +562,9 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
 
           <div className="h-px bg-gray-100 dark:bg-gray-700" />
 
-          {/* Prix + mesures */}
+          {/* Prix + mesures — les prix au propriétaire seul. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {voitArgent && <>
             <div>
               <Label className="text-xs text-gray-600 dark:text-gray-300">Prix d&apos;achat (CHF)</Label>
               <Input type="number" min="0" step="0.01" placeholder="Ex: 450.00"
@@ -574,6 +577,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                 value={form.prixVente} onChange={(e) => setForm({ ...form, prixVente: e.target.value })}
                 className="mt-1 h-10 glass-input" />
             </div>
+            </>}
             <div className="sm:col-span-2">
               <Label className="text-xs text-gray-600 dark:text-gray-300">Mesures approximatives</Label>
               <Input value={form.mesuresApprox} onChange={(e) => setForm({ ...form, mesuresApprox: e.target.value })}

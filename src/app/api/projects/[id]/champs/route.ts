@@ -4,6 +4,8 @@ import { notion, notionWrite, databaseId } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
 import { normaliserSchema, champPar } from "@/lib/notion-schema";
 import { ecrireValeur, lireValeur, TypeNonEcrivable, type ValeurChamp } from "@/lib/notion-valeurs";
+import { estProprietaire } from "@/lib/droits-serveur";
+import { colonneArgent } from "@/lib/annuaire-ia";
 
 /**
  * Lire et écrire N'IMPORTE QUELLE propriété d'un projet, par son
@@ -53,8 +55,13 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     /* On renvoie les valeurs rangées PAR IDENTIFIANT : l'écran ne
        manipule jamais les noms, et un renommage ne le concerne pas. */
     const valeurs: Record<string, ValeurChamp> = {};
-    for (const p of Object.values(props)) {
+    /* Colonnes d'argent (montant, facturation, offres…) : au propriétaire
+       seul — ni leur valeur, ni leur existence (22.10.2026). */
+    const proprio = await estProprietaire(user);
+    const argent = new Set<string>();
+    for (const [nom, p] of Object.entries(props)) {
       const pid = String(p.id);
+      if (!proprio && (colonneArgent(nom) || /^offre tm$/i.test(nom))) { argent.add(pid); continue; }
       valeurs[pid] = lireValeur(p);
     }
     return NextResponse.json({
@@ -63,7 +70,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
       /* La dernière modification connue : l'écran s'en sert pour repérer
          qu'on a travaillé sur une version dépassée. */
       modifieLe: (page as unknown as { last_edited_time?: string }).last_edited_time || null,
-      champs: schema.champs.map((c) => ({ id: c.id, nom: c.nom, type: c.type })),
+      champs: schema.champs.filter((c) => !argent.has(c.id)).map((c) => ({ id: c.id, nom: c.nom, type: c.type })),
     });
   } catch (err) {
     console.error("[projects/champs GET]", err);
@@ -88,11 +95,16 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     const schema = await schemaCourant();
     const properties: Record<string, unknown> = {};
     const refuses: { id: string; nom: string; motif: string }[] = [];
+    const proprio = await estProprietaire(user);
 
     for (const [cid, valeur] of Object.entries(modifs)) {
       const champ = champPar(schema, cid);
       if (!champ) {
         refuses.push({ id: cid, nom: cid, motif: "Propriété inconnue dans la base Notion" });
+        continue;
+      }
+      if (!proprio && (colonneArgent(champ.nom) || /^offre tm$/i.test(champ.nom))) {
+        refuses.push({ id: champ.id, nom: champ.nom, motif: "Réservé au propriétaire" });
         continue;
       }
       try {

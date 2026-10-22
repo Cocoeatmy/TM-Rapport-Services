@@ -12,6 +12,7 @@ import ReactPDF, {
   StyleSheet,
 } from "@react-pdf/renderer";
 import React from "react";
+import { estProprietaire } from "@/lib/droits-serveur";
 
 export const dynamic = "force-dynamic";
 
@@ -353,7 +354,10 @@ export async function GET(request: NextRequest) {
   // Filtre optionnel : stock | destocke | all (défaut : stock)
   const filterParam = request.nextUrl.searchParams.get("filter") ?? "stock";
 
-  const all = await getData<StockCabine>("destockage");
+  /* Le prix de vente n'est imprimé que pour le propriétaire (22.10.2026). */
+  const prixVisibles = await estProprietaire(user as { email?: string; role?: string });
+  const all = (await getData<StockCabine>("destockage"))
+    .map((e) => (prixVisibles ? e : { ...e, prixAchat: undefined, prixVente: undefined }));
   const entries = all
     .filter((e) => filterParam === "all" || e.status === filterParam)
     .sort((a, b) => b.createdAt - a.createdAt);

@@ -16,11 +16,13 @@
  */
 
 import Link from "next/link";
+import { Lock } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useDroits } from "@/lib/use-droits";
 import { BexioPartenaire } from "@/components/bexio-partenaire";
 import { mesuresFaites } from "@/lib/cabines-mesurees";
 import { posesDuChantier, type LotPose } from "@/lib/poses-lots";
+import { useMontants } from "@/lib/use-argent";
 import { defautsParProjet, LIBELLES_SIGNALEMENT, signalementsDansPeriode, type DefautsParProjet, type SignalementPourStats } from "@/lib/types-defaut";
 import "./stats-partenaire.css";
 
@@ -119,6 +121,10 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
   const [feuille, setFeuille] = useState<{ titre: string; projets: P[] } | null>(null);
   const onOuvrir = (titre: string, projets: P[]) => (ouvrirExterne ? ouvrirExterne(titre, projets) : setFeuille({ titre, projets }));
   const argent = !!mes && peut("argent.voir");
+  /* Les montants ne voyagent plus dans les listes : on les recolle ici, pour
+     le propriétaire seul (voir argent-projets). */
+  const montants = useMontants();
+  const montantDe = (p: P) => Number(montants?.get(p.id)?.montantOFR ?? p.montantOFR) || 0;
   const voitSignalements = !!mes && peut("signalements.voir");
   const [defauts, setDefauts] = useState<DefautsParProjet | null>(null);
   useEffect(() => {
@@ -133,8 +139,8 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
     const cabines = periode.reduce((n, p) => n + cab(p), 0);
     const poses = periode.filter(termine);
     const cabinesPosees = poses.reduce((n, p) => n + cab(p), 0);
-    const montant = periode.reduce((n, p) => n + (Number(p.montantOFR) || 0), 0);
-    const avecMontant = periode.filter((p) => Number(p.montantOFR) > 0);
+    const montant = periode.reduce((n, p) => n + montantDe(p), 0);
+    const avecMontant = periode.filter((p) => montantDe(p) > 0);
     const sav = periode.filter(aSav);
 
     /* Douze mois glissants, mois courant compris : mesures (projets) et
@@ -242,7 +248,8 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
 
     return { cabines, poses, cabinesPosees, montant, avecMontant, sav, parMois, pic, an12, an12Avant,
       parcours, delais, delaiMax, qualite, signalements, series, lies, installateurs, equipe, prochains };
-  }, [tous, periode, famille, defauts, bornes?.de, bornes?.a]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tous, periode, famille, defauts, bornes?.de, bornes?.a, montants]);
 
   /* Les numéros TM de TOUS ses chantiers : c'est par eux que bexio
      reconnaît le partenaire (l'offre porte ce numéro). */
@@ -273,13 +280,13 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
     );
   };
 
-  const tuiles: { val: string; lib: string; sous?: string; liste: P[]; ton?: string }[] = [
+  const tuiles: { val: string; lib: string; sous?: string; liste: P[]; ton?: string; prive?: boolean }[] = [
     { val: String(periode.length), lib: "Projets", sous: libellePeriode, liste: periode },
     { val: String(s.cabines), lib: "Cabines", sous: `${s.cabinesPosees} posées`, liste: periode },
     { val: `${pct(s.poses.length, periode.length)} %`, lib: "Terminés", sous: `${s.poses.length} sur ${periode.length}`, liste: s.poses, ton: "is-ok" },
     ...(argent ? [
-      { val: chf(s.montant), lib: "Offres TM", sous: `${s.avecMontant.length} chiffrées`, liste: s.avecMontant },
-      { val: s.avecMontant.length ? chf(s.montant / s.avecMontant.length) : "—", lib: "Panier moyen", sous: "par projet chiffré", liste: s.avecMontant },
+      { val: chf(s.montant), lib: "Offres TM", sous: `${s.avecMontant.length} chiffrées`, liste: s.avecMontant, prive: true },
+      { val: s.avecMontant.length ? chf(s.montant / s.avecMontant.length) : "—", lib: "Panier moyen", sous: "par projet chiffré", liste: s.avecMontant, prive: true },
     ] : []),
     { val: `${pct(s.sav.length, periode.length)} %`, lib: "Taux de SAV", sous: `${s.sav.length} projet${s.sav.length > 1 ? "s" : ""}`, liste: s.sav, ton: s.sav.length ? "is-alerte" : undefined },
   ];
@@ -297,7 +304,7 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
       {voir("tuiles") && <div className="sgpt-tuiles">
         {tuiles.map((t) => (
           <button key={t.lib} type="button" className={`sgpt-tuile ${t.ton || ""}`} onClick={() => onOuvrir(t.lib, t.liste)}>
-            <span className="sgpt-tuile-lib">{t.lib}</span>
+            <span className="sgpt-tuile-lib">{t.lib}{t.prive && <Lock className="sgpt-prive" aria-label="visible par toi seul" />}</span>
             <span className="sgpt-tuile-val">{t.val}</span>
             {t.sous && <span className="sgpt-tuile-sous">{t.sous}</span>}
           </button>

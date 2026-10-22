@@ -49,6 +49,7 @@ import { PersonalStats } from "@/components/personal-stats";
 import { useIsSignalTheme } from "@/lib/use-signal-theme";
 import { useDroits } from "@/lib/use-droits";
 import { champNomme, prenomDe } from "@/lib/perimetre-projets";
+import { useMontants } from "@/lib/use-argent";
 
 /* Trois têtes : l'équipe complète (« Team », trois monteurs ou plus). */
 function IconeEquipe(props: React.SVGProps<SVGSVGElement>) {
@@ -1748,6 +1749,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
      confort : chaque route appelée vérifie elle-même ses droits. */
   const { mes: mesDroits, peut } = useDroits();
   const autorise = (id: string) => !restreint || (!!mesDroits && peut(id));
+  /* L'argent (à facturer, relances chiffrées, devis, factures) : au
+     propriétaire SEUL — ni les autres administrateurs, ni les employés
+     (22.10.2026). Droits confirmés obligatoires. */
+  const voitArgent = !!mesDroits && peut("argent.voir");
+  const montantsProjets = useMontants();
+  const facturationDe = (p: Project) => montantsProjets?.get(p.id)?.facturations ?? p.facturations;
   /** Charge et disponibilité de l'ÉQUIPE : « suivre l'activité de l'équipe ». */
   const voitEquipe = autorise("tableau.activite");
   /** Signaux (bexio, appareils, relances, pages d'administration) : administrateur. */
@@ -1761,8 +1768,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const maMesure = (p: Project) => moi(p.mesuresTraiteePar);
   const monSav = (p: Project) => moi(p.collaborateursSAV || p.collaborateurs);
   const tuileAutorisee = (id: string) =>
-    id === "a-facturer" ? autorise("argent.voir")
-    : id === "mesures-sans-commande" ? autorise("argent.relances")
+    id === "a-facturer" ? voitArgent
+    : id === "mesures-sans-commande" ? !!mesDroits && peut("argent.relances")
     /* « Monteurs actifs » : heures et statistiques de chacun. */
     : id === "active" ? voitEquipe
     : true;
@@ -3322,7 +3329,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // cherche aussi dans terminatedProjects.
   const aFacturerProjects = [...projects, ...terminatedProjects]
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i) // déduplique
-    .filter((p) => p.facturations === "A facturer" && p.etatCMD === "Terminé" && p.rapportDeMontage === "Rapport traité")
+    .filter((p) => voitArgent && facturationDe(p) === "A facturer" && p.etatCMD === "Terminé" && p.rapportDeMontage === "Rapport traité")
     .sort((a, b) => ((a.dateOffre || "") > (b.dateOffre || "") ? -1 : 1));
   const aFacturerCount = aFacturerProjects.length;
 
@@ -4842,7 +4849,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 { label: "Rapports en attente", count: rapportsAttenteCount, bg: "#f1ecfe", fg: "#6d28d9", panel: "rapports-attente", Icon: FileText },
                 { label: "SAV non traités", count: savNonTraitesCount, bg: "#fdf0dc", fg: "#b45309", panel: "sav-non-traites", Icon: ShieldAlert },
                 { label: "Soucis en cours", count: soucisEnCoursCount, bg: "#fde8e8", fg: "#b91c1c", panel: "soucis-en-cours", Icon: AlertTriangle },
-                { label: "À facturer", count: aFacturerCount, bg: "#e7f6ec", fg: "#15803d", panel: "a-facturer", Icon: Receipt },
+                ...(voitArgent ? [{ label: "À facturer", count: aFacturerCount, bg: "#e7f6ec", fg: "#15803d", panel: "a-facturer", Icon: Receipt }] : []),
               ]).map((s) => (
                 <button key={s.label} type="button" onClick={(e) => openPanel(s.panel as any, e)} className="sg-signal-row">
                   <span className="sg-signal-chip" style={{ background: s.bg, color: s.fg }}><s.Icon className="w-3.5 h-3.5" /></span>
@@ -4914,7 +4921,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               {/* Les deux signaux bexio. Ils ne portent PAS de montant dans la
                   ligne : l'écran se regarde par-dessus l'épaule, et le détail
                   s'ouvre à la demande. */}
-              {signauxBexio.etat !== "absent" && (() => {
+              {voitArgent && signauxBexio.etat !== "absent" && (() => {
                 const pret = signauxBexio.etat === "pret" ? signauxBexio : null;
                 const attente = signauxBexio.etat === "chargement";
                 const valeur = (n: number | undefined) =>

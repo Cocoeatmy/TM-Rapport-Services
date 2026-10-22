@@ -17,6 +17,7 @@ import { NextResponse } from "next/server";
 import { getUser, type User } from "./auth";
 import { getData, getDataFresh, setData } from "./kv-store";
 import { redisGetJSON, redisSetJSON } from "./redis-cache";
+import { peutVoirBexio } from "./bexio";
 import {
   droitsEffectifs,
   peut,
@@ -129,9 +130,31 @@ export function oublierCache(): void {
   expire = 0;
 }
 
+/* L'ARGENT N'EST QU'AU PROPRIÉTAIRE (22.10.2026). Montants, offres, factures,
+   chiffre d'affaires : seul le patron les voit — pas un autre administrateur,
+   pas un responsable, quel que soit le réglage de son profil. Le propriétaire
+   est celui qui détient les accès bexio (`peutVoirBexio`, ou `BEXIO_ACCES`).
+   Mémorisé une minute : la question se pose à chaque requête. */
+const DROITS_ARGENT = ["argent.voir", "argent.relances"];
+const proprio = new Map<string, { oui: boolean; t: number }>();
+export async function estProprietaire(user: { email?: string; role?: string } | null): Promise<boolean> {
+  const email = String(user?.email || "").toLowerCase().trim();
+  if (!email) return false;
+  const m = proprio.get(email);
+  if (m && Date.now() - m.t < 60_000) return m.oui;
+  let oui = false;
+  try { oui = await peutVoirBexio(user); } catch { oui = false; }
+  proprio.set(email, { oui, t: Date.now() });
+  return oui;
+}
+
 /** Ce que ce compte a le droit de faire, maintenant. */
 export async function droitsDe(user: User): Promise<DroitsEffectifs> {
-  return droitsEffectifs(user.email, user.role, await lireReglages());
+  const d = droitsEffectifs(user.email, user.role, await lireReglages());
+  if (!(await estProprietaire(user))) {
+    for (const id of DROITS_ARGENT) d.droits[id] = { niveau: "non", source: d.droits[id]?.source ?? "profil" };
+  }
+  return d;
 }
 
 export interface Autorise {

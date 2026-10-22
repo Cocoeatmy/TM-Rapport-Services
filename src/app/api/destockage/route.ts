@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exigerDroit } from "@/lib/droits-serveur";
 import { getData, setData } from "@/lib/kv-store";
+import { aLeDroit } from "@/lib/droits-serveur";
 
 export interface StockCabine {
   id: string;
@@ -49,7 +50,9 @@ export async function GET(request: NextRequest) {
 
   const data = await getData<StockCabine>(KEY);
   data.sort((a, b) => b.createdAt - a.createdAt);
-  return NextResponse.json(data);
+  /* Prix d'achat et de vente : au propriétaire seul (22.10.2026). */
+  if (await aLeDroit("argent.voir")) return NextResponse.json(data);
+  return NextResponse.json(data.map(({ prixAchat: _a, prixVente: _v, ...reste }) => reste));
 }
 
 export async function POST(request: NextRequest) {
@@ -85,8 +88,8 @@ export async function POST(request: NextRequest) {
     typeVerre: parseArr(body.typeVerre),
     traitementVerre: parseArr(body.traitementVerre),
     couleur: parseArr(body.couleur),
-    prixAchat: parsePrix(body.prixAchat),
-    prixVente: parsePrix(body.prixVente),
+    prixAchat: (await aLeDroit("argent.voir")) ? parsePrix(body.prixAchat) : undefined,
+    prixVente: (await aLeDroit("argent.voir")) ? parsePrix(body.prixVente) : undefined,
     mesuresApprox: (body.mesuresApprox || "").trim(),
     numeroArticle: (body.numeroArticle || "").trim(),
     typeMontage: parseArr(body.typeMontage),
@@ -99,6 +102,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const v = await exigerDroit("stock.modifier");
   if ("refus" in v) return v.refus;
+  const proprio = await aLeDroit("argent.voir");
   const user = v.user;
 
   const body = await request.json();
@@ -126,8 +130,9 @@ export async function PATCH(request: NextRequest) {
     typeVerre:           body.typeVerre !== undefined ? parseArr(body.typeVerre) : cur.typeVerre,
     traitementVerre:     body.traitementVerre !== undefined ? parseArr(body.traitementVerre) : cur.traitementVerre,
     couleur:             body.couleur !== undefined ? parseArr(body.couleur) : cur.couleur,
-    prixAchat:           body.prixAchat !== undefined ? parsePrix(body.prixAchat) : cur.prixAchat,
-    prixVente:           body.prixVente !== undefined ? parsePrix(body.prixVente) : cur.prixVente,
+    // Les prix ne se modifient que par le propriétaire (22.10.2026).
+    prixAchat:           body.prixAchat !== undefined && proprio ? parsePrix(body.prixAchat) : cur.prixAchat,
+    prixVente:           body.prixVente !== undefined && proprio ? parsePrix(body.prixVente) : cur.prixVente,
     mesuresApprox:       body.mesuresApprox !== undefined ? String(body.mesuresApprox).trim() : cur.mesuresApprox,
     numeroArticle:       body.numeroArticle !== undefined ? String(body.numeroArticle).trim() : cur.numeroArticle,
     typeMontage:         body.typeMontage !== undefined ? parseArr(body.typeMontage) : cur.typeMontage,

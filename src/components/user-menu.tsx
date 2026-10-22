@@ -14,6 +14,7 @@ import { isSaveToGalleryEnabled, setSaveToGalleryEnabled } from "@/lib/save-to-g
 import { estAppIphone, ouvrirRubrique } from "@/components/navigation-ios";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
+import { useVoitArgent } from "@/lib/use-argent";
 
 interface UserData {
   email: string;
@@ -35,6 +36,8 @@ const PROPRIETAIRE = "ferreira.micael@gmail.com";
 
 export function UserMenu() {
   const router = useRouter();
+  /* « Indicateurs financiers » : au propriétaire seul (22.10.2026). */
+  const voitArgent = useVoitArgent();
   const pathname = usePathname() || "/";
   /* App iPhone : le menu s'ouvre depuis le bouton Profil de la barre du bas,
      en feuille, et reprend la synchro, la journée hors ligne et les stats
@@ -344,7 +347,7 @@ export function UserMenu() {
                 Rapports
               </button>
             )}
-            {user.role === "admin" && (
+            {voitArgent && (
               <button
                 onClick={() => { setOpen(false); router.push("/admin/finances"); }}
                 className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"

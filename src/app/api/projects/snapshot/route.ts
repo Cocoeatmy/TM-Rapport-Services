@@ -14,6 +14,8 @@
 import { NextResponse } from "next/server";
 import { getBlob, getData } from "@/lib/kv-store";
 import { setCacheLong } from "@/lib/server-cache";
+import { sansArgent } from "@/lib/argent-projets";
+import { filtrerListe } from "@/lib/perimetre-serveur";
 
 export const dynamic = "force-dynamic";
 
@@ -80,12 +82,16 @@ export async function GET() {
     );
 
     // 3. Mapper vers les clés modes clients
+    /* Même règles que les listes : le périmètre de la session (il manquait
+       ici), et jamais d'argent (voir argent-projets). */
     const clientData: Record<string, any[]> = {};
     for (const [cacheKey, modes] of Object.entries(KEY_TO_MODE)) {
       const data = datasets[cacheKey];
       if (!data) continue;
+      const { projets } = await filtrerListe(data);
+      const propre = projets.map((p: any) => sansArgent(p));
       for (const mode of modes) {
-        clientData[mode] = data;
+        clientData[mode] = propre;
       }
     }
 

@@ -108,10 +108,14 @@ export default function FinancesPage() {
      l'adresse est renvoye a l'accueil, le menu ne suffit pas a proteger. */
   const [autorise, setAutorise] = useState<boolean | null>(null);
   useEffect(() => {
-    fetch("/api/auth")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.user?.role !== "admin") { router.replace("/"); setAutorise(false); }
+    /* Au PROPRIÉTAIRE seul (22.10.2026) : être administrateur ne suffit
+       plus — le droit « argent.voir » ne lui est accordé qu'à lui. */
+    Promise.all([
+      fetch("/api/auth").then((r) => r.json()),
+      fetch("/api/droits/moi", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(([a, d]) => {
+        if (a?.user?.role !== "admin" || d?.droits?.["argent.voir"] !== "oui") { router.replace("/"); setAutorise(false); }
         else setAutorise(true);
       })
       .catch(() => { router.replace("/"); setAutorise(false); });

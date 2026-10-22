@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { exigerDroit } from "@/lib/droits-serveur";
 import { cachedOrFetchLong } from "@/lib/server-cache";
 import { getStats } from "@/lib/stats-data";
+import { aLeDroit } from "@/lib/droits-serveur";
 
 export const dynamic = "force-dynamic";
 // Lit le snapshot KV pré-calculé (cron nocturne) → rapide. Fallback live possible
@@ -16,7 +17,9 @@ export async function GET(request: Request) {
     // que la journée en cours soit comptée. Sans le paramètre : inchangé.
     const fresh = new URL(request.url).searchParams.has("fresh");
     const rows = await cachedOrFetchLong("stats-services", () => getStats("services"), fresh);
-    return NextResponse.json(rows);
+    /* Le chiffre d'affaires : au propriétaire seul (22.10.2026). */
+    if (await aLeDroit("argent.voir")) return NextResponse.json(rows);
+    return NextResponse.json((rows as Record<string, unknown>[]).map((r) => ({ ...r, ca: null })));
   } catch (error: any) {
     console.error("Error fetching stats services:", error);
     return NextResponse.json({ error: error.message || "Erreur" }, { status: 500 });

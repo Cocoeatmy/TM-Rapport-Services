@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getData, getDataFresh, setData } from "@/lib/kv-store";
+import { estProprietaire } from "@/lib/droits-serveur";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -33,9 +34,12 @@ async function utilisateur(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!(await utilisateur(req))) {
+  const u = await utilisateur(req);
+  if (!u) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
+  /* Ce qui est payé ou non : au propriétaire seul (22.10.2026). */
+  if (!(await estProprietaire(u as { email?: string; role?: string }))) return NextResponse.json([]);
   try {
     return NextResponse.json(await getData<LignePayee>(CLE));
   } catch {
@@ -84,7 +88,7 @@ async function appliquer(deltas: Delta[], par: string): Promise<number> {
 
 export async function POST(req: NextRequest) {
   const user = await utilisateur(req);
-  if (!user || (user as { role?: string }).role !== "admin") {
+  if (!user || (user as { role?: string }).role !== "admin" || !(await estProprietaire(user as { email?: string }))) {
     return NextResponse.json({ error: "Admin requis" }, { status: 403 });
   }
   try {
