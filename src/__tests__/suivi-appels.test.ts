@@ -51,7 +51,8 @@ describe("appel noté après coup", () => {
   it("heure refusée dans le futur ou trop ancienne", () => {
     expect(heureAppelValide("2026-10-22T09:00:00Z", MAINTENANT)).toBe("2026-10-22T09:00:00.000Z");
     expect(heureAppelValide("2026-10-22T15:00:00Z", MAINTENANT)).toBeNull();
-    expect(heureAppelValide("2026-09-01T09:00:00Z", MAINTENANT)).toBeNull();
+    expect(heureAppelValide("2026-10-07T10:00:00Z", MAINTENANT)).toBe("2026-10-07T10:00:00.000Z");
+    expect(heureAppelValide("2026-06-01T09:00:00Z", MAINTENANT)).toBeNull();
     expect(heureAppelValide("n'importe quoi", MAINTENANT)).toBeNull();
   });
 });
@@ -82,5 +83,12 @@ describe("numérotation dans le journal", () => {
     expect(ligneJournal(hist[4], 1)).toBe("22.10.26 - 10h00 : 1er appel sans réponse");
     expect(ligneJournal(a("2026-10-22T09:00:00Z", "sans-reponse"), 9)).toBe("22.10.26 - 11h00 : 9e appel sans réponse");
     expect(ligneJournal(hist[3], 0)).toBe("21.10.26 - 12h00 : Client joint");
+  });
+});
+
+describe("appel noté sans heure", () => {
+  it("le journal n'indique que le jour", () => {
+    expect(ligneJournal(a("2026-10-07T10:00:00Z", "message", { sansHeure: true }), 2))
+      .toBe("07.10.26 : 2e message laissé (combox)");
   });
 });

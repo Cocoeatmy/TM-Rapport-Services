@@ -102,17 +102,21 @@ export function SuiviAppels({ projectId, liste }: { projectId: string; liste: st
   const noter = async (issue: IssueAppel) => {
     if (issue === "rappeler" && !rappelLe) { toast.error("Choisissez le jour du rappel"); return; }
     let le: string | undefined;
-    if (jourAppel && jourAppel !== aujourdhui() && !heureAppel) { toast.error("Indiquez l'heure de l'appel"); return; }
-    if (heureAppel) {
-      const d = new Date(`${jourAppel || aujourdhui()}T${heureAppel}:00`);
-      if (Number.isNaN(d.getTime()) || d.getTime() > Date.now() + 60_000) { toast.error("L'heure de l'appel est dans le futur"); return; }
+    /* Un autre jour sans heure : l'heure n'est pas connue, on n'en invente
+       pas — le journal n'indique que le jour (midi sert au classement). */
+    const sansHeure = !!jourAppel && jourAppel !== aujourdhui() && !heureAppel;
+    if (heureAppel || sansHeure) {
+      const d = new Date(`${jourAppel || aujourdhui()}T${heureAppel || "12:00"}:00`);
+      if (Number.isNaN(d.getTime()) || (!sansHeure && d.getTime() > Date.now() + 60_000) || jourAppel > aujourdhui()) {
+        toast.error("Le jour ou l'heure de l'appel est dans le futur"); return;
+      }
       le = d.toISOString();
     }
     setEnvoi(issue);
     try {
       const res = await fetch("/api/appels", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, issue, le, rappelLe: issue === "rappeler" ? rappelLe : undefined, note: note.trim() || undefined, liste }),
+        body: JSON.stringify({ projectId, issue, le, sansHeure, rappelLe: issue === "rappeler" ? rappelLe : undefined, note: note.trim() || undefined, liste }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
@@ -150,7 +154,8 @@ export function SuiviAppels({ projectId, liste }: { projectId: string; liste: st
             <input type="time" value={heureAppel} onClick={(e) => e.stopPropagation()}
               onChange={(e) => setHeureAppel(e.target.value)} aria-label="Heure de l'appel" />
           </span>
-          <span className="sg-appels-quand-aide">{heureAppel ? "Appel noté après coup, à l'heure indiquée" : "Heure vide = maintenant"}</span>
+          <span className="sg-appels-quand-aide">{heureAppel ? "Appel noté après coup, à l'heure indiquée"
+              : jourAppel && jourAppel !== aujourdhui() ? "Heure facultative" : "Heure vide = maintenant"}</span>
           <input className="sg-appels-note" type="text" value={note} maxLength={200}
             placeholder="Note (facultatif) — ex. rappeler après 17h"
             onClick={(e) => e.stopPropagation()}

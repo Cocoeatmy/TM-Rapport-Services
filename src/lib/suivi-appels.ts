@@ -32,6 +32,9 @@ export interface Appel {
   /** Noté après coup (appel passé en voiture, noté au bureau) : l'instant
       de la saisie, quand il s'écarte de plus de 5 min de l'appel. */
   saisiLe?: string | null;
+  /** Noté après coup avec le jour seulement : l'heure n'est pas connue
+      (`le` vaut alors midi ce jour-là, pour le classement). */
+  sansHeure?: boolean;
   issue: IssueAppel;
   /** « À rappeler » : le jour convenu (AAAA-MM-JJ). */
   rappelLe?: string | null;
@@ -148,7 +151,7 @@ export function ligneJournal(a: Appel, rang = 0, fuseau = "Europe/Zurich"): stri
     timeZone: fuseau, day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
   }).formatToParts(new Date(a.le)).map((x) => [x.type, x.value]));
   const date = `${parts.day}.${parts.month}.${parts.year}`;
-  const heure = `${parts.hour}h${parts.minute}`;
+  const heure = a.sansHeure ? "" : ` - ${parts.hour}h${parts.minute}`;
   let texte: string = rang > 0 && LIBELLE_NUMERO[a.issue]
     ? `${ordinal(rang)} ${LIBELLE_NUMERO[a.issue]}`
     : ISSUES_APPEL[a.issue];
@@ -156,14 +159,14 @@ export function ligneJournal(a: Appel, rang = 0, fuseau = "Europe/Zurich"): stri
   if (a.note) texte += ` — ${a.note}`;
   /* Ni l'auteur ni l'heure de saisie dans la ligne (demande du 22.10.2026) :
      ils restent conservés dans l'app (champs `par`, `saisiLe`). */
-  return `${date} - ${heure} : ${texte}`;
+  return `${date}${heure} : ${texte}`;
 }
 
 /** L'heure d'appel envoyée par l'app, acceptée si elle est passée (2 min de
-    marge d'horloge) et de moins de 14 jours ; sinon null. */
+    marge d'horloge) et de moins de 90 jours ; sinon null. */
 export function heureAppelValide(v: unknown, maintenant = Date.now()): string | null {
   if (typeof v !== "string") return null;
   const t = Date.parse(v);
-  if (!Number.isFinite(t) || t > maintenant + 2 * 60_000 || t < maintenant - 14 * 86_400_000) return null;
+  if (!Number.isFinite(t) || t > maintenant + 2 * 60_000 || t < maintenant - 90 * 86_400_000) return null;
   return new Date(t).toISOString();
 }

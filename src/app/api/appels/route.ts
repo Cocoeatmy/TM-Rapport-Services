@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   let le = maintenant;
   if (b.le != null && b.le !== "") {
     const v = heureAppelValide(b.le);
-    if (!v) return NextResponse.json({ error: "Heure d'appel invalide (dans le futur ou plus de 14 jours)" }, { status: 400 });
+    if (!v) return NextResponse.json({ error: "Jour d'appel invalide (dans le futur ou plus de 90 jours)" }, { status: 400 });
     le = v;
   }
   const apres = Date.parse(maintenant) - Date.parse(le) > 5 * 60_000;
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
     id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     le,
     ...(apres ? { saisiLe: maintenant } : {}),
+    ...(b.sansHeure === true && le !== maintenant ? { sansHeure: true } : {}),
     issue: b.issue,
     rappelLe,
     note: texte(b.note, 200) || null,
