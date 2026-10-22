@@ -6455,3 +6455,26 @@ html[data-ui="signal"] .sg-appels-histo { display: grid; gap: 3px; max-height: 1
 html[data-ui="signal"] .sg-appels-histo > span { display: flex; align-items: flex-start; gap: 5px; font-size: 11px; line-height: 1.35; color: var(--sg-text-2); }
 html[data-ui="signal"] .sg-appels-histo > span svg { margin-top: 2px; color: var(--sg-text-3); }
 html[data-ui="signal"] .sg-appels-aide { font-size: 10.5px; color: var(--sg-text-3); }
+
+/* Listes Mesures (à fixer / établi) : sans « Emplacement » ni « Pers. »
+   (22.10.2026) — le projet récupère la place. */
+@media (min-width: 1280px) {
+  html[data-ui="signal"] .sg-list.is-mesures .sg-cols,
+  html[data-ui="signal"] .sg-list.is-mesures .sg-prow {
+    grid-template-columns: 56px 112px 92px minmax(0, 1fr) 140px 40px;
+  }
+  html[data-ui="signal"] .sg-list.is-mesures.is-appels .sg-cols,
+  html[data-ui="signal"] .sg-list.is-mesures.is-appels .sg-prow {
+    grid-template-columns: 56px 112px 92px minmax(0, 1fr) 140px 150px 40px;
+  }
+}
+@media (min-width: 768px) and (max-width: 1279px) {
+  html[data-ui="signal"] .sg-list.is-mesures .sg-cols,
+  html[data-ui="signal"] .sg-list.is-mesures .sg-prow {
+    grid-template-columns: 50px 104px 80px minmax(0, 1fr) 116px 26px;
+  }
+  html[data-ui="signal"] .sg-list.is-mesures.is-appels .sg-cols,
+  html[data-ui="signal"] .sg-list.is-mesures.is-appels .sg-prow {
+    grid-template-columns: 50px 104px 80px minmax(0, 1fr) 116px 128px 26px;
+  }
+}

@@ -197,7 +197,8 @@ export function SignalPreviewCard({
       <div className="sg-fields">
         {([
           { k: "N° OFR TM", v: p.ofrTM || "—" },
-          { k: "N° FOURN.", v: p.servCmdFournisseurs || p.cmdFournisseurs || p.servMesuresFournisseurs || "—" },
+          /* Mesures : le n° de service de prise de mesures, comme la colonne de la liste. */
+          { k: "N° FOURN.", v: (mode.startsWith("mesures") ? p.servMesuresFournisseurs : p.servCmdFournisseurs || p.cmdFournisseurs || p.servMesuresFournisseurs) || "—" },
           { k: "NB. CABINES", v: String(total) },
           { k: "EMPLACEMENT", v: p.emplacementCabine || "—" },
           /* Tant que rien n'est arrivé, la prévision est la seule date connue :

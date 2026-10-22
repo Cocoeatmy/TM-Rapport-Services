@@ -7986,6 +7986,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           "rdv-montage-a-fixer": "montage", "rdv-mesures-a-fixer": "mesures",
           "rdv-services-a-fixer": "services", "rdv-sav-a-fixer": "sav",
         } as Record<string, string>)[String(showSummaryPanel || "")] || "";
+        /* Listes Mesures : ni emplacement de cabine ni nombre de poseurs —
+           rien à poser encore, on va mesurer (22.10.2026). */
+        const vueMesures = String(showSummaryPanel || "").startsWith("rdv-mesures");
         let rdvStatusOptions: string[] = [];
         let rdvHiddenCount = 0;
         const rdvTotalCount = panelProjects.length;
@@ -8165,7 +8168,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           /* L'aperçu parle la langue du panneau : sur les rendez-vous de
              mesures il montre l'état des mesures, et les champs qui ne servent
              qu'à cette étape — commentaires et documents de prise de mesures. */
-          const sgApercuMode = showSummaryPanel === "rdv-mesures-a-fixer" ? "mesures"
+          const sgApercuMode = String(showSummaryPanel || "").startsWith("rdv-mesures") ? "mesures"
             : String(showSummaryPanel || "").startsWith("rdv-sav") ? "sav" : "dashboard";
           /* NPA cherché dans l'adresse PUIS dans le nom du projet : s'arrêter à
              la première chaîne non vide envoyait « Rue de la Gare 11 » (sans
@@ -8400,15 +8403,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {/* `is-region` : en tri par région, la pastille J+x n'est plus
                     portée par l'en-tête de groupe — elle doit rester sur la
                     ligne. En tri par date elle y ferait doublon. */}
-                <div className={`sg-list${sgRegion ? " is-region" : ""}${vueSav ? " is-sav" : ""}${listeAppels ? " is-appels" : ""}`}>
+                <div className={`sg-list${sgRegion ? " is-region" : ""}${vueSav ? " is-sav" : ""}${listeAppels ? " is-appels" : ""}${vueMesures ? " is-mesures" : ""}`}>
                   <div className="sg-cols">
                     <span>DÉLAI</span><span>N° OFR TM</span><span>N° FOURN.</span>
-                    <span>PROJET</span><span>ÉTAT</span>{listeAppels && <span>APPELS</span>}<span>EMPLACEMENT</span>
+                    <span>PROJET</span><span>ÉTAT</span>{listeAppels && <span>APPELS</span>}{!vueMesures && <span>EMPLACEMENT</span>}
                     {/* Sur la liste SAV, le nombre de poseurs prévus au montage
                         n'apprend rien ; ce qu'on cherche, c'est combien de
                         cabines attendent. La colonne « CAB. » reste à côté :
                         elle dit la taille du chantier. */}
-                    <span className="sg-right">{vueSav ? "SAV" : "PERS."}</span><span className="sg-right">CAB.</span>
+                    {!vueMesures && <span className="sg-right">{vueSav ? "SAV" : "PERS."}</span>}<span className="sg-right">CAB.</span>
                   </div>
                   {panelProjects.length === 0 && (
                     <p className="sg-empty">
@@ -8533,7 +8536,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               </span>
                               <span className="sg-mono sg-dim sg-refs">
                                 {(() => {
-                                  const refs = splitRefs(p.servCmdFournisseurs || p.cmdFournisseurs || p.servMesuresFournisseurs || "");
+                                  /* Listes Mesures : le numéro de service de prise de
+                                     mesures (Notion « N° Serv. Mesures Fournisseurs »),
+                                     pas celui de la commande (22.10.2026). */
+                                  const refs = splitRefs((vueMesures
+                                    ? p.servMesuresFournisseurs
+                                    : p.servCmdFournisseurs || p.cmdFournisseurs || p.servMesuresFournisseurs) || "");
                                   return refs.length ? refs.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—";
                                 })()}
                               </span>
@@ -8583,10 +8591,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 <span className={`sg-state ${cls}`}>{etat}</span>
                               )}
                               {listeAppels && <SuiviAppels projectId={p.id} liste={listeAppels} />}
-                              <span className="sg-place">
-                                <MapPin className="w-3 h-3" />
-                                <span>{p.emplacementCabine || "—"}</span>
-                              </span>
+                              {!vueMesures && (
+                                <span className="sg-place">
+                                  <MapPin className="w-3 h-3" />
+                                  <span>{p.emplacementCabine || "—"}</span>
+                                </span>
+                              )}
                               {vueSav ? (() => {
                                 const c = comptesSav(p);
                                 if (!c.detaille) {
@@ -8619,7 +8629,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                     {seulementPiece && <i className="sav-piece-txt">pièce attendue</i>}
                                   </span>
                                 );
-                              })() : (
+                              })() : vueMesures ? null : (
                                 <span className="sg-pers">{p.nbCollaborateursMontage ? `${p.nbCollaborateursMontage} pers.` : "—"}</span>
                               )}
                               <span className="sg-mono sg-right sg-strong">{p.nbCabines || 0}</span>
