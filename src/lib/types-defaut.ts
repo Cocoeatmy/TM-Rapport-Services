@@ -19,6 +19,8 @@ export interface SignalementPourStats {
   typesLabel?: string | null;
   cabineIdx?: number | null;
   cabineLabel?: string | null;
+  /** Quand le signalement a été fait (ms). */
+  timestamp?: number | null;
 }
 
 const sansAccent = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -43,8 +45,23 @@ export const LIBELLES_SIGNALEMENT: Record<NatureSignalement, string> = {
   piece: "Pièces manquantes",
 };
 
-/** Par projet : le NOMBRE de signalements de chaque sorte. */
-export type DefautsParProjet = Map<string, Record<NatureSignalement, number>>;
+/** Par projet : le NOMBRE de signalements de chaque sorte, et leurs dates
+    (AAAA-MM-JJ, "" si inconnue) pour les compter dans une période. */
+export type DefautsParProjet = Map<string, Record<NatureSignalement, number> & { dates: Record<NatureSignalement, string[]> }>;
+
+const jourDe = (t?: number | null) => (t && Number.isFinite(t) ? new Date(t).toISOString().slice(0, 10) : "");
+
+/** Nombre de signalements d'une sorte dont la date tombe entre les bornes
+    (bornes absentes = tout ; date inconnue = comptée seulement sans bornes). */
+export function signalementsDansPeriode(
+  e: { dates: Record<NatureSignalement, string[]> } | undefined,
+  n: NatureSignalement,
+  bornes?: { de?: string; a?: string },
+): number {
+  if (!e) return 0;
+  if (!bornes?.de && !bornes?.a) return e.dates[n].length;
+  return e.dates[n].filter((d) => d && (!bornes.de || d >= bornes.de) && (!bornes.a || d <= bornes.a)).length;
+}
 
 /**
  * @param defauts  la liste « defauts » (défauts signalés, typés)
@@ -52,19 +69,24 @@ export type DefautsParProjet = Map<string, Record<NatureSignalement, number>>;
  */
 export function defautsParProjet(
   defauts: SignalementPourStats[],
-  pieces: { projectId?: string | null }[] = [],
+  pieces: { projectId?: string | null; timestamp?: number | null }[] = [],
 ): DefautsParProjet {
   const m: DefautsParProjet = new Map();
   const e = (id: string) => {
-    const x = m.get(id) || { usine: 0, transport: 0, piece: 0 };
+    const x = m.get(id) || { usine: 0, transport: 0, piece: 0, dates: { usine: [], transport: [], piece: [] } };
     m.set(id, x);
     return x;
   };
   for (const d of defauts) {
     if (!d?.projectId) continue;
     const natures = naturesDefaut(d);
-    if (natures.size) natures.forEach((n) => { e(d.projectId)[n] += 1; });
+    natures.forEach((n) => { const x = e(d.projectId); x[n] += 1; x.dates[n].push(jourDe(d.timestamp)); });
   }
-  for (const p of pieces) if (p?.projectId) e(p.projectId).piece += 1;
+  for (const p of pieces) {
+    if (!p?.projectId) continue;
+    const x = e(p.projectId);
+    x.piece += 1;
+    x.dates.piece.push(jourDe(p.timestamp));
+  }
   return m;
 }

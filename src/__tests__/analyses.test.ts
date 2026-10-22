@@ -579,3 +579,19 @@ describe("indicateurs déduits", () => {
     expect(ca.indicateurs.aFacturerChantiers).toBe(2);
   });
 });
+
+describe("signalements comptés dans la période, par leur propre date", () => {
+  it("bornes respectées ; sans bornes, tout", async () => {
+    const { defautsParProjet, signalementsDansPeriode } = await import("@/lib/types-defaut");
+    const m = defautsParProjet(
+      [{ projectId: "a", types: ["usine"], timestamp: Date.parse("2025-11-10T10:00:00Z") },
+       { projectId: "a", types: ["transport"], timestamp: Date.parse("2026-10-02T10:00:00Z") }],
+      [{ projectId: "a", timestamp: Date.parse("2026-10-05T10:00:00Z") }],
+    );
+    const e = m.get("a");
+    expect(signalementsDansPeriode(e, "usine")).toBe(1);
+    expect(signalementsDansPeriode(e, "usine", { de: "2026-10-01", a: "2026-10-31" })).toBe(0);
+    expect(signalementsDansPeriode(e, "transport", { de: "2026-10-01", a: "2026-10-31" })).toBe(1);
+    expect(signalementsDansPeriode(e, "piece", { de: "2026-10-01" })).toBe(1);
+  });
+});

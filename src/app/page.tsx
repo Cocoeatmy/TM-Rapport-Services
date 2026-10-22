@@ -2863,7 +2863,10 @@ function HomePage() {
         };
         const fTypeHas = (p: any): boolean => {
           switch (fournisseurType) {
-            case "mesures":  return !!(p.dateMesures || p.dateMesuresRecue || p.etatMesures);
+            /* Mesures d'un fournisseur : seulement si le « Type de client » est
+               « Fournisseurs » (22.10.2026) — sinon le relevé ne lui revient pas. */
+            case "mesures":  return !!(p.dateMesures || p.dateMesuresRecue || p.etatMesures)
+              && (family !== "fournisseurs" || /^fournisseurs?$/i.test(String(p.typeClient || "").trim()));
             case "montage":  return !!p.dateMontage;
             case "services": return isFService(p);
             case "sav":      return !!(p.sav || p.etatSAV || p.dateSAVRecu || p.dateRDVSAV);

@@ -21,7 +21,7 @@ import { useDroits } from "@/lib/use-droits";
 import { BexioPartenaire } from "@/components/bexio-partenaire";
 import { mesuresFaites } from "@/lib/cabines-mesurees";
 import { posesDuChantier, type LotPose } from "@/lib/poses-lots";
-import { defautsParProjet, LIBELLES_SIGNALEMENT, type DefautsParProjet, type SignalementPourStats } from "@/lib/types-defaut";
+import { defautsParProjet, LIBELLES_SIGNALEMENT, signalementsDansPeriode, type DefautsParProjet, type SignalementPourStats } from "@/lib/types-defaut";
 import "./stats-partenaire.css";
 
 type P = Record<string, any>;
@@ -91,7 +91,7 @@ function chargerSignalements(): Promise<DefautsParProjet> {
       p: Promise.all(["/api/defauts", "/api/pieces"].map((u) => fetch(u, { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : []))
         .then((l) => (Array.isArray(l) ? l : [])))) 
-        .then(([d, pc]) => defautsParProjet(d as SignalementPourStats[], pc as { projectId?: string }[]))
+        .then(([d, pc]) => defautsParProjet(d as SignalementPourStats[], pc as { projectId?: string; timestamp?: number }[]))
         .catch(() => { signalementsMemo = null; return new Map() as DefautsParProjet; }),
     };
   }
@@ -149,10 +149,15 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
     const dansPeriode = (d: string) => (!bornes?.de || d >= bornes.de) && (!bornes?.a || d <= bornes.a);
     const posesPeriode = posesTous.filter((l) => dansPeriode(l.date));
     const projetsPoses = [...new Set(posesPeriode.map((l) => l.p))];
+    /* Mesures d'un FOURNISSEUR : seulement les chantiers dont le « Type de
+       client » est « Fournisseurs » — c'est lui qui nous a confié le relevé.
+       Ailleurs (le client final, un grossiste), la mesure ne lui revient pas
+       (22.10.2026). Les autres familles comptent toutes leurs mesures. */
+    const mesureComptee = (p: P) => famille !== "fournisseurs" || /^fournisseurs?$/i.test(String(p.typeClient || "").trim());
     const parMois = mois.map((m) => {
       const lots = posesTous.filter((l) => l.date.startsWith(m.cle));
       const montages = [...new Set(lots.map((l) => l.p))];
-      const mesures = tous.filter((p) => jour(p.dateMesures).startsWith(m.cle));
+      const mesures = tous.filter((p) => mesureComptee(p) && jour(p.dateMesures).startsWith(m.cle));
       return { ...m, montages, mesures, cabines: lots.length };
     });
     const pic = Math.max(1, ...parMois.map((m) => Math.max(m.cabines, m.mesures.length)));
@@ -165,7 +170,7 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
 
     const parcours = [
       { lib: "Demandes", liste: periode.filter((p) => p.dateDemandeProjet) },
-      { lib: "Mesurés", liste: periode.filter((p) => mesuresFaites(p)) },
+      { lib: "Mesurés", liste: periode.filter((p) => mesureComptee(p) && mesuresFaites(p)) },
       { lib: "Offres", liste: periode.filter((p) => p.dateOffre || p.ofrTM) },
       { lib: "Commandés", liste: periode.filter((p) => p.dateCMDRecue || p.dateCMDUsine || p.cmdTM) },
       { lib: "Posés", liste: projetsPoses },
@@ -180,7 +185,9 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
     }
     const champ = (p: P, k: string) => (k === "montage" ? debutPose.get(p) || p.dateMontage : p[k]);
     const delai = (lib: string, de: string, a: string) => {
-      const v = projetsPoses.map((p) => ecartJours(champ(p, de), champ(p, a))).filter((x): x is number => x !== null);
+      const v = projetsPoses
+        .filter((p) => (de === "dateMesures" || a === "dateMesures" ? mesureComptee(p) : true))
+        .map((p) => ecartJours(champ(p, de), champ(p, a))).filter((x): x is number => x !== null);
       return { lib, j: mediane(v), n: v.length };
     };
     const delais = [
@@ -207,10 +214,15 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
        d'usine, dommages de transport (liste « defauts »), pièces manquantes
        (liste « pieces »). Jamais les photos « État des cartons réceptionnés »
        — un carton abîmé n'est pas une cabine abîmée. */
+    /* Datés par le JOUR DU SIGNALEMENT, sur tous les chantiers du partenaire
+       (sauf annulés) : la carte suit le filtre de période. Les rattacher à la
+       pose des chantiers terminés la figeait — un dommage de transport se
+       signale à la livraison, souvent bien avant la fin du chantier. */
     const signalements = defauts
       ? (([["usine", "is-usine"], ["transport", "is-degat"], ["piece", "is-piece"]] as const).map(([n, ton]) => {
-          const liste = projetsPoses.filter((p) => (defauts.get(p.id)?.[n] || 0) > 0);
-          return { lib: LIBELLES_SIGNALEMENT[n], ton, liste, nb: liste.reduce((k, p) => k + (defauts.get(p.id)?.[n] || 0), 0) };
+          const compte = (p: P) => signalementsDansPeriode(defauts.get(p.id), n, bornes);
+          const liste = tous.filter((p) => p.etatCMD !== "Annulé" && compte(p) > 0);
+          return { lib: LIBELLES_SIGNALEMENT[n], ton, liste, nb: liste.reduce((k, p) => k + compte(p), 0) };
         }))
       : null;
 
