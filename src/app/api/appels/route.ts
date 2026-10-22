@@ -3,7 +3,7 @@ import { verifyToken } from "@/lib/auth";
 import { getData, getDataFresh, setData } from "@/lib/kv-store";
 import { getProject, updateProject } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
-import { estIssue, heureAppelValide, ligneJournal, type Appel, type SuiviProjet } from "@/lib/suivi-appels";
+import { estIssue, heureAppelValide, ligneJournal, rangAppel, type Appel, type SuiviProjet } from "@/lib/suivi-appels";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     const champ = liste === "sav" ? "journalAppelSav" : "journalEchanges";
     const p = await getProject(projectId) as unknown as Record<string, unknown>;
     const avant = String(p[champ] || "").replace(/\s+$/, "");
-    await updateProject(projectId, { [champ]: `${avant ? `${avant}\n` : ""}${ligneJournal(appel)}` } as never);
+    await updateProject(projectId, { [champ]: `${avant ? `${avant}\n` : ""}${ligneJournal(appel, rangAppel((i >= 0 ? tous[i] : tous[tous.length - 1]).appels, appel))}` } as never);
     invalidateCache(`project-${projectId}`);
   } catch (e) {
     journal = false;

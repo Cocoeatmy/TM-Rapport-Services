@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Phone, PhoneMissed, MessageSquare, CalendarClock, PhoneCall, Loader2, Mail, Clock } from "lucide-react";
 import { toast } from "sonner";
-import { ISSUES_APPEL, ligneJournal, resumerAppels, type Appel, type IssueAppel } from "@/lib/suivi-appels";
+import { ISSUES_APPEL, ligneJournal, rangAppel, resumerAppels, type Appel, type IssueAppel } from "@/lib/suivi-appels";
 
 /* Un seul chargement pour toute la liste, partagé par toutes les lignes. */
 let cache: Record<string, Appel[]> | null = null;
@@ -132,7 +132,7 @@ export function SuiviAppels({ projectId, liste }: { projectId: string; liste: st
   return (
     <span ref={boite} className="sg-appels">
       <button type="button" className={`sg-appels-btn is-${r.ton}`}
-        title={historique.length ? `${r.quand ? `Dernier appel ${r.quand}\n` : ""}${historique.map((a) => ligneJournal(a)).join("\n")}` : "Noter un appel"}
+        title={historique.length ? `${r.quand ? `Dernier appel ${r.quand}\n` : ""}${historique.map((a) => ligneJournal(a, rangAppel(appels, a))).join("\n")}` : "Noter un appel"}
         onClick={(e) => { stop(e); setOuvert((v) => !v); }}>
         <Phone className="w-3 h-3 shrink-0" />
         <span className="sg-appels-txt">{r.ton === "aucun" ? "—" : r.libelle}</span>
@@ -183,7 +183,7 @@ export function SuiviAppels({ projectId, liste }: { projectId: string; liste: st
                 return (
                   <span key={a.id} className={`is-${a.issue}`}>
                     <I className="w-3 h-3 shrink-0" />
-                    <span>{ligneJournal(a)}</span>
+                    <span>{ligneJournal(a, rangAppel(appels, a))}</span>
                   </span>
                 );
               })}

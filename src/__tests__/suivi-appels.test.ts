@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resumerAppels, ligneJournal, heureAppelValide, type Appel } from "@/lib/suivi-appels";
+import { resumerAppels, ligneJournal, heureAppelValide, rangAppel, type Appel } from "@/lib/suivi-appels";
 
 const MAINTENANT = Date.parse("2026-10-22T14:00:00Z");
 const a = (le: string, issue: Appel["issue"], extra: Partial<Appel> = {}): Appel => ({ id: le, le, issue, par: "Micael", ...extra });
@@ -53,5 +53,34 @@ describe("appel noté après coup", () => {
     expect(heureAppelValide("2026-10-22T15:00:00Z", MAINTENANT)).toBeNull();
     expect(heureAppelValide("2026-09-01T09:00:00Z", MAINTENANT)).toBeNull();
     expect(heureAppelValide("n'importe quoi", MAINTENANT)).toBeNull();
+  });
+});
+
+describe("numérotation dans le journal", () => {
+  const hist = [
+    a("2026-10-20T08:00:00Z", "message"),
+    a("2026-10-20T09:00:00Z", "sans-reponse"),
+    a("2026-10-21T08:00:00Z", "message"),
+    a("2026-10-21T10:00:00Z", "joint"),
+    a("2026-10-22T08:00:00Z", "sans-reponse"),
+    a("2026-10-22T09:00:00Z", "message"),
+    a("2026-10-22T10:00:00Z", "message"),
+  ];
+  it("chaque sorte compte à part, et repart à zéro après « joint »", () => {
+    expect(rangAppel(hist, hist[2])).toBe(2);
+    expect(rangAppel(hist, hist[1])).toBe(1);
+    expect(rangAppel(hist, hist[6])).toBe(2);
+    expect(rangAppel(hist, hist[4])).toBe(1);
+    expect(rangAppel(hist, hist[3])).toBe(0);
+  });
+  it("un appel noté après coup prend sa place chronologique", () => {
+    const tard = a("2026-10-20T07:00:00Z", "message", { id: "tard" });
+    expect(rangAppel([...hist, tard], tard)).toBe(1);
+  });
+  it("la ligne porte le numéro", () => {
+    expect(ligneJournal(hist[6], 2)).toBe("22.10.26 - 12h00 : 2e message laissé (combox)");
+    expect(ligneJournal(hist[4], 1)).toBe("22.10.26 - 10h00 : 1er appel sans réponse");
+    expect(ligneJournal(a("2026-10-22T09:00:00Z", "sans-reponse"), 9)).toBe("22.10.26 - 11h00 : 9e appel sans réponse");
+    expect(ligneJournal(hist[3], 0)).toBe("21.10.26 - 12h00 : Client joint");
   });
 });

@@ -112,8 +112,36 @@ export function resumerAppels(appels: Appel[], maintenant = Date.now()): ResumeA
   return { ton, libelle: `${tentatives}× sans réponse`, quand, tentatives };
 }
 
-/** La ligne recopiée dans le journal Notion : « 22.10.26 - 16h31 : Appel sans réponse ». */
-export function ligneJournal(a: Appel, fuseau = "Europe/Zurich"): string {
+/* Les tentatives sans contact sont numérotées dans le journal, chaque sorte
+   à part (« 5e message laissé », « 9e appel sans réponse ») ; le compte
+   repart à zéro quand le client est joint (22.10.2026). */
+const NUMEROTEES: IssueAppel[] = ["sans-reponse", "message", "sms"];
+const LIBELLE_NUMERO: Partial<Record<IssueAppel, string>> = {
+  "sans-reponse": "appel sans réponse",
+  message: "message laissé (combox)",
+  sms: "SMS / e-mail envoyé",
+};
+
+/** Le rang d'un appel parmi ceux de même sorte depuis le dernier « joint »
+    (ordre chronologique : un appel noté après coup prend sa vraie place).
+    0 pour un appel qu'on ne numérote pas. */
+export function rangAppel(appels: Appel[], cible: Appel): number {
+  if (!NUMEROTEES.includes(cible.issue)) return 0;
+  const tries = [...appels.filter((x) => x.id !== cible.id), cible]
+    .sort((x, y) => x.le.localeCompare(y.le) || (x.id === cible.id ? 1 : y.id === cible.id ? -1 : 0));
+  let n = 0;
+  for (const x of tries) {
+    if (x.issue === "joint") n = 0;
+    else if (x.issue === cible.issue) n++;
+    if (x.id === cible.id) return n;
+  }
+  return n;
+}
+
+const ordinal = (n: number) => (n === 1 ? "1er" : `${n}e`);
+
+/** La ligne recopiée dans le journal Notion : « 22.10.26 - 16h31 : 2e appel sans réponse ». */
+export function ligneJournal(a: Appel, rang = 0, fuseau = "Europe/Zurich"): string {
   /* Écrite par le SERVEUR, qui vit en UTC : l'heure suisse est demandée
      explicitement, sinon le journal annonçait 14h31 pour un appel de 16h31. */
   const parts = Object.fromEntries(new Intl.DateTimeFormat("fr-CH", {
@@ -121,7 +149,9 @@ export function ligneJournal(a: Appel, fuseau = "Europe/Zurich"): string {
   }).formatToParts(new Date(a.le)).map((x) => [x.type, x.value]));
   const date = `${parts.day}.${parts.month}.${parts.year}`;
   const heure = `${parts.hour}h${parts.minute}`;
-  let texte: string = ISSUES_APPEL[a.issue];
+  let texte: string = rang > 0 && LIBELLE_NUMERO[a.issue]
+    ? `${ordinal(rang)} ${LIBELLE_NUMERO[a.issue]}`
+    : ISSUES_APPEL[a.issue];
   if (a.issue === "rappeler" && a.rappelLe) texte += ` le ${jourCourt(a.rappelLe)}`;
   if (a.note) texte += ` — ${a.note}`;
   /* Ni l'auteur ni l'heure de saisie dans la ligne (demande du 22.10.2026) :
