@@ -207,9 +207,12 @@ async function enregistrer(body: Partial<DefautRequest>, nomUtilisateur: string)
           .filter((f: any) => f.url)
           .map((f: any) => descripteurFichier(f.nom, f.url));
 
+        /* L'extension réelle (PDF, vidéo) : « .jpg » d'office faisait passer
+           un PDF pour une image dans Notion. */
+        const ext = (url: string) => (/\.(pdf|mp4|mov|webm|m4v|png|jpe?g|heic|webp)(?:$|\?)/i.exec(url)?.[1] || "jpg").toLowerCase();
         const newFiles = photos.map((url: string, i: number) => ({
           type: "external" as const,
-          name: `defaut-${dateStr}-${i + 1}.jpg`,
+          name: `defaut-${dateStr}-${i + 1}.${ext(url)}`,
           external: { url },
         }));
 

@@ -31,6 +31,7 @@ import { envoyerEtRattacher } from "@/lib/envoi-fichiers";
 import { thumbnailUrl } from "@/lib/image-url";
 import { STATUS_CMD_COLORS } from "@/lib/constants";
 import { ZoneTexte } from "@/components/zone-texte";
+import { DommageTransport } from "@/components/dommage-transport";
 import "@/app/arrivage.css";
 
 /** Ce qui n'attend plus de carton. */
@@ -313,6 +314,10 @@ function FicheArrivage({ p, emplacements, onRetour, onMaj }: {
             champ="État des cartons réceptionnés" categorie="cartons" cle="photosCartons" icone={<AlertTriangle />} danger onMaj={onMaj} />
         )}
       </section>
+
+      {/* Un dégât sur la marchandise elle-même : un signalement du projet,
+          type « Dommage de transport » (23.10.2026). */}
+      <DommageTransport p={p} dateArrivage={f.arrivageTM || undefined} />
 
       <section className="ar-bloc">
         <h2><FileText /> Bon de livraison</h2>
