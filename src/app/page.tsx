@@ -374,6 +374,9 @@ function SignalHeaderBar({ isAdmin, onNewProject, children }: {
   if (!slot) return null;
   return createPortal(
     <div className="signal-headerbar">
+      {/* La recherche à DROITE, contre « Nouveau projet » (22.10.2026) : les
+          actions de l'en-tête se lisent ensemble, l'espace vide à gauche. */}
+      <div className="signal-topbar-spacer" />
       <button
         type="button"
         className="signal-search"
@@ -383,7 +386,6 @@ function SignalHeaderBar({ isAdmin, onNewProject, children }: {
         <span className="signal-search-ph">Rechercher un projet ou lancer une action</span>
         <span className="signal-kbd">⌘K</span>
       </button>
-      <div className="signal-topbar-spacer" />
       {isAdmin && (
         <button type="button" className="signal-new" onClick={onNewProject}>
           <Plus className="w-4 h-4" />

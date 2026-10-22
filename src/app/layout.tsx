@@ -26,6 +26,7 @@ import "./globals.css";
 import "./navigation-ios.css";
 import { NavigationIos, IndicateurSynchro } from "@/components/navigation-ios";
 import { CoqueSignal } from "@/components/coque-signal";
+import { ReparationEchelle } from "@/components/reparation-echelle";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -209,6 +210,8 @@ export default function RootLayout({
         {/* Thème Signal, grand écran : le rail et la barre d'en-tête de
             l'accueil, sur toutes les autres pages (rien sur l'accueil). */}
         <CoqueSignal />
+        {/* App Apple sur Mac : recharge si l'agrandissement ×1,3 n'a pris qu'à moitié. */}
+        <ReparationEchelle />
         <MajAuto />
         {/* App Apple seulement : coffre natif et envois en arrière-plan. */}
         <PontApple />

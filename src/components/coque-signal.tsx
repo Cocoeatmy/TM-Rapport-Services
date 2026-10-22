@@ -129,13 +129,13 @@ export function CoqueSignal() {
       </nav>
       {slot && createPortal(
         <div className="signal-headerbar">
+          <div className="signal-topbar-spacer" />
           <button type="button" className="signal-search"
             onClick={() => window.dispatchEvent(new CustomEvent("tm-open-search"))}>
             <Search className="w-4 h-4 shrink-0" />
             <span className="signal-search-ph">Rechercher un projet ou lancer une action</span>
             <span className="signal-kbd">⌘K</span>
           </button>
-          <div className="signal-topbar-spacer" />
           {isAdmin && (
             <button type="button" className="signal-new"
               onClick={() => window.dispatchEvent(new Event("tm-nouveau-projet"))}>
