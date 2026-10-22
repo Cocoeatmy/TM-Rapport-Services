@@ -5764,9 +5764,14 @@ html[data-ui="signal"] .sg-alerte-note {
    par la gauche et passait PAR-DESSUS l'emplacement : on lisait
    « Dépô1 pièce attendue ». Le nom du projet, lui, s'étire — c'est à lui
    de céder les quelques pixels. */
-html[data-ui="signal"] .sg-list.is-sav .sg-cols,
-html[data-ui="signal"] .sg-list.is-sav .sg-prow {
-  grid-template-columns: 56px 112px 92px minmax(0, 1fr) 128px 92px 136px 40px;
+/* Grand écran SEULEMENT (22.10.2026) : sans cette limite, ces huit
+   colonnes fixes s'imposaient aussi sur iPhone, par-dessus la ligne en
+   « fiche » — nom écrasé, pastille d'état coupée (« E. », « A. »). */
+@media (min-width: 768px) {
+  html[data-ui="signal"] .sg-list.is-sav .sg-cols,
+  html[data-ui="signal"] .sg-list.is-sav .sg-prow {
+    grid-template-columns: 56px 112px 92px minmax(0, 1fr) 128px 92px 136px 40px;
+  }
 }
 @media (min-width: 768px) and (max-width: 1279px) {
   html[data-ui="signal"] .sg-list.is-sav .sg-cols,
