@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Tag, Pencil, Trash2, Plus, Check, X, Globe, MapPin, Hash, Camera, BarChart3, TrendingUp, Package, Layers, Filter, ChevronDown } from "lucide-react";
 import { createPortal } from "react-dom";
 import { thumbnailUrl } from "@/lib/image-url";
+import { StatsPartenaire } from "@/components/stats-partenaire";
 import { useDroits } from "@/lib/use-droits";
 import { joursOuvresEntre } from "@/lib/jours-ouvres";
 
@@ -509,6 +510,26 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
 
   const resetFilter = () => { setFilterYear(null); setFilterMonth(null); setFilterFrom(""); setFilterTo(""); setShowRange(false); };
 
+  /* Thème Signal : les blocs que ce panneau n'avait pas — activité sur douze
+     mois, qualité, installateurs, équipe, prochains montages — calculés sur
+     TOUS les chantiers dont l'entité est donneur d'ordre, en cours compris
+     (le panneau ci-dessus ne compte que les terminés). */
+  const [signal, setSignal] = useState(false);
+  useEffect(() => { setSignal(document.documentElement.getAttribute("data-ui") === "signal"); }, []);
+  const lies = useMemo(() => {
+    if (!allProjects) return [];
+    const lc = entityName.toLowerCase();
+    const nf = ENTITY_NAMEFIELD[entityType];
+    return allProjects.filter((p) => p.etatCMD !== "Annulé"
+      && Array.isArray(p[nf]) && p[nf].some((n: string) => n.toLowerCase() === lc)
+      && estDonneurDOrdre(p, entityType));
+  }, [allProjects, entityName, entityType]);
+  const liesPeriode = useMemo(
+    () => (hasFilter ? lies.filter((p) => projectMatchesFilter(p, filter)) : lies),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lies, filterYear, filterMonth, filterFrom, filterTo],
+  );
+
   if (loading) {
     return (
       <div className="py-6 flex items-center justify-center gap-2">
@@ -826,6 +847,17 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
           ))}
         </div>
       )}
+      {signal && lies.length > 0 && (
+        <StatsPartenaire
+          tous={lies}
+          periode={liesPeriode}
+          famille="clients"
+          nom={entityName}
+          libellePeriode={hasFilter ? "Période choisie" : "Toutes dates"}
+          sections={["activite", "qualite", "installateurs", "equipe", "prochains"]}
+          entete={false}
+        />
+      )}
     </div>
   );
 }
@@ -1042,7 +1074,7 @@ function EntryCard({ entry, mode, isAdmin, onEdit, onDelete }: {
   const hasStats = entityType && entityType !== "contacts";
 
   return (
-    <div className="glass-card rounded-2xl p-4 min-w-0 hover:shadow-lg transition-shadow">
+    <div className={`glass-card rounded-2xl p-4 min-w-0 hover:shadow-lg transition-shadow sgc-crm-carte${expanded && hasStats && activeTab === "stats" ? " is-stats" : ""}`}>
       {/* ── En-tête : toujours visible ── */}
       <div className="flex items-start justify-between gap-2 min-w-0 cursor-pointer" onClick={() => setExpanded((v) => !v)}>
         <div className="flex items-center gap-2 mb-1 min-w-0">
@@ -1531,7 +1563,7 @@ export function CRMClients({ mode, isAdmin, filterTag, initialSearch }: { mode: 
 
       <p className="text-xs text-gray-400 mb-3">{filtered.length} résultat{filtered.length !== 1 ? "s" : ""}</p>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 sgc-crm-grille">
         {filtered.map((e) => (
           <EntryCard key={e.id} entry={e} mode={mode} isAdmin={!!isAdmin} onEdit={setEditEntry} onDelete={setDeleteEntry} />
         ))}

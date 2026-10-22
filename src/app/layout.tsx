@@ -25,6 +25,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import "./navigation-ios.css";
 import { NavigationIos, IndicateurSynchro } from "@/components/navigation-ios";
+import { CoqueSignal } from "@/components/coque-signal";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -205,6 +206,9 @@ export default function RootLayout({
             l'en-tête (BoutonAssistant) — plus de bouton flottant. */}
         {/* App iPhone : la barre du bas (rien ailleurs). */}
         <Suspense fallback={null}><NavigationIos /></Suspense>
+        {/* Thème Signal, grand écran : le rail et la barre d'en-tête de
+            l'accueil, sur toutes les autres pages (rien sur l'accueil). */}
+        <CoqueSignal />
         <MajAuto />
         {/* App Apple seulement : coffre natif et envois en arrière-plan. */}
         <PontApple />

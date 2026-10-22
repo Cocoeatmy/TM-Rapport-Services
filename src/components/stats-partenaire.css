@@ -1,0 +1,151 @@
+/* ══ Statistiques d'un partenaire — thème Signal (22.10.2026) ══════════════
+   Rendu uniquement en Signal (garde `isSignal` dans page.tsx) ; tout est
+   préfixé malgré tout, comme le reste du thème. */
+
+html[data-ui="signal"] .sgpt { display: grid; gap: 14px; color: var(--sg-text); }
+
+html[data-ui="signal"] .sgpt-tete { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+html[data-ui="signal"] .sgpt-sur {
+  margin: 0; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgpt-tete h2 { margin: 2px 0 0; font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+html[data-ui="signal"] .sgpt-periode {
+  margin: 0; padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  background: var(--sg-paper); border: 1px solid var(--sg-line); color: var(--sg-text-2);
+}
+
+/* Tuiles chiffrées : chacune ouvre la liste qu'elle compte. */
+html[data-ui="signal"] .sgpt-tuiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+html[data-ui="signal"] .sgpt-tuile {
+  display: grid; gap: 3px; text-align: left; cursor: pointer; font-family: inherit;
+  padding: 14px 16px; border-radius: 14px; border: 1px solid var(--sg-line);
+  background: var(--sg-paper); box-shadow: var(--sg-shadow); color: var(--sg-text);
+  transition: border-color 140ms, transform 140ms;
+}
+html[data-ui="signal"] .sgpt-tuile:hover { border-color: var(--sg-signal); transform: translateY(-1px); }
+html[data-ui="signal"] .sgpt-tuile-lib { font-size: 11.5px; font-weight: 650; color: var(--sg-text-3); text-transform: uppercase; letter-spacing: 0.05em; }
+html[data-ui="signal"] .sgpt-tuile-val { font-size: clamp(20px, 1.9vw, 26px); font-weight: 780; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-ui="signal"] .sgpt-tuile-sous { font-size: 11.5px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sgpt-tuile.is-ok .sgpt-tuile-val { color: #16a34a; }
+html[data-ui="signal"] .sgpt-tuile.is-alerte .sgpt-tuile-val { color: #d97706; }
+
+/* Cartes */
+html[data-ui="signal"] .sgpt-carte {
+  padding: 16px 18px; border-radius: 16px; border: 1px solid var(--sg-line);
+  background: var(--sg-paper); box-shadow: var(--sg-shadow); min-width: 0;
+}
+html[data-ui="signal"] .sgpt-carte h3 { margin: 0 0 12px; font-size: 14px; font-weight: 700; }
+html[data-ui="signal"] .sgpt-carte h3 small { font-weight: 500; font-size: 11.5px; color: var(--sg-text-3); margin-left: 4px; }
+html[data-ui="signal"] .sgpt-carte-tete { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+html[data-ui="signal"] .sgpt-carte-tete h3 { margin: 0; }
+html[data-ui="signal"] .sgpt-carte-tete p { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sgpt-carte-tete b { margin-left: 8px; font-size: 12px; }
+html[data-ui="signal"] .sgpt-carte-tete b.is-hausse { color: #16a34a; }
+html[data-ui="signal"] .sgpt-carte-tete b.is-baisse { color: #dc2626; }
+html[data-ui="signal"] .sgpt-pastille { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-left: 6px; }
+html[data-ui="signal"] .sgpt-pastille.is-montage, html[data-ui="signal"] .sgpt-histo-col i.is-montage { background: var(--sg-signal); }
+html[data-ui="signal"] .sgpt-pastille.is-mesure, html[data-ui="signal"] .sgpt-histo-col i.is-mesure { background: #14b8a6; }
+html[data-ui="signal"] .sgpt-vide { margin: 0; font-size: 12.5px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sgpt-note { margin: 10px 0 0; font-size: 11.5px; color: var(--sg-text-3); }
+
+html[data-ui="signal"] .sgpt-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; align-items: start; }
+
+/* Histogramme 12 mois : deux barres par mois, côte à côte. */
+html[data-ui="signal"] .sgpt-histo { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; align-items: end; }
+html[data-ui="signal"] .sgpt-histo-mois {
+  display: grid; gap: 6px; justify-items: center; padding: 0; border: 0; background: none;
+  cursor: pointer; font-family: inherit; color: inherit;
+}
+html[data-ui="signal"] .sgpt-histo-col {
+  display: flex; align-items: flex-end; justify-content: center; gap: 3px;
+  width: 100%; height: 150px; padding: 0 2px; border-radius: 8px;
+  background: linear-gradient(var(--sg-paper-2), var(--sg-paper-2)) bottom / 100% 1px no-repeat;
+}
+html[data-ui="signal"] .sgpt-histo-mois:hover .sgpt-histo-col { background-color: var(--sg-signal-soft); }
+html[data-ui="signal"] .sgpt-histo-col i {
+  position: relative; display: block; width: min(16px, 42%); min-height: 2px; border-radius: 4px 4px 1px 1px;
+}
+html[data-ui="signal"] .sgpt-histo-col i em {
+  position: absolute; bottom: calc(100% + 3px); left: 50%; transform: translateX(-50%);
+  font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--sg-text-2); font-variant-numeric: tabular-nums;
+}
+html[data-ui="signal"] .sgpt-histo-lib { font-size: 11px; color: var(--sg-text-3); }
+
+/* Parcours : un entonnoir, une ligne par étape. */
+html[data-ui="signal"] .sgpt-parcours { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+html[data-ui="signal"] .sgpt-parcours button {
+  display: grid; grid-template-columns: 92px 1fr 34px 40px; align-items: center; gap: 10px;
+  width: 100%; padding: 3px 0; border: 0; background: none; cursor: pointer; font-family: inherit; color: inherit; text-align: left;
+}
+html[data-ui="signal"] .sgpt-parcours button:hover .sgpt-parcours-lib { color: var(--sg-signal); }
+html[data-ui="signal"] .sgpt-parcours-lib { font-size: 12.5px; font-weight: 600; }
+html[data-ui="signal"] .sgpt-parcours .sgpt-barres-piste i { background: #0ea5e9; }
+html[data-ui="signal"] .sgpt-parcours b { font-size: 12.5px; font-weight: 750; font-variant-numeric: tabular-nums; text-align: right; }
+html[data-ui="signal"] .sgpt-parcours em { font-style: normal; font-size: 11px; font-weight: 700; color: var(--sg-text-3); text-align: right; }
+
+/* Barres horizontales (séries, partenaires, équipe, délais). */
+html[data-ui="signal"] .sgpt-barres, html[data-ui="signal"] .sgpt-delais { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+html[data-ui="signal"] .sgpt-barres button {
+  display: grid; grid-template-columns: minmax(0, 40%) 1fr auto; align-items: center; gap: 10px;
+  width: 100%; padding: 3px 0; border: 0; background: none; cursor: pointer; font-family: inherit; color: inherit; text-align: left;
+}
+html[data-ui="signal"] .sgpt-barres button:hover .sgpt-barres-nom { color: var(--sg-signal); }
+html[data-ui="signal"] .sgpt-barres-nom { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-ui="signal"] .sgpt-barres-piste { display: block; height: 8px; border-radius: 99px; background: var(--sg-paper-2); overflow: hidden; }
+html[data-ui="signal"] .sgpt-barres-piste i { display: block; height: 100%; border-radius: 99px; background: var(--sg-signal); }
+html[data-ui="signal"] .sgpt-barres b, html[data-ui="signal"] .sgpt-delais b { font-size: 12.5px; font-weight: 750; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+html[data-ui="signal"] .sgpt-delais li { display: grid; grid-template-columns: minmax(0, 46%) 1fr auto 48px; align-items: center; gap: 10px; }
+html[data-ui="signal"] .sgpt-delais-lib { font-size: 12.5px; font-weight: 600; }
+html[data-ui="signal"] .sgpt-delais .sgpt-barres-piste i { background: #8b5cf6; }
+html[data-ui="signal"] .sgpt-delais small { font-size: 10.5px; color: var(--sg-text-3); text-align: right; }
+
+/* Qualité : une ligne par incident, taux pour 100 cabines. */
+html[data-ui="signal"] .sgpt-qualite { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+html[data-ui="signal"] .sgpt-qualite button {
+  display: grid; grid-template-columns: 1fr auto 60px; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 10px; border-radius: 10px; border: 1px solid var(--sg-line); border-left-width: 4px;
+  background: var(--sg-paper-2); font-family: inherit; color: var(--sg-text); cursor: pointer; text-align: left;
+}
+html[data-ui="signal"] .sgpt-qualite button:disabled { cursor: default; opacity: 0.6; }
+html[data-ui="signal"] .sgpt-qualite span { font-size: 12.5px; font-weight: 600; }
+html[data-ui="signal"] .sgpt-qualite b { font-size: 15px; font-weight: 780; font-variant-numeric: tabular-nums; }
+html[data-ui="signal"] .sgpt-qualite small { font-size: 10.5px; color: var(--sg-text-3); text-align: right; }
+html[data-ui="signal"] .sgpt-qualite .is-sav { border-left-color: #d97706; }
+html[data-ui="signal"] .sgpt-qualite .is-souci { border-left-color: #dc2626; }
+html[data-ui="signal"] .sgpt-qualite .is-piece { border-left-color: #f59e0b; }
+html[data-ui="signal"] .sgpt-qualite .is-defaut { border-left-color: #e11d48; }
+html[data-ui="signal"] .sgpt-qualite .is-degat { border-left-color: #7c3aed; }
+
+/* Prochains montages */
+html[data-ui="signal"] .sgpt-rdv { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+html[data-ui="signal"] .sgpt-rdv a {
+  display: grid; grid-template-columns: 58px 1fr auto; align-items: center; gap: 10px;
+  padding: 7px 8px; border-radius: 10px; color: inherit; text-decoration: none;
+}
+html[data-ui="signal"] .sgpt-rdv a:hover { background: var(--sg-paper-2); }
+html[data-ui="signal"] .sgpt-rdv time { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--sg-signal); }
+html[data-ui="signal"] .sgpt-rdv span { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-ui="signal"] .sgpt-rdv b { font-size: 11.5px; color: var(--sg-text-3); }
+
+/* Feuille : la liste d'un chiffre, par-dessus la page. */
+html[data-ui="signal"] .sgpt-feuille {
+  position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: rgba(8, 12, 20, 0.45);
+}
+html[data-ui="signal"] .sgpt-feuille-corps {
+  width: min(560px, 100%); max-height: min(80vh, 720px); overflow-y: auto;
+  padding: 16px 18px; border-radius: 18px; background: var(--sg-paper); box-shadow: var(--sg-shadow-hi);
+}
+html[data-ui="signal"] .sgpt-feuille-tete { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+html[data-ui="signal"] .sgpt-feuille-tete h3 { margin: 0; font-size: 15px; font-weight: 700; }
+html[data-ui="signal"] .sgpt-feuille-tete small { font-weight: 500; font-size: 12px; color: var(--sg-text-3); margin-left: 6px; }
+html[data-ui="signal"] .sgpt-feuille-tete button {
+  height: 32px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--sg-line); cursor: pointer;
+  background: var(--sg-paper-2); font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--sg-text);
+}
+
+@media (max-width: 640px) {
+  html[data-ui="signal"] .sgpt-histo-col { height: 110px; }
+  html[data-ui="signal"] .sgpt-histo-lib { font-size: 9.5px; }
+}

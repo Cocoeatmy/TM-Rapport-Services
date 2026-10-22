@@ -6287,3 +6287,43 @@ html[data-ui="signal"] .sg-pv-sav { display: grid; gap: 4px; padding: 8px 0; bor
 html[data-ui="signal"] .sg-pv-sav:first-of-type { border-top: 0; padding-top: 2px; }
 html[data-ui="signal"] .sg-pv-sav > b { font-size: 11.5px; font-weight: 700; color: #b45309; }
 html[data-ui="signal"] .sg-pv-regles { font-style: normal; font-weight: 500; color: var(--sg-text-3); margin-left: 4px; text-transform: none; letter-spacing: 0; }
+
+/* ── Pages restées à l'ancien format, grand écran (22.10.2026) ────────────
+   Signalements (pièces / défauts) : une colonne de 670 px au milieu d'un
+   écran de 1440 laissait les deux tiers vides. Sur grand écran, les cartes
+   se rangent en grille ; la recherche garde sa largeur de lecture. */
+html[data-ui="signal"] .sgx-sig { max-width: none; }
+html[data-ui="signal"] .sgx-sig > .relative:first-child { max-width: 520px; }
+@media (min-width: 1024px) {
+  html[data-ui="signal"] .sgx-sig-liste {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 12px; align-items: start;
+  }
+  html[data-ui="signal"] .sgx-sig-liste > * { margin: 0 !important; }
+}
+
+/* Alertes de charge (Montages, Mesures…) : une ligne de résumé ; le détail
+   s'ouvre au clic, en pastilles rangées sur plusieurs colonnes. */
+html[data-ui="signal"] .sgv-alertes-resume {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  margin-bottom: 10px; padding: 9px 12px; border-radius: 10px; cursor: pointer;
+  border: 1px solid #f3d27a; background: #fff8e1; color: #8a5a00;
+  font-family: inherit; font-size: 12.5px; font-weight: 600; text-align: left;
+}
+html[data-ui="signal"] .sgv-alertes-resume.is-conflit { border-color: #f5b5b5; background: #fff1f1; color: #9b1c1c; }
+html[data-ui="signal"].dark .sgv-alertes-resume { border-color: #6b4e12; background: #2a2010; color: #f5cf73; }
+html[data-ui="signal"].dark .sgv-alertes-resume.is-conflit { border-color: #6b2020; background: #2a1414; color: #fca5a5; }
+@media (min-width: 1024px) {
+  html[data-ui="signal"] .sgv-alerts {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 6px;
+  }
+  html[data-ui="signal"] .sgv-alerts > * { margin: 0 !important; }
+}
+
+/* CRM (grand écran) : une fiche ouverte n'étire plus ses voisines sur toute
+   sa hauteur ; ouverte sur ses statistiques, elle prend la ligne entière —
+   les graphiques ont besoin de largeur. */
+html[data-ui="signal"] .sgc-crm-grille { align-items: start; }
+@media (min-width: 640px) {
+  html[data-ui="signal"] .sgc-crm-carte.is-stats { grid-column: 1 / -1; }
+}

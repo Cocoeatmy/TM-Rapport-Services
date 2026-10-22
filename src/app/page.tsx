@@ -25,6 +25,7 @@ import { showRetryToast } from "@/components/error-toast";
 import { toast as sonnerToast } from "sonner";
 import { numerosServices, prefixeManquant } from "@/lib/numeros-services";
 import { StatsDateFilter, filterByStatsDate, getRolling12Range, describeStatsRange, type StatsDateMode } from "@/components/stats-date-filter";
+import { StatsPartenaire } from "@/components/stats-partenaire";
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { SignalStats } from "@/components/signal-stats";
 import { useIsSignalTheme } from "@/lib/use-signal-theme";
@@ -845,7 +846,7 @@ function SignalementListView({ subMode }: { subMode: "pieces" | "defauts" }) {
   );
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl sgx-sig">
       {/* Barre de recherche */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -866,7 +867,7 @@ function SignalementListView({ subMode }: { subMode: "pieces" | "defauts" }) {
               En cours <span className="text-gray-400 font-normal">({open.length})</span>
             </h3>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-3 sgx-sig-liste">
             {open.map((it: any) => <Card key={it.id} it={it} />)}
           </div>
         </section>
@@ -881,7 +882,7 @@ function SignalementListView({ subMode }: { subMode: "pieces" | "defauts" }) {
               Clôturés <span className="text-gray-400 font-normal">({closed.length})</span>
             </h3>
           </div>
-          <div className="space-y-3 opacity-70">
+          <div className="space-y-3 opacity-70 sgx-sig-liste">
             {closed.map((it: any) => <Card key={it.id} it={it} />)}
           </div>
         </section>
@@ -1294,6 +1295,9 @@ function HomePage() {
   const [selectedMonteurStats, setSelectedMonteurStats] = useState<string>("");
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [conflictFilter, setConflictFilter] = useState<string | null>(null);
+  /* Signal : les alertes de charge sont repliées derrière une seule ligne —
+     quatorze bandeaux jaunes repoussaient la liste hors de l'écran. */
+  const [alertesOuvertes, setAlertesOuvertes] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   // Fenêtres flottantes : max 2, chacune avec id unique + mode initial + z-index
   const [floatingWindows, setFloatingWindows] = useState<{ id: number; mode: string; z: number }[]>([]);
@@ -3268,6 +3272,22 @@ function HomePage() {
                   })}
                 </div>
               </div>
+            ) : isSignal ? (
+              /* Signal : la relation avec le partenaire — tendance, parcours,
+                 délais, qualité, séries, partenaires liés, équipe. */
+              <div className="space-y-4">
+                <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
+                  onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
+                <StatsPartenaire
+                  tous={fUnion}
+                  periode={fTousFiltered}
+                  famille={family as "grossistes" | "fournisseurs" | "sanitaires"}
+                  nom={familyName}
+                  libellePeriode={statsDateMode === "rolling12" ? "12 derniers mois"
+                    : describeStatsRange({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear })}
+                  onOuvrir={(titre, projets) => setFStatsPick({ titre, projets })}
+                />
+              </div>
             ) : (
               <div className="space-y-4">
                 <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
@@ -4742,7 +4762,7 @@ function HomePage() {
           d'un téléphone — 401 px de contenu pour 375. Elle s'enroule
           désormais. Sur grand écran tout tient sur une ligne : rien n'y
           change. */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-accueil") && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "kanban" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !(isSignal && mode.startsWith("signalements")) && !mode.endsWith("-accueil") && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "kanban" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
         <div className="flex flex-wrap gap-3 mb-4 sgv-tiles">
           <button
             onClick={() => setViewMode("calendar")}
@@ -5835,7 +5855,9 @@ function HomePage() {
       {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
       {/* ======================================================== */}
       {(() => {
-        return mode !== "dashboard" && !mode.endsWith("-accueil") && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "kanban" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && mode !== "a-facturer";
+        /* Signal : les vues Signalements ont leur propre liste — la liste de
+           projets vide en dessous n'avait rien à y faire. */
+        return mode !== "dashboard" && !(isSignal && mode.startsWith("signalements")) && !mode.endsWith("-accueil") && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "kanban" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && mode !== "a-facturer";
       })() && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {
@@ -6099,7 +6121,25 @@ function HomePage() {
               </div>
             )}
             {/* Conflict / overload warnings */}
-            {conflicts.length > 0 && (
+            {conflicts.length > 0 && isSignal && (() => {
+              const nbConflits = conflicts.filter((c) => c.type === "conflict").length;
+              const nbSurcharges = conflicts.length - nbConflits;
+              const ouvert = alertesOuvertes || !!conflictFilter;
+              return (
+                <button type="button" onClick={() => setAlertesOuvertes(!ouvert)}
+                  aria-expanded={ouvert}
+                  className={`sgv-alertes-resume${nbConflits ? " is-conflit" : ""}`}>
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>
+                    {[nbConflits ? `${nbConflits} conflit${nbConflits > 1 ? "s" : ""}` : "",
+                      nbSurcharges ? `${nbSurcharges} surcharge${nbSurcharges > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ")}
+                    {conflictFilter ? " — filtre actif" : ""}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 shrink-0 ml-auto transition-transform ${ouvert ? "rotate-180" : ""}`} />
+                </button>
+              );
+            })()}
+            {conflicts.length > 0 && (!isSignal || alertesOuvertes || !!conflictFilter) && (
               <div className="space-y-2 mb-4 sgv-alerts">
                 {conflicts.map((c, i) => {
                   const key = c.collaborateur + "::" + c.date;
