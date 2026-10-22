@@ -5039,9 +5039,34 @@ function ProjectPageContent({ id }: { id: string }) {
   const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth").then((r) => r.json()).then((d) => {
-      if (d.user) setCurrentUser(d.user);
-    }).catch(() => {});
+    /* Hors ligne, /api/auth ne répond pas : sans repli, un admin sur
+       chantier retombait en vue collaborateur (pas à pas seul). On garde le
+       dernier compte connu — pour l'AFFICHAGE seulement : le serveur reste
+       seul juge des droits à chaque écriture. */
+    const CLE = "tm-dernier-compte";
+    const repli = () => {
+      try {
+        const u = JSON.parse(localStorage.getItem(CLE) || "null");
+        if (u && typeof u.name === "string" && typeof u.role === "string") {
+          setCurrentUser((prev) => prev ?? u);
+        }
+      } catch { /* ignore */ }
+    };
+    /* Une réponse d'erreur (le service worker en rend une hors ligne) vaut
+       absence de réseau, pas « déconnecté ». */
+    fetch("/api/auth").then((r) => {
+      if (r.status === 401) return { user: null };
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    }).then((d) => {
+      if (d.user) {
+        setCurrentUser(d.user);
+        try { localStorage.setItem(CLE, JSON.stringify({ name: d.user.name, role: d.user.role })); } catch { /* ignore */ }
+      } else {
+        /* Le serveur a répondu : personne n'est connecté. On oublie. */
+        try { localStorage.removeItem(CLE); } catch { /* ignore */ }
+      }
+    }).catch(repli);
   }, []);
 
   // Charge les signalements (pièces + défauts) pour afficher les icônes dans les en-têtes de cabine
