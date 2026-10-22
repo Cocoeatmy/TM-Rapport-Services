@@ -16,10 +16,11 @@
  */
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDroits } from "@/lib/use-droits";
 import { BexioPartenaire } from "@/components/bexio-partenaire";
 import { mesuresFaites } from "@/lib/cabines-mesurees";
+import { defautsParProjet, type DefautsParProjet, type SignalementPourStats } from "@/lib/types-defaut";
 import "./stats-partenaire.css";
 
 type P = Record<string, any>;
@@ -72,6 +73,22 @@ const termine = (p: P) => p.etatCMD === "Terminé";
 const aSav = (p: P) => !!p.sav || !!String(p.causeSAV || "").trim() || !!p.dateSAVRecu;
 const noms = (s: string) => String(s || "").split(/\s*(?:,|&|\+| et )\s*/).map((x) => x.trim()).filter(Boolean);
 
+/* Les signalements (défauts d'usine, dommages de transport) : une seule
+   lecture pour toutes les fiches partenaires, gardée une minute. */
+let signalementsMemo: { t: number; p: Promise<DefautsParProjet> } | null = null;
+function chargerSignalements(): Promise<DefautsParProjet> {
+  if (!signalementsMemo || Date.now() - signalementsMemo.t > 60_000) {
+    signalementsMemo = {
+      t: Date.now(),
+      p: fetch("/api/defauts", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((l) => defautsParProjet(Array.isArray(l) ? (l as SignalementPourStats[]) : []))
+        .catch(() => { signalementsMemo = null; return new Map() as DefautsParProjet; }),
+    };
+  }
+  return signalementsMemo.p;
+}
+
 /** Compte pondéré (par cabines) → les `n` premiers, triés. */
 function classement(projets: P[], cles: (p: P) => string[], n = 6) {
   const m = new Map<string, { cabines: number; projets: P[] }>();
@@ -92,6 +109,15 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
   const [feuille, setFeuille] = useState<{ titre: string; projets: P[] } | null>(null);
   const onOuvrir = (titre: string, projets: P[]) => (ouvrirExterne ? ouvrirExterne(titre, projets) : setFeuille({ titre, projets }));
   const argent = !!mes && peut("argent.voir");
+  const voitSignalements = !!mes && peut("signalements.voir");
+  const [defauts, setDefauts] = useState<DefautsParProjet | null>(null);
+  useEffect(() => {
+    if (!voitSignalements || !voir("qualite")) return;
+    let vivant = true;
+    chargerSignalements().then((d) => { if (vivant) setDefauts(d); });
+    return () => { vivant = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voitSignalements]);
 
   const s = useMemo(() => {
     const cabines = periode.reduce((n, p) => n + cab(p), 0);
@@ -149,8 +175,21 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
       { lib: "Soucis de montage", liste: periode.filter((p) => p.soucisMontage), ton: "is-souci" },
       { lib: "Pièces manquantes", liste: periode.filter((p) => String(p.infoPiecesManquantes || "").trim()), ton: "is-piece" },
       { lib: "Défauts signalés", liste: periode.filter((p) => String(p.infoDefautsSignale || "").trim()), ton: "is-defaut" },
-      { lib: "Dégâts à la livraison", liste: periode.filter((p) => (p.photosCartons || []).length > 0), ton: "is-degat" },
     ].map((q) => ({ ...q, taux: Math.round((q.liste.reduce((n, p) => n + (cab(p) || 1), 0) / base) * 100) }));
+    /* Défauts d'usine et dommages de transport : d'après les SIGNALEMENTS de
+       ces types (22.10.2026), jamais d'après les photos « État des cartons
+       réceptionnés » — un carton abîmé n'est pas une cabine abîmée. Le taux
+       compte les LOTS touchés, pas toutes les cabines du chantier. */
+    if (defauts) {
+      for (const [nature, lib, ton] of [
+        ["usine", "Défauts d'usine", "is-usine"],
+        ["transport", "Dommages de transport", "is-degat"],
+      ] as const) {
+        const liste = periode.filter((p) => (defauts.get(p.id)?.[nature].size || 0) > 0);
+        const lots = liste.reduce((n, p) => n + (defauts.get(p.id)?.[nature].size || 0), 0);
+        qualite.push({ lib, liste, ton, taux: Math.round((lots / base) * 100) });
+      }
+    }
 
     const series = classement(periode, (p) => p.seriesCabines || []);
     const lies = famille === "grossistes"
@@ -167,7 +206,7 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
 
     return { cabines, poses, cabinesPosees, montant, avecMontant, sav, parMois, pic, an12, an12Avant,
       parcours, delais, delaiMax, qualite, series, lies, installateurs, equipe, prochains };
-  }, [tous, periode, famille]);
+  }, [tous, periode, famille, defauts]);
 
   /* Les numéros TM de TOUS ses chantiers : c'est par eux que bexio
      reconnaît le partenaire (l'offre porte ce numéro). */

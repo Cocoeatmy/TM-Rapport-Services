@@ -2384,8 +2384,8 @@ export function SignalStats({
             ))}
           </div>
 
-          <Fold title="Livraisons abîmées"
-            meta="d'après les photos de dégâts prises à la réception des cartons"
+          <Fold title="Défauts d'usine et dommages de transport"
+            meta="d'après les signalements de ces deux types, par livraison"
             right={
               <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
                 <button type="button" className={axeDegats === "marque" ? "is-on" : ""} onClick={() => setAxeDegats("marque")}>Marque</button>
@@ -2396,33 +2396,35 @@ export function SignalStats({
               <>
                 <Tableau cols={[
                   { titre: axeDegats === "marque" ? "Marque" : "Grossiste" },
-                  { titre: "Livraisons vues", num: true }, { titre: "Abîmées", num: true },
-                  { titre: "Taux", num: true }, { titre: "Couverture", num: true },
+                  { titre: "Livraisons", num: true },
+                  { titre: "Défauts d'usine", num: true },
+                  { titre: "Dommages de transport", num: true },
                 ]}>
                   {analyses.degats[axeDegats].map((l: any) => (
                     <tr key={l.cle}>
                       <td className="cle">{l.cle}</td>
-                      <td className="num doux">{l.documentees}</td>
-                      <td className="num">{l.abimees}</td>
+                      <td className="num doux">{l.livrees}</td>
                       <td className="num fort avec-part">
-                        <span className={l.taux >= 10 ? "sgs-pct is-faible" : "sgs-pct"}>{l.taux} %</span>
-                        <Part valeur={l.taux} sur={100} ton={l.taux >= 10 ? "chaud" : undefined} />
+                        <span className={l.tauxUsine >= 10 ? "sgs-pct is-faible" : "sgs-pct"}>{l.usine} · {l.tauxUsine} %</span>
+                        <Part valeur={l.tauxUsine} sur={100} ton={l.tauxUsine >= 10 ? "chaud" : undefined} />
                       </td>
-                      <td className={`num${l.couverture < 60 ? " alerte" : " doux"}`}>{l.couverture} %</td>
+                      <td className="num fort avec-part">
+                        <span className={l.tauxTransport >= 10 ? "sgs-pct is-faible" : "sgs-pct"}>{l.transport} · {l.tauxTransport} %</span>
+                        <Part valeur={l.tauxTransport} sur={100} ton={l.tauxTransport >= 10 ? "chaud" : undefined} />
+                      </td>
                     </tr>
                   ))}
                 </Tableau>
                 <p className="sgs-note">
-                  Le SAV met en cause le produit ; les cartons mettent en cause le transport
-                  et l&apos;emballage — d&apos;où deux responsables distincts, et deux axes de
-                  lecture. La colonne <b>Couverture</b> dit quelle part des livraisons a
-                  effectivement été photographiée : en dessous de 60 %, le taux est faux vers
-                  le bas et ne doit pas servir d&apos;argument. C&apos;est alors la couverture
-                  qu&apos;il faut corriger avant le fournisseur.
+                  Chaque colonne compte les livraisons (projets) portant au moins un
+                  signalement de ce type. Un défaut d&apos;usine met en cause le fabricant ;
+                  un dommage de transport, le livreur et l&apos;emballage. Les photos
+                  « État des cartons réceptionnés » ne comptent pas : un carton abîmé
+                  n&apos;est pas une cabine abîmée.
                 </p>
               </>
             ) : (
-              <p className="sgs-empty">Pas assez de livraisons photographiées sur la période.</p>
+              <p className="sgs-empty">Pas assez de livraisons sur la période (5 au minimum par marque ou grossiste).</p>
             )}
           </Fold>
           <Fold title="Ce que coûte le SAV, en heures"

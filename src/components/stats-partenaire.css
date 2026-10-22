@@ -116,6 +116,7 @@ html[data-ui="signal"] .sgpt-qualite .is-souci { border-left-color: #dc2626; }
 html[data-ui="signal"] .sgpt-qualite .is-piece { border-left-color: #f59e0b; }
 html[data-ui="signal"] .sgpt-qualite .is-defaut { border-left-color: #e11d48; }
 html[data-ui="signal"] .sgpt-qualite .is-degat { border-left-color: #7c3aed; }
+html[data-ui="signal"] .sgpt-qualite .is-usine { border-left-color: #0f766e; }
 
 /* Prochains montages */
 html[data-ui="signal"] .sgpt-rdv { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }

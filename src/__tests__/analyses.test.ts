@@ -5,6 +5,7 @@
  * négocier avec un fournisseur. Un dénominateur oublié suffit à inverser une
  * conclusion, c'est donc surtout cela que ces cas vérifient.
  */
+import { defautsParProjet, naturesDefaut } from "@/lib/types-defaut";
 import { describe, it, expect } from "vitest";
 import type { Project } from "../lib/notion";
 import {
@@ -277,26 +278,36 @@ describe("clients qui décrochent", () => {
   });
 });
 
-describe("livraisons abîmées", () => {
-  const livraison = (marque: string, n: number, degats: boolean) => lot(n, {
-    arrivageTM: ilYA(20), fournisseurs: [marque],
-    photosCartonsRecus: [{ name: "c", url: "u" }],
-    photosCartons: degats ? [{ name: "d", url: "u" }] : [],
+describe("défauts d'usine et dommages de transport", () => {
+  const livraison = (marque: string, n: number, extra: Record<string, unknown> = {}) => lot(n, {
+    arrivageTM: ilYA(20), fournisseurs: [marque], ...extra,
   });
 
-  it("calcule le taux sur les livraisons documentées, pas sur toutes", () => {
-    const lignes = degatsLivraison([
-      ...livraison("Duka", 2, true),
-      ...livraison("Duka", 8, false),
-      ...lot(10, { arrivageTM: ilYA(20), fournisseurs: ["Duka"], photosCartonsRecus: [], photosCartons: [] }),
-    ], "marque");
-    expect(lignes[0].documentees).toBe(10);
-    expect(lignes[0].taux).toBe(20);
-    expect(lignes[0].couverture).toBe(50);
+  it("se lit dans les signalements, jamais dans les photos de cartons", () => {
+    const projets = [
+      ...livraison("Duka", 6, { photosCartons: [{ name: "d", url: "u" }] }), // cartons abîmés : ne compte pas
+      ...livraison("Duka", 4),
+    ];
+    const defauts = defautsParProjet([
+      { projectId: projets[0].id, types: ["usine"] },
+      { projectId: projets[1].id, types: ["Dommage de transport"] },
+      { projectId: projets[2].id, types: ["usine", "transport"], cabineIdx: 2 },
+      { projectId: projets[3].id, types: ["mesures"] },
+    ]);
+    const [l] = degatsLivraison(projets, "marque", undefined, undefined, defauts);
+    expect(l).toMatchObject({ cle: "Duka", livrees: 10, usine: 2, transport: 2, tauxUsine: 20, tauxTransport: 20 });
+    expect(degatsLivraison(projets, "marque")[0]).toMatchObject({ usine: 0, transport: 0 });
   });
 
-  it("n'affiche pas un fournisseur trop peu documenté", () => {
-    expect(degatsLivraison(livraison("Rare", 3, true), "marque")).toEqual([]);
+  it("n'affiche pas un fournisseur trop peu livré", () => {
+    expect(degatsLivraison(livraison("Rare", 3), "marque")).toEqual([]);
+  });
+
+  it("reconnaît identifiants et libellés, accents ignorés", () => {
+    expect([...naturesDefaut({ projectId: "x", types: ["usine"] })]).toEqual(["usine"]);
+    expect([...naturesDefaut({ projectId: "x", types: [], typesLabel: "Defaut d'usine, Dommage de transport" })].sort())
+      .toEqual(["transport", "usine"]);
+    expect(naturesDefaut({ projectId: "x", types: ["montage"], typesLabel: "Problème de montage" }).size).toBe(0);
   });
 });
 

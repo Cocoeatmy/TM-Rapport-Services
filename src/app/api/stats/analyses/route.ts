@@ -21,6 +21,7 @@ import {
 import { journeeType } from "@/lib/journee";
 import { attentePieces, type Signalement } from "@/lib/pieces-attente";
 import type { Position } from "@/lib/tournee";
+import { defautsParProjet, type SignalementPourStats } from "@/lib/types-defaut";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -86,10 +87,16 @@ export async function GET(req: NextRequest) {
          saisonnalité dominerait le signal. */
       familles,
       recul: clientsEnRecul(projets, "tous"),
-      degats: {
-        marque: degatsLivraison(projets, "marque", de, a),
-        grossiste: degatsLivraison(projets, "grossiste", de, a),
-      },
+      /* Défauts d'usine / dommages de transport : d'après les SIGNALEMENTS
+         (stockage de l'app), plus d'après les photos de cartons. */
+      degats: await (async () => {
+        let parProjet = defautsParProjet([]);
+        try { parProjet = defautsParProjet(await getData<SignalementPourStats>("defauts")); } catch { /* vide */ }
+        return {
+          marque: degatsLivraison(projets, "marque", de, a, parProjet),
+          grossiste: degatsLivraison(projets, "grossiste", de, a, parProjet),
+        };
+      })(),
       equipage: soloOuBinome(projets, de, a),
       journee: journeeType(projets, positions, de, a),
       delais: delaisEtapes(projets, de, a),

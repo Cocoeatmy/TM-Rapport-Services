@@ -21,6 +21,7 @@ import type { Project } from "@/lib/notion";
 import { minutesPointees, trajet, lieuDepot, type Position } from "@/lib/tournee";
 import { regionLabel, cantonOf } from "@/lib/swiss-cantons";
 import { parseInterventions, minutesInterventions } from "@/lib/sav-interventions";
+import type { DefautsParProjet } from "@/lib/types-defaut";
 
 const MORTS = new Set(["Annulé"]);
 
@@ -517,63 +518,63 @@ export function clientsEnRecul(
     .sort((x, y) => (y.avant - y.recent) - (x.avant - x.recent));
 }
 
-/* ── Dégâts à la livraison ──────────────────────────────────────────────── */
+/* ── Défauts d'usine et dommages de transport ───────────────────────────── */
 
 export interface LigneDegats {
   cle: string;
-  /** Livraisons dont l'état des cartons a été photographié. */
-  documentees: number;
-  /** Livraisons portant des photos de dégâts. */
-  abimees: number;
-  taux: number;
-  /** Part des livraisons de la période qui ont été photographiées. */
-  couverture: number;
+  /** Livraisons de la période (projets arrivés). */
+  livrees: number;
+  /** Projets portant au moins un signalement « Défaut d'usine ». */
+  usine: number;
+  /** Projets portant au moins un signalement « Dommage de transport ». */
+  transport: number;
+  tauxUsine: number;
+  tauxTransport: number;
 }
 
 /**
- * Livraisons abîmées, par fournisseur ou par grossiste.
+ * Défauts d'usine et dommages de transport, par fournisseur ou grossiste.
  *
- * Le SAV met en cause le produit ; les cartons mettent en cause le transport
- * et l'emballage — donc des responsables différents. La `couverture` est
- * publiée avec le taux, et non cachée : si la moitié des livraisons n'est pas
- * photographiée, le taux est faux vers le bas, et il faut le savoir avant de
- * s'en servir dans une négociation.
+ * Source : les SIGNALEMENTS de ces deux types (22.10.2026). Les photos
+ * « État des cartons réceptionnés » n'y entrent plus : un carton abîmé n'est
+ * pas une cabine abîmée, et la statistique qui s'y fiait était fausse. Les
+ * deux natures restent séparées — l'usine met en cause le fabricant, le
+ * transport le livreur et l'emballage.
  */
 export function degatsLivraison(
   projets: Project[],
   axe: "marque" | "grossiste",
   de?: string, a?: string,
+  defauts: DefautsParProjet = new Map(),
 ): LigneDegats[] {
   const champ = (p: Project) => (axe === "marque" ? p.fournisseurs : p.grossistesNames) || [];
-  const m = new Map<string, { livrees: number; documentees: number; abimees: number }>();
+  const m = new Map<string, { livrees: number; usine: number; transport: number }>();
 
   projets.forEach((p) => {
     if (MORTS.has(p.etatCMD) || estServicePur(p)) return;
     const quand = p.arrivageTM || p.arrivageGrossiste;
     if (!dansFenetre(quand, de, a)) return;
 
-    const recues = (p.photosCartonsRecus || []).length;
-    const degats = (p.photosCartons || []).length;
+    const d = defauts.get(p.id);
     champ(p).forEach((k) => {
       const cle = k || "Non renseigné";
-      const cur = m.get(cle) || { livrees: 0, documentees: 0, abimees: 0 };
+      const cur = m.get(cle) || { livrees: 0, usine: 0, transport: 0 };
       cur.livrees += 1;
-      if (recues > 0 || degats > 0) cur.documentees += 1;
-      if (degats > 0) cur.abimees += 1;
+      if (d?.usine.size) cur.usine += 1;
+      if (d?.transport.size) cur.transport += 1;
       m.set(cle, cur);
     });
   });
 
   return [...m.entries()]
-    .filter(([, v]) => v.documentees >= 5)
+    .filter(([, v]) => v.livrees >= 5)
     .map(([cle, v]) => ({
       cle,
-      documentees: v.documentees,
-      abimees: v.abimees,
-      taux: Math.round((v.abimees / v.documentees) * 100),
-      couverture: Math.round((v.documentees / v.livrees) * 100),
+      ...v,
+      tauxUsine: Math.round((v.usine / v.livrees) * 100),
+      tauxTransport: Math.round((v.transport / v.livrees) * 100),
     }))
-    .sort((x, y) => y.taux - x.taux);
+    .sort((x, y) => (y.tauxUsine + y.tauxTransport) - (x.tauxUsine + x.tauxTransport) || y.livrees - x.livrees);
 }
 
 /* ── Solo ou binôme ─────────────────────────────────────────────────────── */
