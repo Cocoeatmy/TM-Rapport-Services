@@ -6339,3 +6339,12 @@ html[data-ui="signal"] .sgc-crm-grille { align-items: start; }
 @media (min-width: 640px) {
   html[data-ui="signal"] .sgc-crm-carte.is-stats { grid-column: 1 / -1; }
 }
+
+/* Fiche projet : le numéro OFR TM, lisible d'un coup d'œil (22.10.2026). Il
+   était en 12 px gris — il fallait s'approcher pour être sûr des chiffres. */
+html[data-ui="signal"] .tm-ofr { margin-top: 2px; }
+html[data-ui="signal"] .tm-ofr-lib { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--sg-text-3); }
+html[data-ui="signal"] .tm-ofr-n {
+  font-size: 15px; font-weight: 750; letter-spacing: 0.02em; color: var(--sg-text);
+  font-variant-numeric: tabular-nums;
+}

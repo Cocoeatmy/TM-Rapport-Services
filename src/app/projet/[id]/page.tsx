@@ -134,6 +134,7 @@ import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { isMultiDayHours, parsePointages, encodePointages } from "@/lib/pointages";
 import { heureDesPhotos, arriveeAcceptable, departApresPhoto, type HeurePhoto } from "@/lib/heure-photo";
+import { cabinesPosees } from "@/lib/cabines-posees";
 import { interventionsDuLot, encodeInterventions, dernierPassage, type InterventionSav } from "@/lib/sav-interventions";
 import { equipeDuJour, nomsAProposer, equipeDesPassages, listeDeNoms } from "@/lib/equipe-intervention";
 import { fusionnerPassage } from "@/lib/passage-lot";
@@ -9471,9 +9472,9 @@ function ProjectPageContent({ id }: { id: string }) {
                 {!showRapport && (
                   <>
                     {project.ofrTM && (
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 tm-ofr">
                         {splitOfrNumbers(project.ofrTM).map((n, i) => (
-                          <p key={i}>{i === 0 ? "OFR " : ""}{n}</p>
+                          <p key={i}>{i === 0 && <span className="tm-ofr-lib">OFR </span>}<span className="tm-ofr-n">{n}</span></p>
                         ))}
                       </div>
                     )}
@@ -9506,7 +9507,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 {showRapport && isIOS && (
                   <>
                     <div className="flex items-center justify-between gap-2 mt-1">
-                      {project.ofrTM ? <p className="text-xs text-gray-500 truncate min-w-0">OFR {project.ofrTM}</p> : <span />}
+                      {project.ofrTM ? <p className="text-xs text-gray-500 truncate min-w-0 tm-ofr"><span className="tm-ofr-lib">OFR </span><span className="tm-ofr-n">{project.ofrTM}</span></p> : <span />}
                       <div className="flex items-center shrink-0">{actionButtons}</div>
                     </div>
                     {isAdmin && (
@@ -9528,7 +9529,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   <div className="flex items-center justify-between gap-2 mt-1">
                     <div className="flex items-center gap-2 min-w-0">
                       {project.ofrTM && (
-                        <p className="text-xs text-gray-500 truncate">OFR {project.ofrTM}</p>
+                        <p className="text-xs text-gray-500 truncate tm-ofr"><span className="tm-ofr-lib">OFR </span><span className="tm-ofr-n">{project.ofrTM}</span></p>
                       )}
                       {isAdmin && (
                         <StatusDropdown
@@ -9686,6 +9687,16 @@ function ProjectPageContent({ id }: { id: string }) {
             + ((project.commentairesMesures || "").trim() ? 1 : 0)
             + ((project.commentairesMontages || "").trim() ? 1 : 0);
           const totalCab = cabines.length || project.nbCabines || 0;
+          /* Cabines posées : sur un chantier à UNE cabine, la liste des lots
+             est vide — compter les photos « lot par lot » donnait « 0 / 1
+             posée » sur un montage terminé (TM-2600850, 22.10.2026). On prend
+             la règle commune (cabines-posees.ts) et l'état mono de la fiche. */
+          const poseesHub = isCabineMode && cabines.length > 0
+            ? installedCabineCount
+            : Math.min(totalCab, Math.max(
+                cabinesPosees({ nbCabines: totalCab, nbCabinesInstallees: project.nbCabinesInstallees, photosMontage: project.photosMontage }),
+                monoInstallee ? totalCab : 0,
+              ));
 
           /* ── Carte « Dates » (22.10.2026) : qui, et quand ────────────────
              Mesures : la date et « Mesures traitée par ». Montage : l'équipe
@@ -9747,7 +9758,7 @@ function ProjectPageContent({ id }: { id: string }) {
             projet: project.adresseChantier || project.emplacementCabine || "Adresse, client, statuts",
             dates: [jj(project.dateMesures) && `Mesures ${jj(project.dateMesures)}`, jj(project.dateMontage) && `Montage ${jj(project.dateMontage)}`].filter(Boolean).join(" · ") || "Aucune date fixée",
             client: (project.contactsRDV || "").split(/\n/)[0]?.trim() || "Contacts du chantier",
-            cabines: totalCab ? `${totalCab} cabine${totalCab > 1 ? "s" : ""} · ${installedCabineCount} posée${installedCabineCount > 1 ? "s" : ""}` : "Aucune cabine",
+            cabines: totalCab ? `${totalCab} cabine${totalCab > 1 ? "s" : ""} · ${poseesHub} posée${poseesHub > 1 ? "s" : ""}` : "Aucune cabine",
             mesures: nbDocs ? `${nbDocs} document${nbDocs > 1 ? "s" : ""}` : "Mesures et montage",
             commentaires: nbComm ? `${nbComm} commentaire${nbComm > 1 ? "s" : ""}` : "Aucun commentaire",
             fiche: "Fiche de travail du chantier",
@@ -9775,7 +9786,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   <span className="tm-pj-cta-icone"><FileText className="w-5 h-5" /></span>
                   <span className="tm-pj-cta-txt">
                     <b>{project.rapportMonteur ? "Consulter le rapport de montage" : "Démarrer le rapport de montage"}</b>
-                    <small>{totalCab ? `${installedCabineCount} / ${totalCab} cabine${totalCab > 1 ? "s" : ""} posée${installedCabineCount > 1 ? "s" : ""}` : "Photos, heures et signature"}</small>
+                    <small>{totalCab ? `${poseesHub} / ${totalCab} cabine${totalCab > 1 ? "s" : ""} posée${poseesHub > 1 ? "s" : ""}` : "Photos, heures et signature"}</small>
                   </span>
                   <ChevronRight className="w-5 h-5 tm-pj-cta-fleche" />
                 </button>
