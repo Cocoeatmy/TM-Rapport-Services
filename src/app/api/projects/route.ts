@@ -94,7 +94,7 @@ export async function DELETE(request: NextRequest) {
     invalidateCache("projects-mesures");
     invalidateCache("projects-services");
     invalidateCache("projects-sav");
-    invalidateCache(`project-${body.pageId}`);
+    await invalidateCache(`project-${body.pageId}`);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

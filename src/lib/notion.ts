@@ -1,5 +1,6 @@
 import { Client } from "@notionhq/client";
 import { descripteurFichier } from "@/lib/notion-fichiers";
+import { invalidateCache } from "@/lib/server-cache";
 
 // ── Limiteur de débit global pour l'API Notion ──────────────────────────────
 // Notion plafonne à ~3 requêtes/seconde en moyenne (petite tolérance de burst).
@@ -1901,6 +1902,10 @@ export async function updateProject(
     page_id: pageId,
     properties,
   });
+  /* Toute écriture de fiche, quelle que soit la route : les copies d'avant
+     (cette instance et les autres, via Redis) sont écartées — sinon la
+     saisie « disparaît » puis revient (voir server-cache, 22.10.2026). */
+  await invalidateCache(`project-${pageId}`);
 }
 
 /**

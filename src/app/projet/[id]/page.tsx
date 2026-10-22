@@ -142,6 +142,7 @@ import { equipeDuJour, nomsAProposer, equipeDesPassages, listeDeNoms } from "@/l
 import { fusionnerPassage } from "@/lib/passage-lot";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, avecSaisiesEnAttente, isOnline, offlineFetch } from "@/lib/offline";
+import { lectureFiable } from "@/lib/ecritures-projet";
 /* Importé STATIQUEMENT, et non au moment de signer. Le chargement à la
    demande se déclenchait exactement quand le réseau manque : sans service
    worker pour servir le fragment depuis sa réserve, la signature ne pouvait
@@ -7258,9 +7259,14 @@ function ProjectPageContent({ id }: { id: string }) {
     const refetch = async () => {
       if (typeof document !== "undefined" && document.hidden) return;
       try {
+        const debutLecture = Date.now();
         const res = await fetch(`/api/projects/${project.id}`, { cache: "no-store" });
         const data = await res.json();
         if (!data?.id) return;
+        /* Un enregistrement a croisé cette relecture : elle peut rapporter la
+           fiche d'avant (la saisie « disparaissait » puis revenait). On
+           l'ignore ; la suivante sera la bonne. */
+        if (!lectureFiable(project.id, debutLecture)) return;
 
         // setProject met à jour les photos, relations, dates... (tout ce
         // qui n'est pas une zone de saisie active).

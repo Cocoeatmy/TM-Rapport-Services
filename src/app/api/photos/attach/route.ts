@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    invalidateCache(`project-${projectId}`);
+    await invalidateCache(`project-${projectId}`);
     invalidateCache("projects");
     invalidateCache("projects-mesures");
     invalidateCache("projects-services");

@@ -115,7 +115,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     /* `notionWrite` a son propre débit, séparé des lectures : une
        synchronisation en cours ne doit pas affamer une saisie. */
     await notionWrite.pages.update({ page_id: id, properties: properties as never });
-    invalidateCache(`project-${id}`);
+    await invalidateCache(`project-${id}`);
     invalidateCache("projects");
 
     return NextResponse.json({

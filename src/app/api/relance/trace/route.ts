@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     if (id.startsWith("devis:")) { ecrits.push(id); continue; }
     try {
       await updateProject(id, { relanceDossier: leJour });
-      invalidateCache(`project-${id}`);
+      await invalidateCache(`project-${id}`);
       ecrits.push(id);
     } catch {
       echecs.push(id);

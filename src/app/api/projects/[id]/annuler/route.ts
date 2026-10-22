@@ -49,7 +49,7 @@ export async function POST(
       ...(decision.mesuresVers ? { etatMesures: decision.mesuresVers } : {}),
     });
 
-    invalidateCache(`project-${id}`);
+    await invalidateCache(`project-${id}`);
     for (const k of [
       "projects", "projects-mesures", "projects-services", "projects-sav",
       "projects-all-active", "projects-all-raw", "projects-cmd-termine",

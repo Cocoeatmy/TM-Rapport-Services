@@ -16,6 +16,7 @@
 
 import { besoinDeFusion, fusionnerAvecExistant, CHAMPS_PAR_LOT } from "./fusion-cabines";
 import { reseauUtilisable, fetchAvecDelai } from "./reseau";
+import { debutEcriture, finEcriture, projetEcrit } from "@/lib/ecritures-projet";
 
 const CACHE_KEY = "tm-rapport-cache";
 const QUEUE_KEY = "tm-rapport-queue";
@@ -671,6 +672,20 @@ const DELAI_MUTATION_MS = 25_000;
  * la mutation sera rejouée automatiquement dès que le réseau revient.
  */
 export async function offlineFetch(url: string, init?: RequestInit): Promise<Response> {
+  /* Écriture d'une fiche projet : signalée le temps de son trajet, pour que
+     la relecture automatique ne réaffiche pas la fiche d'avant (voir
+     ecritures-projet). */
+  const pid = projetEcrit(url, (init?.method || "GET").toUpperCase());
+  if (!pid) return offlineFetchInterne(url, init);
+  debutEcriture(pid);
+  try {
+    return await offlineFetchInterne(url, init);
+  } finally {
+    finEcriture(pid);
+  }
+}
+
+async function offlineFetchInterne(url: string, init?: RequestInit): Promise<Response> {
   const method = (init?.method || "GET").toUpperCase();
   const isMutation = method !== "GET" && method !== "HEAD";
 

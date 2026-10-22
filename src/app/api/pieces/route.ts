@@ -221,7 +221,7 @@ async function enregistrer(body: Record<string, unknown>, nomUtilisateur: string
       }
 
       await notion.pages.update({ page_id: body.projectId as string, properties });
-      invalidateCache(`project-${body.projectId as string}`);
+      await invalidateCache(`project-${body.projectId as string}`);
     } catch (err) {
       console.error("Notion piece sync error:", err);
       // kv-store already saved as backup, continue
@@ -308,7 +308,7 @@ async function effacer(id: string, nomUtilisateur: string) {
           },
         },
       });
-      invalidateCache(`project-${piece.projectId}`);
+      await invalidateCache(`project-${piece.projectId}`);
     } catch (err) {
       console.error("Notion piece delete sync error:", err);
     }

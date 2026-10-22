@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
             page_id: projectId,
             properties: { "Soucis montages clôturé": { checkbox: tous } },
           });
-          invalidateCache(`project-${projectId}`);
+          await invalidateCache(`project-${projectId}`);
         } catch { /* le règlement est déjà enregistré ; le report réessaiera */ }
       }
     }

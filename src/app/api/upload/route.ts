@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
       // Invalider les caches côté serveur pour que le prochain fetch
       // du projet voie bien les nouvelles photos (sinon la version
       // pré-upload reste servie jusqu'à 5 min).
-      invalidateCache(`project-${projectId}`);
+      await invalidateCache(`project-${projectId}`);
       invalidateCache("projects");
       invalidateCache("projects-mesures");
       invalidateCache("projects-services");

@@ -34,16 +34,14 @@ export async function GET(
       );
     }
 
-    // Cache CDN court (15 s frais + 30 s SWR) pour éviter l'amplification inter-instances.
-    // Sans cache CDN, chaque instance Vercel appelle Notion indépendamment lors des pics.
-    // Avec s-maxage=15 : une seule origine CDN appelle Vercel/Notion toutes les 15 s max.
-    // Le SW client peut toujours mettre en cache (Cache-Control navigateur = max-age=0).
+    /* PAS de cache CDN (22.10.2026). Il resservait la fiche d'avant pendant
+       15 s (+ 30 s « stale ») après un enregistrement : la saisie disparaissait
+       puis revenait à la relecture suivante. Il servait aussi la réponse sans
+       repasser par le contrôle d'accès ci-dessus. La charge Notion reste
+       bornée par le cache serveur (server-cache, avec ses garde-fous
+       d'écriture). */
     return NextResponse.json(project, {
-      headers: {
-        "Cache-Control": "public, max-age=0, must-revalidate",
-        "Vercel-CDN-Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
-        "CDN-Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
-      },
+      headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error: any) {
     const isRateLimit = error?.status === 429 || error?.code === "rate_limited";
@@ -156,8 +154,10 @@ export async function PATCH(
     }
 
     await updateProject(id, body);
-    // Invalider le cache après mise à jour
-    invalidateCache(`project-${id}`);
+    // Invalider le cache après mise à jour — ATTENDU : l'heure de l'écriture
+    // doit être publiée avant de répondre, sinon une relecture immédiate sur
+    // une autre instance servirait encore l'ancienne fiche.
+    await invalidateCache(`project-${id}`);
     invalidateCache("projects");
     invalidateCache("projects-mesures");
     /* La relance se lit sur l'écran « Mesures non commandées » : sans cette

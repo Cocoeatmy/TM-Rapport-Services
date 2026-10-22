@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     const p = await getProject(projectId) as unknown as Record<string, unknown>;
     const avant = String(p[champ] || "").replace(/\s+$/, "");
     await updateProject(projectId, { [champ]: `${avant ? `${avant}\n` : ""}${ligneJournal(appel, rangAppel((i >= 0 ? tous[i] : tous[tous.length - 1]).appels, appel))}` } as never);
-    invalidateCache(`project-${projectId}`);
+    await invalidateCache(`project-${projectId}`);
   } catch (e) {
     journal = false;
     console.warn("[appels] journal Notion non mis à jour :", e instanceof Error ? e.message : e);

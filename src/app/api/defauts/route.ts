@@ -219,7 +219,7 @@ async function enregistrer(body: Partial<DefautRequest>, nomUtilisateur: string)
       }
 
       await notion.pages.update({ page_id: body.projectId, properties });
-      invalidateCache(`project-${body.projectId}`);
+      await invalidateCache(`project-${body.projectId}`);
     } catch (err) {
       console.error("Notion defaut sync error:", err);
       // kv-store already saved as backup, continue
@@ -306,7 +306,7 @@ async function effacer(id: string, nomUtilisateur: string) {
           },
         },
       });
-      invalidateCache(`project-${defaut.projectId}`);
+      await invalidateCache(`project-${defaut.projectId}`);
     } catch (err) {
       console.error("Notion defaut delete sync error:", err);
     }
@@ -382,7 +382,7 @@ async function modifier(body: Partial<DefautRequest> & { comment?: string }, nom
           page_id: projectId,
           properties: { "Soucis montages clôturé": { checkbox: allResolved } },
         });
-        invalidateCache(`project-${projectId}`);
+        await invalidateCache(`project-${projectId}`);
       } catch (err) {
         console.error("Notion soucis-cloture rollup error:", err);
       }

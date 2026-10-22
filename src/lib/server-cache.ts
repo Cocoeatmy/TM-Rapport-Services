@@ -140,7 +140,39 @@ async function serveFromRedis<T>(key: string): Promise<{ data: T; perime: boolea
   return null;
 }
 
-const cache = new Map<string, { data: unknown; expires: number; staleAt: number }>();
+const cache = new Map<string, { data: unknown; expires: number; staleAt: number; lu: number }>();
+
+/* ── Écritures récentes : une relecture ne doit jamais réinstaller l'ancien ──
+   (22.10.2026) Une saisie enregistrée « disparaissait » quelques secondes
+   puis revenait. Deux causes, ici :
+   1. Une lecture lancée AVANT l'écriture et terminée APRÈS remettait
+      l'ancienne fiche en cache, comme si de rien n'était. Chaque clé a donc
+      une GÉNÉRATION, augmentée à chaque invalidation : un résultat obtenu sous
+      une génération dépassée n'est jamais mis en cache.
+   2. Chaque instance Vercel a SA mémoire : l'invalidation ne vidait que celle
+      qui avait reçu l'écriture, les autres resservaient l'ancienne fiche
+      jusqu'à 5 min. Pour les fiches projet, l'heure de la dernière écriture
+      est publiée dans Redis ; une copie lue avant cette heure (plus une marge
+      pour la propagation Notion) est écartée et relue. */
+const generations = new Map<string, number>();
+let generationGlobale = 0;
+const generation = (key: string) => `${generationGlobale}:${generations.get(key) || 0}`;
+const ecritureCle = (key: string) => `scw:${key}`;
+const MARGE_PROPAGATION_MS = 2_000;
+const ecrituresLocales = new Map<string, number>();
+const estFicheProjet = (key: string) => key.startsWith("project-");
+
+/** Heure de la dernière écriture connue de cette fiche (Redis, sinon locale). */
+async function derniereEcriture(key: string): Promise<number> {
+  const locale = ecrituresLocales.get(key) || 0;
+  if (!redisEnabled) return locale;
+  try {
+    const [v] = await redisMGet(ecritureCle(key));
+    return Math.max(locale, Number(v) || 0);
+  } catch {
+    return locale;
+  }
+}
 const TTL = 5 * 60 * 1000;          // 5 min — durée totale avant purge
 const FRESH_MS = 5 * 1000;          // 5 s — fenêtre où la donnée est considérée fraîche
 
@@ -194,6 +226,8 @@ const FALLBACK_TTL = 30 * 60 * 1000; // 30 min
 // Déduplication des fetches bloquants : si deux requêtes arrivent simultanément
 // et que le cache est vide, une seule requête Notion est lancée.
 const inflightFetch = new Map<string, Promise<unknown>>();
+/** Génération sous laquelle chaque lecture en vol a été lancée. */
+const inflightGen = new Map<string, string>();
 
 // Déduplication des rafraîchissements FORCÉS (manuel "Rafraîchir").
 const inflightForce = new Map<string, Promise<unknown>>();
@@ -211,7 +245,7 @@ export function getCached<T>(key: string): T | null {
   return entry.data as T;
 }
 
-export function setCache(key: string, data: unknown) {
+export function setCache(key: string, data: unknown, luA?: number) {
   const now = Date.now();
   // Politique de fraîcheur par type de clé :
   // - "project-<id>" : 30 s (polling client 15 s).
@@ -243,7 +277,7 @@ export function setCache(key: string, data: unknown) {
     freshMs = LONG_FRESH_MS;
     ttl = LONG_TTL;
   }
-  cache.set(key, { data, expires: now + ttl, staleAt: now + freshMs });
+  cache.set(key, { data, expires: now + ttl, staleAt: now + freshMs, lu: luA ?? now });
   // Met à jour également le fallback (durée de vie plus longue).
   fallbackCache.set(key, { data, storedAt: now });
 }
@@ -258,7 +292,7 @@ const LONG_FRESH_MS = 10 * 60 * 1000;      // 10 min de fraîcheur
 
 export function setCacheLong(key: string, data: unknown) {
   const now = Date.now();
-  cache.set(key, { data, expires: now + LONG_TTL, staleAt: now + LONG_FRESH_MS });
+  cache.set(key, { data, expires: now + LONG_TTL, staleAt: now + LONG_FRESH_MS, lu: now });
   fallbackCache.set(key, { data, storedAt: now });
   // Persiste dans Redis (partagé entre instances) pour les clés éligibles :
   // le cron stats-precalc appelle setCacheLong → le snapshot devient lisible
@@ -308,10 +342,14 @@ export function revalidateInBackground<T>(
   fetcher: () => Promise<T>,
 ): void {
   if (inflightRevalidate.has(key)) return;
+  const gen = generation(key);
+  const debut = Date.now();
   const p = (async () => {
     try {
       const data = await fetcher();
-      setCache(key, data);
+      // Une écriture est passée pendant la lecture : ce résultat est d'avant.
+      if (generation(key) !== gen) return;
+      setCache(key, data, debut);
       persistShared(key, data);
     } catch (err) {
       // Silencieux : on garde la donnée périmée jusqu'à la prochaine tentative.
@@ -342,11 +380,15 @@ export async function cachedOrFetch<T>(
   if (force) {
     const existingForce = inflightForce.get(key);
     if (existingForce) return existingForce as Promise<T>;
+    const gen = generation(key);
+    const debut = Date.now();
     const fp = (async () => {
       try {
         const data = await fetcher();
-        setCache(key, data);
-        persistShared(key, data);
+        if (generation(key) === gen) {
+          setCache(key, data, debut);
+          persistShared(key, data);
+        }
         return data;
       } catch (err: any) {
         const fallback = getFallback<T>(key);
@@ -360,16 +402,29 @@ export async function cachedOrFetch<T>(
     return fp;
   }
 
-  const entry = getCachedWithStale<T>(key);
+  let entry = getCachedWithStale<T>(key);
+  /* Fiche projet : une copie lue avant la dernière écriture (faite ici ou
+     sur une autre instance) n'est plus la vérité — on la relit. */
+  if (entry && estFicheProjet(key)) {
+    const ecrit = await derniereEcriture(key);
+    const lu = cache.get(key)?.lu ?? 0;
+    if (ecrit && lu < ecrit + MARGE_PROPAGATION_MS) {
+      cache.delete(key);
+      entry = null;
+    }
+  }
   if (entry) {
     if (entry.stale) revalidateInBackground(key, fetcher);
     return entry.data;
   }
 
-  // Thundering-herd protection : si un fetch est déjà en vol, on attend le même.
+  // Thundering-herd protection : si un fetch est déjà en vol, on attend le même
+  // — sauf s'il a été lancé avant une écriture : il rapporterait l'ancien.
+  const genActuelle = generation(key);
   const existing = inflightFetch.get(key);
-  if (existing) return existing as Promise<T>;
+  if (existing && inflightGen.get(key) === genActuelle) return existing as Promise<T>;
 
+  const debut = Date.now();
   const p = (async () => {
     try {
       // Instance FROIDE : avant d'attaquer Notion (~10 s), on tente le snapshot
@@ -388,8 +443,10 @@ export async function cachedOrFetch<T>(
       }
 
       const data = await fetcher();
-      setCache(key, data);
-      persistShared(key, data);
+      if (generation(key) === genActuelle) {
+        setCache(key, data, debut);
+        persistShared(key, data);
+      }
       return data;
     } catch (err: any) {
       // Fallback : retourner les dernières données connues pour éviter une 500.
@@ -403,11 +460,16 @@ export async function cachedOrFetch<T>(
       }
       throw err;
     } finally {
-      inflightFetch.delete(key);
+      // Une lecture plus récente a pu prendre la place : on ne l'efface pas.
+      if (inflightGen.get(key) === genActuelle) {
+        inflightFetch.delete(key);
+        inflightGen.delete(key);
+      }
     }
   })();
 
   inflightFetch.set(key, p);
+  inflightGen.set(key, genActuelle);
   return p;
 }
 
@@ -469,17 +531,29 @@ export async function cachedOrFetchLong<T>(
   return p;
 }
 
-export function invalidateCache(key?: string) {
+export function invalidateCache(key?: string): Promise<void> {
   if (key) {
     cache.delete(key);
     fallbackCache.delete(key);
+    generations.set(key, (generations.get(key) || 0) + 1);
   } else {
     cache.clear();
     fallbackCache.clear();
+    generationGlobale++;
   }
   // Vide AUSSI le snapshot Redis partagé, sinon un lambda froid re-sert la
   // donnée périmée (et la recharge en mémoire) → invalidation sans effet réel.
   clearShared(key);
+  /* Fiche projet : on publie l'heure de l'écriture pour les autres instances.
+     La promesse est rendue : la route d'écriture l'attend avant de répondre. */
+  if (key && estFicheProjet(key)) {
+    const maintenant = Date.now();
+    ecrituresLocales.set(key, maintenant);
+    if (redisEnabled) {
+      return redisSetTexte(ecritureCle(key), String(maintenant), 15 * 60).catch(() => {});
+    }
+  }
+  return Promise.resolve();
 }
 
 /** Publie une liste dans le cache partagé (empreinte comprise). */
