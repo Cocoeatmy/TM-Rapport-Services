@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resumerAppels, ligneJournal, type Appel } from "@/lib/suivi-appels";
+import { resumerAppels, ligneJournal, heureAppelValide, type Appel } from "@/lib/suivi-appels";
 
 const MAINTENANT = Date.parse("2026-10-22T14:00:00Z");
 const a = (le: string, issue: Appel["issue"], extra: Partial<Appel> = {}): Appel => ({ id: le, le, issue, par: "Micael", ...extra });
@@ -34,5 +34,24 @@ describe("ligne du journal Notion", () => {
   it("rappel daté et note", () => {
     expect(ligneJournal(a("2026-10-22T07:05:00Z", "rappeler", { rappelLe: "2026-10-24", note: "après 17h" })))
       .toBe("22.10.26 - 09h05 : À rappeler le 24.10 — après 17h (Micael)");
+  });
+});
+
+describe("appel noté après coup", () => {
+  it("le journal garde l'heure de l'appel et dit quand il a été noté", () => {
+    expect(ligneJournal(a("2026-10-22T09:00:00Z", "message", { saisiLe: "2026-10-22T14:02:00Z" })))
+      .toBe("22.10.26 - 11h00 : Message laissé (combox) (Micael, noté à 16h02)");
+    expect(ligneJournal(a("2026-10-21T15:30:00Z", "sans-reponse", { saisiLe: "2026-10-22T06:10:00Z" })))
+      .toBe("21.10.26 - 17h30 : Appel sans réponse (Micael, noté le 22.10 à 08h10)");
+  });
+  it("noté tout de suite : rien de plus", () => {
+    expect(ligneJournal(a("2026-10-22T09:00:00Z", "joint", { saisiLe: "2026-10-22T09:02:00Z" })))
+      .toBe("22.10.26 - 11h00 : Client joint (Micael)");
+  });
+  it("heure refusée dans le futur ou trop ancienne", () => {
+    expect(heureAppelValide("2026-10-22T09:00:00Z", MAINTENANT)).toBe("2026-10-22T09:00:00.000Z");
+    expect(heureAppelValide("2026-10-22T15:00:00Z", MAINTENANT)).toBeNull();
+    expect(heureAppelValide("2026-09-01T09:00:00Z", MAINTENANT)).toBeNull();
+    expect(heureAppelValide("n'importe quoi", MAINTENANT)).toBeNull();
   });
 });

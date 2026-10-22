@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Phone, PhoneMissed, MessageSquare, CalendarClock, PhoneCall, Loader2, Mail } from "lucide-react";
+import { Phone, PhoneMissed, MessageSquare, CalendarClock, PhoneCall, Loader2, Mail, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { ISSUES_APPEL, ligneJournal, resumerAppels, type Appel, type IssueAppel } from "@/lib/suivi-appels";
 
@@ -43,6 +43,12 @@ function useAppels(projectId: string): Appel[] {
   return cache?.[projectId] || [];
 }
 
+/** « 2026-10-22 », jour local. */
+function aujourdhui(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const ICONES: Record<IssueAppel, typeof Phone> = {
   "sans-reponse": PhoneMissed, message: MessageSquare, sms: Mail, rappeler: CalendarClock, joint: PhoneCall,
 };
@@ -54,6 +60,10 @@ export function SuiviAppels({ projectId, liste }: { projectId: string; liste: st
   const [envoi, setEnvoi] = useState<IssueAppel | null>(null);
   const [rappelLe, setRappelLe] = useState("");
   const [note, setNote] = useState("");
+  /* Appel passé plus tôt (en voiture, noté au bureau) : jour + heure réels.
+     Heure vide = maintenant. */
+  const [jourAppel, setJourAppel] = useState("");
+  const [heureAppel, setHeureAppel] = useState("");
   const boite = useRef<HTMLSpanElement>(null);
   const menu = useRef<HTMLSpanElement>(null);
   /* Le menu vit par-dessus la page (portail, position fixe) : dans la liste,
@@ -91,18 +101,25 @@ export function SuiviAppels({ projectId, liste }: { projectId: string; liste: st
 
   const noter = async (issue: IssueAppel) => {
     if (issue === "rappeler" && !rappelLe) { toast.error("Choisissez le jour du rappel"); return; }
+    let le: string | undefined;
+    if (jourAppel && jourAppel !== aujourdhui() && !heureAppel) { toast.error("Indiquez l'heure de l'appel"); return; }
+    if (heureAppel) {
+      const d = new Date(`${jourAppel || aujourdhui()}T${heureAppel}:00`);
+      if (Number.isNaN(d.getTime()) || d.getTime() > Date.now() + 60_000) { toast.error("L'heure de l'appel est dans le futur"); return; }
+      le = d.toISOString();
+    }
     setEnvoi(issue);
     try {
       const res = await fetch("/api/appels", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, issue, rappelLe: issue === "rappeler" ? rappelLe : undefined, note: note.trim() || undefined, liste }),
+        body: JSON.stringify({ projectId, issue, le, rappelLe: issue === "rappeler" ? rappelLe : undefined, note: note.trim() || undefined, liste }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
       cache = { ...(cache || {}), [projectId]: d.appels || [...appels, d.appel] };
       prevenir();
       toast.success(d.journal ? "Appel noté — journal Notion mis à jour" : "Appel noté (journal Notion à compléter)");
-      setNote(""); setRappelLe(""); setOuvert(false);
+      setNote(""); setRappelLe(""); setJourAppel(""); setHeureAppel(""); setOuvert(false);
     } catch (e) {
       toast.error(`Appel non enregistré : ${(e as Error).message}`);
     } finally {
@@ -124,6 +141,21 @@ export function SuiviAppels({ projectId, liste }: { projectId: string; liste: st
       {ouvert && typeof document !== "undefined" && createPortal(
         <span ref={menu} className="sg-appels-menu" style={pos} role="menu" onClick={stop} onMouseDown={(e) => e.stopPropagation()}>
           <span className="sg-appels-titre">Noter l&apos;appel</span>
+          <span className="sg-appels-quand">
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <span>Appelé</span>
+            <input type="date" value={jourAppel || aujourdhui()} max={aujourdhui()} onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setJourAppel(e.target.value)} aria-label="Jour de l'appel" />
+            <span>à</span>
+            <input type="time" value={heureAppel} onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setHeureAppel(e.target.value)} aria-label="Heure de l'appel" />
+          </span>
+          <span className="sg-appels-quand-aide">{heureAppel ? "Appel noté après coup, à l'heure indiquée" : "Heure vide = maintenant"}</span>
+          <input className="sg-appels-note" type="text" value={note} maxLength={200}
+            placeholder="Note (facultatif) — ex. rappeler après 17h"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            onChange={(e) => setNote(e.target.value)} />
           <span className="sg-appels-actions">
             {(["sans-reponse", "message", "sms", "joint"] as IssueAppel[]).map((i) => {
               const I = ICONES[i];
@@ -144,11 +176,6 @@ export function SuiviAppels({ projectId, liste }: { projectId: string; liste: st
               {envoi === "rappeler" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "À rappeler"}
             </button>
           </span>
-          <input className="sg-appels-note" type="text" value={note} maxLength={200}
-            placeholder="Note (facultatif) — ex. rappeler après 17h"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-            onChange={(e) => setNote(e.target.value)} />
           {historique.length > 0 && (
             <span className="sg-appels-histo">
               {historique.map((a) => {

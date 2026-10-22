@@ -29,6 +29,9 @@ export interface Appel {
   id: string;
   /** Instant de l'appel (ISO). */
   le: string;
+  /** Noté après coup (appel passé en voiture, noté au bureau) : l'instant
+      de la saisie, quand il s'écarte de plus de 5 min de l'appel. */
+  saisiLe?: string | null;
   issue: IssueAppel;
   /** « À rappeler » : le jour convenu (AAAA-MM-JJ). */
   rappelLe?: string | null;
@@ -113,13 +116,31 @@ export function resumerAppels(appels: Appel[], maintenant = Date.now()): ResumeA
 export function ligneJournal(a: Appel, fuseau = "Europe/Zurich"): string {
   /* Écrite par le SERVEUR, qui vit en UTC : l'heure suisse est demandée
      explicitement, sinon le journal annonçait 14h31 pour un appel de 16h31. */
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("fr-CH", {
+  const morceaux = (iso: string) => Object.fromEntries(new Intl.DateTimeFormat("fr-CH", {
     timeZone: fuseau, day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
-  }).formatToParts(new Date(a.le)).map((x) => [x.type, x.value]));
+  }).formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
+  const parts = morceaux(a.le);
   const date = `${parts.day}.${parts.month}.${parts.year}`;
   const heure = `${parts.hour}h${parts.minute}`;
   let texte: string = ISSUES_APPEL[a.issue];
   if (a.issue === "rappeler" && a.rappelLe) texte += ` le ${jourCourt(a.rappelLe)}`;
   if (a.note) texte += ` — ${a.note}`;
-  return `${date} - ${heure} : ${texte}${a.par ? ` (${a.par})` : ""}`;
+  /* Noté plus tard : l'heure de l'appel reste en tête, la saisie suit. */
+  let qui = a.par || "";
+  if (a.saisiLe && Math.abs(Date.parse(a.saisiLe) - Date.parse(a.le)) > 5 * 60_000) {
+    const s = morceaux(a.saisiLe);
+    const memeJour = s.day === parts.day && s.month === parts.month && s.year === parts.year;
+    const noteA = `noté ${memeJour ? "" : `le ${s.day}.${s.month} `}à ${s.hour}h${s.minute}`;
+    qui = qui ? `${qui}, ${noteA}` : noteA;
+  }
+  return `${date} - ${heure} : ${texte}${qui ? ` (${qui})` : ""}`;
+}
+
+/** L'heure d'appel envoyée par l'app, acceptée si elle est passée (2 min de
+    marge d'horloge) et de moins de 14 jours ; sinon null. */
+export function heureAppelValide(v: unknown, maintenant = Date.now()): string | null {
+  if (typeof v !== "string") return null;
+  const t = Date.parse(v);
+  if (!Number.isFinite(t) || t > maintenant + 2 * 60_000 || t < maintenant - 14 * 86_400_000) return null;
+  return new Date(t).toISOString();
 }
