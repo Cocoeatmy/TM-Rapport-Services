@@ -112,28 +112,21 @@ export function resumerAppels(appels: Appel[], maintenant = Date.now()): ResumeA
   return { ton, libelle: `${tentatives}× sans réponse`, quand, tentatives };
 }
 
-/** La ligne recopiée dans le journal Notion : « 22.10.26 - 16h31 : Appel sans réponse (Micael) ». */
+/** La ligne recopiée dans le journal Notion : « 22.10.26 - 16h31 : Appel sans réponse ». */
 export function ligneJournal(a: Appel, fuseau = "Europe/Zurich"): string {
   /* Écrite par le SERVEUR, qui vit en UTC : l'heure suisse est demandée
      explicitement, sinon le journal annonçait 14h31 pour un appel de 16h31. */
-  const morceaux = (iso: string) => Object.fromEntries(new Intl.DateTimeFormat("fr-CH", {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("fr-CH", {
     timeZone: fuseau, day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
-  }).formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
-  const parts = morceaux(a.le);
+  }).formatToParts(new Date(a.le)).map((x) => [x.type, x.value]));
   const date = `${parts.day}.${parts.month}.${parts.year}`;
   const heure = `${parts.hour}h${parts.minute}`;
   let texte: string = ISSUES_APPEL[a.issue];
   if (a.issue === "rappeler" && a.rappelLe) texte += ` le ${jourCourt(a.rappelLe)}`;
   if (a.note) texte += ` — ${a.note}`;
-  /* Noté plus tard : l'heure de l'appel reste en tête, la saisie suit. */
-  let qui = a.par || "";
-  if (a.saisiLe && Math.abs(Date.parse(a.saisiLe) - Date.parse(a.le)) > 5 * 60_000) {
-    const s = morceaux(a.saisiLe);
-    const memeJour = s.day === parts.day && s.month === parts.month && s.year === parts.year;
-    const noteA = `noté ${memeJour ? "" : `le ${s.day}.${s.month} `}à ${s.hour}h${s.minute}`;
-    qui = qui ? `${qui}, ${noteA}` : noteA;
-  }
-  return `${date} - ${heure} : ${texte}${qui ? ` (${qui})` : ""}`;
+  /* Ni l'auteur ni l'heure de saisie dans la ligne (demande du 22.10.2026) :
+     ils restent conservés dans l'app (champs `par`, `saisiLe`). */
+  return `${date} - ${heure} : ${texte}`;
 }
 
 /** L'heure d'appel envoyée par l'app, acceptée si elle est passée (2 min de

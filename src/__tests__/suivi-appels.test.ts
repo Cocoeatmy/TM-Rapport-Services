@@ -29,24 +29,24 @@ describe("résumé des appels", () => {
 
 describe("ligne du journal Notion", () => {
   it("à l'heure suisse, même écrite par un serveur en UTC", () => {
-    expect(ligneJournal(a("2026-10-22T14:31:00Z", "sans-reponse"))).toBe("22.10.26 - 16h31 : Appel sans réponse (Micael)");
+    expect(ligneJournal(a("2026-10-22T14:31:00Z", "sans-reponse"))).toBe("22.10.26 - 16h31 : Appel sans réponse");
   });
   it("rappel daté et note", () => {
     expect(ligneJournal(a("2026-10-22T07:05:00Z", "rappeler", { rappelLe: "2026-10-24", note: "après 17h" })))
-      .toBe("22.10.26 - 09h05 : À rappeler le 24.10 — après 17h (Micael)");
+      .toBe("22.10.26 - 09h05 : À rappeler le 24.10 — après 17h");
   });
 });
 
 describe("appel noté après coup", () => {
   it("le journal garde l'heure de l'appel et dit quand il a été noté", () => {
     expect(ligneJournal(a("2026-10-22T09:00:00Z", "message", { saisiLe: "2026-10-22T14:02:00Z" })))
-      .toBe("22.10.26 - 11h00 : Message laissé (combox) (Micael, noté à 16h02)");
+      .toBe("22.10.26 - 11h00 : Message laissé (combox)");
     expect(ligneJournal(a("2026-10-21T15:30:00Z", "sans-reponse", { saisiLe: "2026-10-22T06:10:00Z" })))
-      .toBe("21.10.26 - 17h30 : Appel sans réponse (Micael, noté le 22.10 à 08h10)");
+      .toBe("21.10.26 - 17h30 : Appel sans réponse");
   });
   it("noté tout de suite : rien de plus", () => {
     expect(ligneJournal(a("2026-10-22T09:00:00Z", "joint", { saisiLe: "2026-10-22T09:02:00Z" })))
-      .toBe("22.10.26 - 11h00 : Client joint (Micael)");
+      .toBe("22.10.26 - 11h00 : Client joint");
   });
   it("heure refusée dans le futur ou trop ancienne", () => {
     expect(heureAppelValide("2026-10-22T09:00:00Z", MAINTENANT)).toBe("2026-10-22T09:00:00.000Z");
