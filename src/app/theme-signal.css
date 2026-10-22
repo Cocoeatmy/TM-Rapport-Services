@@ -548,10 +548,15 @@ html[data-ui="signal"] .signal-rail-item.is-active::before {
      posée par `NavBar` ; c'est la même condition que pour le rail. */
   html[data-ui="signal"] .sg-onglets { display: none; }
   html[data-ui="signal"] .sg-nav-stack { margin-bottom: 0; }
+  /* Le rail part du HAUT de l'écran, sous l'en-tête (z-index 50) : son
+     fond ne laisse ainsi jamais de jour entre l'en-tête et lui, même quand
+     la hauteur mesurée de l'en-tête est fausse ou périmée (pages hors
+     accueil, défilement élastique de macOS — 22.10.2026). Les icônes
+     commencent sous l'en-tête grâce au retrait du haut. */
   html[data-ui="signal"] .signal-rail {
     position: fixed;
     left: 0;
-    top: var(--header-h, 60px);
+    top: 0;
     bottom: 0;
     width: 76px;
     z-index: 40;
@@ -559,7 +564,7 @@ html[data-ui="signal"] .signal-rail-item.is-active::before {
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    padding: 14px 0;
+    padding: calc(var(--header-h, 60px) + 14px) 0 14px;
     background: var(--sg-ink);
     border-right: 1px solid rgba(255, 255, 255, 0.07);
   }

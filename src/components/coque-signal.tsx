@@ -60,6 +60,21 @@ export function CoqueSignal() {
 
   const actif = signal && large && !iphone && pathname !== "/" && !SANS_COQUE.test(pathname);
 
+  /* La hauteur réelle de l'en-tête (bandeau de synchro compris), suivie en
+     continu : l'accueil la mesurait seul, les autres pages gardaient une
+     valeur périmée et le rail se décalait. */
+  useEffect(() => {
+    if (!actif) return;
+    const header = document.getElementById("main-header");
+    const bloc = header?.parentElement ?? header;
+    if (!bloc) return;
+    const poser = () => document.documentElement.style.setProperty("--header-h", `${bloc.offsetHeight}px`);
+    poser();
+    const ro = new ResizeObserver(poser);
+    ro.observe(bloc);
+    return () => ro.disconnect();
+  }, [actif]);
+
   useEffect(() => {
     if (!actif) return;
     let vivant = true;
