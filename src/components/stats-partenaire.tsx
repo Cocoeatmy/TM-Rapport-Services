@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDroits } from "@/lib/use-droits";
 import { BexioPartenaire } from "@/components/bexio-partenaire";
 import { mesuresFaites } from "@/lib/cabines-mesurees";
+import { cabinesPosees as poseesSurLeChantier } from "@/lib/cabines-posees";
 import { defautsParProjet, LIBELLES_SIGNALEMENT, type DefautsParProjet, type SignalementPourStats } from "@/lib/types-defaut";
 import "./stats-partenaire.css";
 
@@ -70,6 +71,11 @@ const chf = (n: number) => (Math.abs(n) >= 100_000
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 const cab = (p: P) => Number(p.nbCabines) || 0;
 const termine = (p: P) => p.etatCMD === "Terminé";
+/* Cabines RÉELLEMENT posées : toutes si le chantier est terminé, sinon la
+   règle commune (photos « .CabN. », compteur Notion, chantier d'une cabine).
+   Le graphique comptait toutes les cabines du chantier dès qu'une date de
+   montage tombait dans le mois — rendez-vous à venir compris (22.10.2026). */
+const posees = (p: P) => (termine(p) ? cab(p) : poseesSurLeChantier(p));
 const aSav = (p: P) => !!p.sav || !!String(p.causeSAV || "").trim() || !!p.dateSAVRecu;
 const noms = (s: string) => String(s || "").split(/\s*(?:,|&|\+| et )\s*/).map((x) => x.trim()).filter(Boolean);
 
@@ -135,10 +141,12 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
       const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
       return { cle: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, lib: MOIS[d.getMonth()], an: d.getFullYear() };
     });
+    const auj = new Date().toISOString().slice(0, 10);
     const parMois = mois.map((m) => {
-      const montages = tous.filter((p) => jour(p.dateMontage).startsWith(m.cle));
+      /* Un montage encore à venir n'a rien posé. */
+      const montages = tous.filter((p) => jour(p.dateMontage).startsWith(m.cle) && jour(p.dateMontage) <= auj);
       const mesures = tous.filter((p) => jour(p.dateMesures).startsWith(m.cle));
-      return { ...m, montages, mesures, cabines: montages.reduce((n, p) => n + cab(p), 0) };
+      return { ...m, montages, mesures, cabines: montages.reduce((n, p) => n + posees(p), 0) };
     });
     const pic = Math.max(1, ...parMois.map((m) => Math.max(m.cabines, m.mesures.length)));
     const an12 = parMois.reduce((n, m) => n + m.cabines, 0);
@@ -147,7 +155,7 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
     const avant = new Date(now.getFullYear(), now.getMonth() - 23, 1);
     const debutAvant = `${avant.getFullYear()}-${String(avant.getMonth() + 1).padStart(2, "0")}-01`;
     const an12Avant = tous.filter((p) => { const d = jour(p.dateMontage); return d >= debutAvant && d < debut; })
-      .reduce((n, p) => n + cab(p), 0);
+      .reduce((n, p) => n + posees(p), 0);
 
     const parcours = [
       { lib: "Demandes", liste: periode.filter((p) => p.dateDemandeProjet) },
