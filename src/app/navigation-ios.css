@@ -438,7 +438,10 @@ html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre.is-replie { --
 /* Pas de liseré blanc autour de la capsule (22.10.2026, demande de Micael) :
    ni filet de bordure, ni reflet clair au bord — seule l'ombre la détache. */
 html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre {
-  border-color: transparent;
+  /* AUCUNE bordure, pas même transparente : le verre (::before) s'arrête à
+     l'intérieur de la bordure, et un filet transparent de 1 px laissait voir
+     le fond clair de la page tout autour. */
+  border: 0;
   box-shadow: var(--tm-verre-ombre);
 }
 html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre::before {
