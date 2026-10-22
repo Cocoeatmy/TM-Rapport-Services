@@ -1662,9 +1662,12 @@ html[data-ui="signal"] .sg-unpin {
 }
 html[data-ui="signal"] .sg-unpin:hover { border-color: var(--sg-signal); color: var(--sg-signal); }
 html[data-ui="signal"] .sg-strong { color: var(--sg-text); font-weight: 600; }
+/* Le titre du projet se lit TOUJOURS en entier (22.10.2026) : il passe sur
+   deux ou trois lignes quand la colonne se resserre (fenêtre en demi-écran),
+   au lieu d'être coupé par « … ». En pleine largeur, il tient sur une ligne. */
 html[data-ui="signal"] .sg-pname {
   font-size: 13px; font-weight: 500; color: var(--sg-text);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  white-space: normal; overflow-wrap: anywhere; line-height: 1.3;
 }
 html[data-ui="signal"] .sg-state {
   justify-self: start;
@@ -6248,7 +6251,7 @@ html[data-ui="signal"] .sg-dispo-leg.is-avec em svg { width: 9px; height: 9px; s
    En noir, comme sur les pages d'accueil : il se reconnaît sans crier. Le
    titre garde ses points de suspension, le logo ne rétrécit jamais. */
 html[data-ui="signal"] .sg-pname.has-logo { display: flex; align-items: center; gap: 12px; }
-html[data-ui="signal"] .sg-pname-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+html[data-ui="signal"] .sg-pname-txt { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 html[data-ui="signal"] .sg-plogo {
   flex: 0 0 auto; margin-left: auto; width: 58px; height: 16px; object-fit: contain; object-position: right center;
   filter: brightness(0); opacity: 0.72;
