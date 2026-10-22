@@ -9686,6 +9686,63 @@ function ProjectPageContent({ id }: { id: string }) {
             + ((project.commentairesMesures || "").trim() ? 1 : 0)
             + ((project.commentairesMontages || "").trim() ? 1 : 0);
           const totalCab = cabines.length || project.nbCabines || 0;
+
+          /* ── Carte « Dates » (22.10.2026) : qui, et quand ────────────────
+             Mesures : la date et « Mesures traitée par ». Montage : l'équipe
+             prévue dans Notion tant que rien n'a commencé ; dès que l'app a
+             des passages (rapport commencé, lots, plusieurs jours), ce sont
+             EUX qu'on montre — date et monteur réels, lot par lot. SAV : les
+             passages de l'onglet SAV. */
+          const prenoms = (v?: string | null) => String(v || "")
+            .split(/\s*(?:,|&|\+|\/| et )\s*/).map((x) => x.trim()).filter(Boolean)
+            .map((x) => x.split(/\s+/)[0]).filter((x, i, a) => a.indexOf(x) === i).join(", ");
+          type LigneDate = { genre: "Mesures" | "Montage" | "SAV"; date: string; qui: string; note?: string };
+          const lignesDates: LigneDate[] = [];
+          if (project.dateMesures) lignesDates.push({ genre: "Mesures", date: jj(project.dateMesures), qui: prenoms(project.mesuresTraiteePar) });
+          const montages: LigneDate[] = [];
+          const nbLots = Math.max(cabines.length, 1);
+          if (isCabineMode && cabines.length > 0) {
+            const brut = parseCabineTextMulti(project.interventionsMontageCabines || "");
+            cabines.forEach((c, i) => {
+              const commence = !!(brut[i + 1] || c.arrivee || c.monteur);
+              if (!commence) return;
+              for (const x of interventionsDuLot(brut[i + 1], c.date, c.monteur || project.collaborateurs)) {
+                if (!x.date && !x.collaborateurs) continue;
+                montages.push({ genre: "Montage", date: jj(x.date), qui: prenoms(x.collaborateurs), note: c.nom || `Lot ${i + 1}` });
+              }
+            });
+          } else if (isMultiDay && pointages.length > 0) {
+            for (const x of pointages) montages.push({ genre: "Montage", date: jj(x.date), qui: prenoms(x.collaborateur) });
+          } else if (heureArrivee || (project.rapportMonteur || "").trim()) {
+            montages.push({ genre: "Montage", date: jj(project.dateMontage), qui: prenoms(project.collaborateurs) });
+          }
+          if (montages.length) {
+            /* Par date, et une seule ligne par jour et par équipe. */
+            const vus = new Set<string>();
+            montages
+              .sort((a, b) => a.date.split(".").reverse().join("").localeCompare(b.date.split(".").reverse().join("")))
+              .forEach((m) => { const k = `${m.date}|${m.qui}|${m.note || ""}`; if (!vus.has(k)) { vus.add(k); lignesDates.push(m); } });
+          } else if (project.dateMontage) {
+            lignesDates.push({ genre: "Montage", date: jj(project.dateMontage), qui: prenoms(project.collaborateurs), note: "prévu" });
+          }
+          {
+            const brut = parseCabineTextMulti(project.interventionsSavCabines || "");
+            const dates = parseCabineTextMulti(project.datesRdvSavCabines || "");
+            const qui = parseCabineTextMulti(project.collaborateursSavCabines || "");
+            for (let lot = 1; lot <= nbLots; lot++) {
+              for (const x of interventionsDuLot(brut[lot], dates[lot], qui[lot])) {
+                if (!x.date) continue;
+                lignesDates.push({ genre: "SAV", date: jj(x.date), qui: prenoms(x.collaborateurs), note: isCabineMode ? (cabines[lot - 1]?.nom || `Lot ${lot}`) : undefined });
+              }
+            }
+            if (!isCabineMode && savMultiDay) {
+              for (const x of savPointages) if (x.date) lignesDates.push({ genre: "SAV", date: jj(x.date), qui: prenoms(x.collaborateur) });
+            }
+          }
+          /* Cabines : ce qui est posé, en un coup d'œil. */
+          const produits = [...(project.fournisseurs || []), ...(project.fournisseursNames || [])]
+            .filter((x, i, a) => x && a.indexOf(x) === i);
+          const series = (project.seriesCabines || []).filter(Boolean);
           const resume: Record<string, string> = {
             projet: project.adresseChantier || project.emplacementCabine || "Adresse, client, statuts",
             dates: [jj(project.dateMesures) && `Mesures ${jj(project.dateMesures)}`, jj(project.dateMontage) && `Montage ${jj(project.dateMontage)}`].filter(Boolean).join(" · ") || "Aucune date fixée",
@@ -9728,7 +9785,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   const on = macTabs.has(t.id);
                   const n = pastille[t.id] || 0;
                   return (
-                    <button key={t.id} type="button" className={`tm-pj-carte${on ? " is-on" : ""}`} aria-pressed={on}
+                    <button key={t.id} type="button" className={`tm-pj-carte${on ? " is-on" : ""}${t.id === "dates" && lignesDates.length > 0 ? " is-dates" : ""}`} aria-pressed={on}
                       style={{ ["--c" as string]: TEINTE[t.id] } as React.CSSProperties} onClick={() => ouvrir(t.id)}>
                       <span className="tm-pj-carte-icone"><t.Icon className="w-[18px] h-[18px]" /></span>
                       {n > 0 && <em className="tm-pj-carte-n">{n}</em>}
@@ -9745,7 +9802,28 @@ function ProjectPageContent({ id }: { id: string }) {
                         </span>
                       )}
                       <b>{COURT[t.id] || t.label}</b>
-                      <small>{resume[t.id]}</small>
+                      {t.id === "dates" && lignesDates.length > 0 ? (
+                        <span className="tm-pj-lignes">
+                          {lignesDates.slice(0, 6).map((l, i) => (
+                            <span key={i} className={`tm-pj-ligne is-${l.genre.toLowerCase()}${l.note === "prévu" ? " is-prevu" : ""}`}>
+                              <i>{l.genre}</i>
+                              <time>{l.date || "—"}</time>
+                              <span>{l.qui || "—"}{l.note && <em> · {l.note}</em>}</span>
+                            </span>
+                          ))}
+                          {lignesDates.length > 6 && <span className="tm-pj-ligne-plus">+ {lignesDates.length - 6} autre{lignesDates.length - 6 > 1 ? "s" : ""}</span>}
+                        </span>
+                      ) : t.id === "cabines" && (produits.length || series.length) ? (
+                        <>
+                          <small>{resume[t.id]}</small>
+                          <span className="tm-pj-puces">
+                            {produits.map((x) => <span key={`f-${x}`} className="is-fourn">{x}</span>)}
+                            {series.map((x) => <span key={`s-${x}`}>{x}</span>)}
+                          </span>
+                        </>
+                      ) : (
+                        <small>{resume[t.id]}</small>
+                      )}
                     </button>
                   );
                 })}

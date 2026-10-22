@@ -269,3 +269,48 @@ html.dark[data-app="ios"][data-ui="signal"] #project-header-card { background: #
   }
   .tm-pj-large [data-slot="card-content"] :is(.space-y-2, .space-y-3):has(> .tm-champ) > * { margin: 0 !important; }
 }
+
+/* ── Carte « Dates » : une ligne par passage (22.10.2026) ─────────────────
+   Genre (Mesures, Montage, SAV) en pastille, date en chiffres alignés, puis
+   qui — et le lot quand il y en a plusieurs. */
+.tm-pj-lignes { display: grid; gap: 4px; width: 100%; margin-top: 2px; }
+.tm-pj-ligne {
+  display: grid; grid-template-columns: 62px 58px minmax(0, 1fr); align-items: center; gap: 6px;
+  font-size: 12px; line-height: 1.25; color: #334155; text-align: left;
+}
+.tm-pj-ligne > i {
+  font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 6px; text-align: center; background: #e0f2fe; color: #0369a1;
+}
+.tm-pj-ligne.is-montage > i { background: #dbeafe; color: #1d4ed8; }
+.tm-pj-ligne.is-sav > i { background: #fef3c7; color: #b45309; }
+.tm-pj-ligne > time { font-variant-numeric: tabular-nums; font-weight: 650; color: #0f172a; }
+.tm-pj-ligne > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.tm-pj-ligne > span em { font-style: normal; font-weight: 500; color: #94a3b8; }
+.tm-pj-ligne.is-prevu > time, .tm-pj-ligne.is-prevu > span { color: #64748b; }
+.tm-pj-ligne-plus { font-size: 11px; color: #94a3b8; }
+
+/* ── Carte « Cabines » : fournisseurs et séries en puces ───────────────── */
+.tm-pj-puces { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.tm-pj-puces > span {
+  font-size: 11px; font-weight: 650; line-height: 1; padding: 4px 7px; border-radius: 999px;
+  background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tm-pj-puces > span.is-fourn { background: #e0f2fe; border-color: #bae6fd; color: #0369a1; }
+
+.tm-pj-carte.is-on .tm-pj-ligne, .tm-pj-carte.is-on .tm-pj-ligne > time { color: #fff; }
+.tm-pj-carte.is-on .tm-pj-puces > span { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.2); color: #fff; }
+.dark .tm-pj-ligne { color: #cbd5e1; }
+.dark .tm-pj-ligne > time { color: #f1f5f9; }
+.dark .tm-pj-ligne > i { background: #0c4a6e; color: #bae6fd; }
+.dark .tm-pj-ligne.is-montage > i { background: #1e3a8a; color: #bfdbfe; }
+.dark .tm-pj-ligne.is-sav > i { background: #78350f; color: #fde68a; }
+.dark .tm-pj-puces > span { background: #0f172a; border-color: rgba(255, 255, 255, 0.1); color: #e2e8f0; }
+.dark .tm-pj-puces > span.is-fourn { background: #0c4a6e; border-color: #075985; color: #bae6fd; }
+/* iPhone : la carte Dates prend toute la largeur (trois colonnes ne tiennent
+   pas dans une demi-carte) ; les autres cartes comblent la place. */
+@media (max-width: 699px) {
+  .tm-pj-grille { grid-auto-flow: dense; }
+  .tm-pj-carte.is-dates { grid-column: 1 / -1; }
+}
