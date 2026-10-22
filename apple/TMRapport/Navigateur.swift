@@ -122,6 +122,13 @@ final class Navigateur: NSObject, ObservableObject {
         // La page occupe toute la hauteur jusqu'au bord, fond compris, comme
         // dans Safari ; sans cela, une bande blanche apparaît sous la page.
         vue.scrollView.contentInsetAdjustmentBehavior = .never
+        // Mac : pas de rebond élastique au bout du défilement. Il entraînait
+        // toute la page, barre du haut comprise, qui redescendait puis se
+        // replaçait (22.10.2026). L'iPhone et l'iPad gardent leur geste.
+        if ProcessInfo.processInfo.isiOSAppOnMac {
+            vue.scrollView.bounces = false
+            vue.scrollView.alwaysBounceVertical = false
+        }
         #endif
         // Safari → Développement → cet appareil : les journaux du site,
         // indispensables pour diagnostiquer sur chantier.
