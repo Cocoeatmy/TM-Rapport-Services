@@ -162,6 +162,18 @@ export function ligneJournal(a: Appel, rang = 0, fuseau = "Europe/Zurich"): stri
   return `${date}${heure} : ${texte}`;
 }
 
+/** L'heure tapée dans le menu, ramenée à « HH:MM » : « 9 », « 930 », « 9:30 »,
+    « 9h30 », « 09.30 ». Vide → "" ; illisible → null. */
+export function lireHeure(v: string): string | null {
+  const t = v.trim().toLowerCase().replace(/\s+/g, "");
+  if (!t) return "";
+  const m = /^(\d{1,2})(?:[:h.]?(\d{2}))?h?$/.exec(t);
+  if (!m) return null;
+  const h = Number(m[1]), mn = Number(m[2] || 0);
+  if (h > 23 || mn > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(mn).padStart(2, "0")}`;
+}
+
 /** L'heure d'appel envoyée par l'app, acceptée si elle est passée (2 min de
     marge d'horloge) et de moins de 90 jours ; sinon null. */
 export function heureAppelValide(v: unknown, maintenant = Date.now()): string | null {

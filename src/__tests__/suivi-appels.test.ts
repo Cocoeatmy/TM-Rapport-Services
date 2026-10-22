@@ -92,3 +92,19 @@ describe("appel noté sans heure", () => {
       .toBe("07.10.26 : 2e message laissé (combox)");
   });
 });
+
+describe("heure tapée", () => {
+  it("formats acceptés, vide, illisible", async () => {
+    const { lireHeure } = await import("@/lib/suivi-appels");
+    expect(lireHeure("")).toBe("");
+    expect(lireHeure("  ")).toBe("");
+    expect(lireHeure("9")).toBe("09:00");
+    expect(lireHeure("930")).toBe("09:30");
+    expect(lireHeure("1130")).toBe("11:30");
+    expect(lireHeure("9h30")).toBe("09:30");
+    expect(lireHeure("11:00")).toBe("11:00");
+    expect(lireHeure("14.05")).toBe("14:05");
+    expect(lireHeure("--:--")).toBeNull();
+    expect(lireHeure("25:00")).toBeNull();
+  });
+});

@@ -6453,7 +6453,7 @@ html[data-ui="signal"] .sg-appels-quand input {
   background: var(--sg-paper); color: var(--sg-text); font-family: inherit; font-size: 12px;
 }
 html[data-ui="signal"] .sg-appels-quand input[type="date"] { flex: 1; }
-html[data-ui="signal"] .sg-appels-quand input[type="time"] { width: 96px; }
+html[data-ui="signal"] .sg-appels-quand input.sg-appels-heure { width: 70px; text-align: center; font-variant-numeric: tabular-nums; }
 html[data-ui="signal"] .sg-appels-quand-aide { font-size: 10.5px; color: var(--sg-text-3); margin-top: -4px; }
 html[data-ui="signal"] .sg-appels-note {
   height: 30px; padding: 0 8px; border-radius: 7px; border: 1px solid var(--sg-line);

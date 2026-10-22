@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Phone, PhoneMissed, MessageSquare, CalendarClock, PhoneCall, Loader2, Mail, Clock } from "lucide-react";
 import { toast } from "sonner";
-import { ISSUES_APPEL, ligneJournal, rangAppel, resumerAppels, type Appel, type IssueAppel } from "@/lib/suivi-appels";
+import { ISSUES_APPEL, ligneJournal, lireHeure, rangAppel, resumerAppels, type Appel, type IssueAppel } from "@/lib/suivi-appels";
 
 /* Un seul chargement pour toute la liste, partagé par toutes les lignes. */
 let cache: Record<string, Appel[]> | null = null;
@@ -102,11 +102,13 @@ export function SuiviAppels({ projectId, liste }: { projectId: string; liste: st
   const noter = async (issue: IssueAppel) => {
     if (issue === "rappeler" && !rappelLe) { toast.error("Choisissez le jour du rappel"); return; }
     let le: string | undefined;
+    const heureLue = lireHeure(heureAppel);
+    if (heureLue === null) { toast.error("Heure illisible — par ex. 11:00, ou laissez vide"); return; }
     /* Un autre jour sans heure : l'heure n'est pas connue, on n'en invente
        pas — le journal n'indique que le jour (midi sert au classement). */
-    const sansHeure = !!jourAppel && jourAppel !== aujourdhui() && !heureAppel;
-    if (heureAppel || sansHeure) {
-      const d = new Date(`${jourAppel || aujourdhui()}T${heureAppel || "12:00"}:00`);
+    const sansHeure = !!jourAppel && jourAppel !== aujourdhui() && !heureLue;
+    if (heureLue || sansHeure) {
+      const d = new Date(`${jourAppel || aujourdhui()}T${heureLue || "12:00"}:00`);
       if (Number.isNaN(d.getTime()) || (!sansHeure && d.getTime() > Date.now() + 60_000) || jourAppel > aujourdhui()) {
         toast.error("Le jour ou l'heure de l'appel est dans le futur"); return;
       }
@@ -151,10 +153,15 @@ export function SuiviAppels({ projectId, liste }: { projectId: string; liste: st
             <input type="date" value={jourAppel || aujourdhui()} max={aujourdhui()} onClick={(e) => e.stopPropagation()}
               onChange={(e) => setJourAppel(e.target.value)} aria-label="Jour de l'appel" />
             <span>à</span>
-            <input type="time" value={heureAppel} onClick={(e) => e.stopPropagation()}
-              onChange={(e) => setHeureAppel(e.target.value)} aria-label="Heure de l'appel" />
+            {/* Champ texte, pas `type="time"` : Safari dessine une heure grisée
+                (l'heure courante) dans une case horaire vide, et on croyait
+                qu'elle serait enregistrée. Vide = pas d'heure. */}
+            <input type="text" inputMode="numeric" placeholder="--:--" maxLength={5} value={heureAppel}
+              className="sg-appels-heure" onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              onChange={(e) => setHeureAppel(e.target.value)} aria-label="Heure de l'appel (facultative)" />
           </span>
-          <span className="sg-appels-quand-aide">{heureAppel ? "Appel noté après coup, à l'heure indiquée"
+          <span className="sg-appels-quand-aide">{heureAppel.trim() ? "Appel noté après coup, à l'heure indiquée"
               : jourAppel && jourAppel !== aujourdhui() ? "Heure facultative" : "Heure vide = maintenant"}</span>
           <input className="sg-appels-note" type="text" value={note} maxLength={200}
             placeholder="Note (facultatif) — ex. rappeler après 17h"
