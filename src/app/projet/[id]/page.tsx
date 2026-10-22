@@ -135,6 +135,7 @@ import { getCollaboratorColor } from "@/lib/collaborators";
 import { isMultiDayHours, parsePointages, encodePointages } from "@/lib/pointages";
 import { heureDesPhotos, arriveeAcceptable, departApresPhoto, type HeurePhoto } from "@/lib/heure-photo";
 import { cabinesPosees } from "@/lib/cabines-posees";
+import { mesuresFaites, pourcentMesures } from "@/lib/cabines-mesurees";
 import { interventionsDuLot, encodeInterventions, dernierPassage, type InterventionSav } from "@/lib/sav-interventions";
 import { equipeDuJour, nomsAProposer, equipeDesPassages, listeDeNoms } from "@/lib/equipe-intervention";
 import { fusionnerPassage } from "@/lib/passage-lot";
@@ -8714,8 +8715,10 @@ function ProjectPageContent({ id }: { id: string }) {
         (project?.photosAvant || []).length > 0, (project?.photosMontage || []).length > 0,
       ].filter(Boolean).length / 5) * 100);
   // Mesures : terminé (date posée ou état « Terminé ») → 100 %, sinon 0 %.
-  const mesuresDone = !!project?.dateMesures || project?.etatMesures === "Terminé";
-  const mesuresHeaderPercent = mesuresDone ? 100 : 0;
+  /* Le relevé FAIT, pas la date du rendez-vous : « RDV - Fixé » au 27
+     affichait 100 % le 22 (22.10.2026). Règle commune : état du relevé et
+     photos de relevé (cabines-mesurees.ts). */
+  const mesuresHeaderPercent = pourcentMesures({ nbCabines: cabines.length || project?.nbCabines, etatMesures: project?.etatMesures, photosMesures: project?.photosMesures });
 
   // Nombre de LOTS ayant au moins un signalement (pièce manquante ou défaut) —
   // affiché entre parenthèses sur le bouton filtre « Avec signalement ».
@@ -9756,7 +9759,9 @@ function ProjectPageContent({ id }: { id: string }) {
             .map((x) => x.split(/\s+/)[0]).filter((x, i, a) => a.indexOf(x) === i).join(", ");
           type LigneDate = { genre: "Mesures" | "Montage" | "SAV"; date: string; qui: string; note?: string };
           const lignesDates: LigneDate[] = [];
-          if (project.dateMesures) lignesDates.push({ genre: "Mesures", date: jj(project.dateMesures), qui: prenoms(project.mesuresTraiteePar) });
+          /* Pas encore relevé : c'est un rendez-vous, marqué comme tel. */
+          if (project.dateMesures) lignesDates.push({ genre: "Mesures", date: jj(project.dateMesures), qui: prenoms(project.mesuresTraiteePar),
+            ...(mesuresFaites({ nbCabines: totalCab, etatMesures: project.etatMesures, photosMesures: project.photosMesures }) ? {} : { note: "prévu" }) });
           const montages: LigneDate[] = [];
           const nbLots = Math.max(cabines.length, 1);
           if (isCabineMode && cabines.length > 0) {

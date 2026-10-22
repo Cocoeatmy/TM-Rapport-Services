@@ -19,6 +19,7 @@
 import type { Project } from "@/lib/notion";
 import { baremeDurees, JOURNEE_MINUTES } from "@/lib/tournee";
 import { regionLabel } from "@/lib/swiss-cantons";
+import { mesuresFaites } from "@/lib/cabines-mesurees";
 
 export interface LigneCarnet {
   cle: string;
@@ -150,7 +151,8 @@ function etapeDe(p: Project): string {
   if (p.dateMontage) return "Rendez-vous fixé";
   if (arrivage(p)) return "Livrée, rendez-vous à fixer";
   if (aCommande(p)) return "Commandée, en attente de livraison";
-  if (p.dateMesuresRecue || p.etatMesures === "Terminé") return "Mesurée, pas encore commandée";
+  /* La date de DEMANDE de mesures ne dit pas que le relevé est fait. */
+  if (mesuresFaites(p)) return "Mesurée, pas encore commandée";
   return "En attente de mesures";
 }
 

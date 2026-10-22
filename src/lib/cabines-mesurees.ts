@@ -40,3 +40,24 @@ export function cabinesMesurees(p: SourceMesure): number {
 export function cabinesAMesurer(p: SourceMesure): number {
   return Math.max((p.nbCabines || 0) - cabinesMesurees(p), 0);
 }
+
+/**
+ * Le relevé est-il FAIT ? (22.10.2026)
+ *
+ * Une date de mesures n'en dit rien : c'est souvent celle du rendez-vous À
+ * VENIR (« RDV - Fixé » pour le 27 alors qu'on est le 22). La date de demande
+ * de mesures non plus : elle dit qu'on nous a demandé de mesurer. Seuls
+ * comptent l'état du relevé (« Mesures relevées », « Terminé ») et les photos
+ * de relevé — la même règle que le compte des cabines mesurées.
+ */
+export function mesuresFaites(p: SourceMesure): boolean {
+  if (ETATS_RELEVES.has((p.etatMesures || "").trim())) return true;
+  return cabinesMesurees({ ...p, nbCabines: Math.max(p.nbCabines || 0, 1) }) > 0;
+}
+
+/** Avancement du relevé en %, borné à 100 : par cabine quand on le sait. */
+export function pourcentMesures(p: SourceMesure): number {
+  const total = p.nbCabines || 0;
+  if (total > 1) return Math.min(100, Math.round((cabinesMesurees(p) / total) * 100));
+  return mesuresFaites(p) ? 100 : 0;
+}

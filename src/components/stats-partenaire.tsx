@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useDroits } from "@/lib/use-droits";
 import { BexioPartenaire } from "@/components/bexio-partenaire";
+import { mesuresFaites } from "@/lib/cabines-mesurees";
 import "./stats-partenaire.css";
 
 type P = Record<string, any>;
@@ -123,7 +124,7 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
 
     const parcours = [
       { lib: "Demandes", liste: periode.filter((p) => p.dateDemandeProjet) },
-      { lib: "Mesurés", liste: periode.filter((p) => p.dateMesures || p.etatMesures === "Terminé") },
+      { lib: "Mesurés", liste: periode.filter((p) => mesuresFaites(p)) },
       { lib: "Offres", liste: periode.filter((p) => p.dateOffre || p.ofrTM) },
       { lib: "Commandés", liste: periode.filter((p) => p.dateCMDRecue || p.dateCMDUsine || p.cmdTM) },
       { lib: "Posés", liste: poses },

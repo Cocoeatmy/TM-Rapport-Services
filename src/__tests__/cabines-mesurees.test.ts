@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cabinesMesurees, cabinesAMesurer } from "@/lib/cabines-mesurees";
+import { cabinesMesurees, cabinesAMesurer, mesuresFaites, pourcentMesures } from "@/lib/cabines-mesurees";
 
 describe("cabinesMesurees", () => {
   it("compte les lots d'après les photos nommées", () => {
@@ -33,5 +33,21 @@ describe("cabinesMesurees", () => {
   it("le reste à mesurer n'est jamais négatif", () => {
     expect(cabinesAMesurer({ nbCabines: 3, etatMesures: "Terminé" })).toBe(0);
     expect(cabinesAMesurer({ nbCabines: 3 })).toBe(3);
+  });
+});
+
+
+describe("relevé fait ou pas", () => {
+  it("un rendez-vous de mesures fixé n'est pas un relevé fait", () => {
+    expect(mesuresFaites({ nbCabines: 1, etatMesures: "RDV - Fixé", photosMesures: [] })).toBe(false);
+    expect(pourcentMesures({ nbCabines: 1, etatMesures: "RDV - Fixé" })).toBe(0);
+  });
+  it("l'état relevé ou terminé fait foi", () => {
+    expect(mesuresFaites({ nbCabines: 2, etatMesures: "Mesures relevées - attente news" })).toBe(true);
+    expect(pourcentMesures({ nbCabines: 2, etatMesures: "Terminé" })).toBe(100);
+  });
+  it("les photos de relevé font foi, par cabine", () => {
+    expect(mesuresFaites({ nbCabines: 1, photosMesures: [{ name: "m.jpg" }] })).toBe(true);
+    expect(pourcentMesures({ nbCabines: 4, photosMesures: [{ name: "a.Cab1.MESURES.jpg" }, { name: "b.Cab2.MESURES.jpg" }] })).toBe(50);
   });
 });

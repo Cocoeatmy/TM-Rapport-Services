@@ -21,6 +21,8 @@
  * offres, et préférable à un chantier éclaté en morceaux.
  */
 
+import { mesuresFaites } from "@/lib/cabines-mesurees";
+
 export interface ProjetChantier {
   id: string;
   projet: string;
@@ -387,7 +389,8 @@ export function lotsDeLOffre(p: ProjetChantier): Lot[] {
     marque: (p.fournisseurs || []).join(", "),
     serie: (p.seriesCabines || []).join(", "),
     emplacement: p.emplacementCabine || "",
-    mesure: !!p.dateMesuresRecue || p.etatMesures === "Terminé",
+    /* Relevé FAIT (état, photos) — pas la date de demande de mesures. */
+    mesure: mesuresFaites(p),
     dateMesures: p.dateMesuresRecue,
     dateOffre: p.dateOffre,
     cmd: p.cmdTMUsine || p.cmdTM || p.cmdGrossiste || "",
