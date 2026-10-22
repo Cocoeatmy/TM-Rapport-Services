@@ -1706,7 +1706,11 @@ const ETATS_SANS_OBJET: Record<string, Set<string>> = {
 const PASTILLES_RETIREES: Record<string, Set<string>> = (() => {
   const mesures = new Set(["OFR envoyée sans mesures", "OFR envoyées sans mesures", "Mesures non relevées - attendre news",
     "Annulé", "Projet sans mesures", "Projet sans de mesures", "Terminé"]);
-  return { "rdv-mesures-a-fixer": mesures, "rdv-mesures-fixe": mesures };
+  /* Services (22.10.2026) : les étapes mesures / commande et les états
+     finaux n'y filtrent rien d'utile. */
+  const services = new Set(["En attente de mesures", "Cabines mesurées", "OFR envoyées sans mesures", "OFR envoyée sans mesures",
+    "Cabines en CMD", "Annulé", "Terminé"]);
+  return { "rdv-mesures-a-fixer": mesures, "rdv-mesures-fixe": mesures, "rdv-services-a-fixer": services, "rdv-services-fixe": services };
 })();
 
 const RDV_STATUS_ORDER: Record<string, string[]> = {
