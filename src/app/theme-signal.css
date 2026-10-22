@@ -6356,9 +6356,3 @@ html[data-ui="signal"] .tm-ofr-n {
   font-size: 15px; font-weight: 750; letter-spacing: 0.02em; color: var(--sg-text);
   font-variant-numeric: tabular-nums;
 }
-
-/* Filtres d'état : chaque bouton prend la couleur de son état (classes
-   Tailwind posées par le composant) au lieu du bleu commun (22.10.2026). */
-html[data-ui="signal"] .sg-chip.sg-chip-etat:not(.is-off) {
-  background-color: revert-layer; color: revert-layer; font-weight: 600;
-}
