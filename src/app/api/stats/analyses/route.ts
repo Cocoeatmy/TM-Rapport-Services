@@ -91,7 +91,13 @@ export async function GET(req: NextRequest) {
          (stockage de l'app), plus d'après les photos de cartons. */
       degats: await (async () => {
         let parProjet = defautsParProjet([]);
-        try { parProjet = defautsParProjet(await getData<SignalementPourStats>("defauts")); } catch { /* vide */ }
+        try {
+          const [defauts, pieces] = await Promise.all([
+            getData<SignalementPourStats>("defauts"),
+            getData<{ projectId?: string }>("pieces").catch(() => []),
+          ]);
+          parProjet = defautsParProjet(defauts, pieces);
+        } catch { /* vide */ }
         return {
           marque: degatsLivraison(projets, "marque", de, a, parProjet),
           grossiste: degatsLivraison(projets, "grossiste", de, a, parProjet),

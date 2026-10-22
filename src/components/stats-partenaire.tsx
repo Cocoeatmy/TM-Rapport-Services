@@ -20,13 +20,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useDroits } from "@/lib/use-droits";
 import { BexioPartenaire } from "@/components/bexio-partenaire";
 import { mesuresFaites } from "@/lib/cabines-mesurees";
-import { defautsParProjet, type DefautsParProjet, type SignalementPourStats } from "@/lib/types-defaut";
+import { defautsParProjet, LIBELLES_SIGNALEMENT, type DefautsParProjet, type SignalementPourStats } from "@/lib/types-defaut";
 import "./stats-partenaire.css";
 
 type P = Record<string, any>;
 
-export type SectionStats = "tuiles" | "activite" | "parcours" | "delais" | "qualite" | "series" | "lies" | "installateurs" | "equipe" | "prochains";
-const TOUTES: SectionStats[] = ["tuiles", "activite", "parcours", "delais", "qualite", "series", "lies", "installateurs", "equipe", "prochains"];
+export type SectionStats = "tuiles" | "activite" | "parcours" | "delais" | "qualite" | "signalements" | "series" | "lies" | "installateurs" | "equipe" | "prochains";
+const TOUTES: SectionStats[] = ["tuiles", "activite", "parcours", "delais", "qualite", "signalements", "series", "lies", "installateurs", "equipe", "prochains"];
 
 export interface StatsPartenaireProps {
   /** Tous les projets du partenaire, toutes dates confondues (tendance). */
@@ -80,9 +80,10 @@ function chargerSignalements(): Promise<DefautsParProjet> {
   if (!signalementsMemo || Date.now() - signalementsMemo.t > 60_000) {
     signalementsMemo = {
       t: Date.now(),
-      p: fetch("/api/defauts", { cache: "no-store" })
+      p: Promise.all(["/api/defauts", "/api/pieces"].map((u) => fetch(u, { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : []))
-        .then((l) => defautsParProjet(Array.isArray(l) ? (l as SignalementPourStats[]) : []))
+        .then((l) => (Array.isArray(l) ? l : [])))) 
+        .then(([d, pc]) => defautsParProjet(d as SignalementPourStats[], pc as { projectId?: string }[]))
         .catch(() => { signalementsMemo = null; return new Map() as DefautsParProjet; }),
     };
   }
@@ -112,7 +113,7 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
   const voitSignalements = !!mes && peut("signalements.voir");
   const [defauts, setDefauts] = useState<DefautsParProjet | null>(null);
   useEffect(() => {
-    if (!voitSignalements || !voir("qualite")) return;
+    if (!voitSignalements || !voir("signalements")) return;
     let vivant = true;
     chargerSignalements().then((d) => { if (vivant) setDefauts(d); });
     return () => { vivant = false; };
@@ -176,20 +177,16 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
       { lib: "Pièces manquantes", liste: periode.filter((p) => String(p.infoPiecesManquantes || "").trim()), ton: "is-piece" },
       { lib: "Défauts signalés", liste: periode.filter((p) => String(p.infoDefautsSignale || "").trim()), ton: "is-defaut" },
     ].map((q) => ({ ...q, taux: Math.round((q.liste.reduce((n, p) => n + (cab(p) || 1), 0) / base) * 100) }));
-    /* Défauts d'usine et dommages de transport : d'après les SIGNALEMENTS de
-       ces types (22.10.2026), jamais d'après les photos « État des cartons
-       réceptionnés » — un carton abîmé n'est pas une cabine abîmée. Le taux
-       compte les LOTS touchés, pas toutes les cabines du chantier. */
-    if (defauts) {
-      for (const [nature, lib, ton] of [
-        ["usine", "Défauts d'usine", "is-usine"],
-        ["transport", "Dommages de transport", "is-degat"],
-      ] as const) {
-        const liste = periode.filter((p) => (defauts.get(p.id)?.[nature].size || 0) > 0);
-        const lots = liste.reduce((n, p) => n + (defauts.get(p.id)?.[nature].size || 0), 0);
-        qualite.push({ lib, liste, ton, taux: Math.round((lots / base) * 100) });
-      }
-    }
+    /* Signalements, en NOMBRE et chaque sorte à part (22.10.2026) : défauts
+       d'usine, dommages de transport (liste « defauts »), pièces manquantes
+       (liste « pieces »). Jamais les photos « État des cartons réceptionnés »
+       — un carton abîmé n'est pas une cabine abîmée. */
+    const signalements = defauts
+      ? (([["usine", "is-usine"], ["transport", "is-degat"], ["piece", "is-piece"]] as const).map(([n, ton]) => {
+          const liste = periode.filter((p) => (defauts.get(p.id)?.[n] || 0) > 0);
+          return { lib: LIBELLES_SIGNALEMENT[n], ton, liste, nb: liste.reduce((k, p) => k + (defauts.get(p.id)?.[n] || 0), 0) };
+        }))
+      : null;
 
     const series = classement(periode, (p) => p.seriesCabines || []);
     const lies = famille === "grossistes"
@@ -205,7 +202,7 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
       .slice(0, 6);
 
     return { cabines, poses, cabinesPosees, montant, avecMontant, sav, parMois, pic, an12, an12Avant,
-      parcours, delais, delaiMax, qualite, series, lies, installateurs, equipe, prochains };
+      parcours, delais, delaiMax, qualite, signalements, series, lies, installateurs, equipe, prochains };
   }, [tous, periode, famille, defauts]);
 
   /* Les numéros TM de TOUS ses chantiers : c'est par eux que bexio
@@ -344,6 +341,21 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
                 <button type="button" className={q.ton} onClick={() => onOuvrir(q.lib, q.liste)} disabled={!q.liste.length}>
                   <span>{q.lib}</span>
                   <b>{q.taux}</b>
+                  <small>{q.liste.length} proj.</small>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>}
+
+        {voir("signalements") && s.signalements && <section className="sgpt-carte">
+          <h3>Signalements <small>en nombre</small></h3>
+          <ul className="sgpt-qualite">
+            {s.signalements.map((q) => (
+              <li key={q.lib}>
+                <button type="button" className={q.ton} onClick={() => onOuvrir(q.lib, q.liste)} disabled={!q.liste.length}>
+                  <span>{q.lib}</span>
+                  <b>{q.nb}</b>
                   <small>{q.liste.length} proj.</small>
                 </button>
               </li>

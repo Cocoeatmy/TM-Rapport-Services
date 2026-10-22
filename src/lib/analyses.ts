@@ -518,22 +518,27 @@ export function clientsEnRecul(
     .sort((x, y) => (y.avant - y.recent) - (x.avant - x.recent));
 }
 
-/* ── Défauts d'usine et dommages de transport ───────────────────────────── */
+/* ── Signalements : défauts d'usine, dommages de transport, pièces ──────── */
 
 export interface LigneDegats {
   cle: string;
   /** Livraisons de la période (projets arrivés). */
   livrees: number;
-  /** Projets portant au moins un signalement « Défaut d'usine ». */
+  /** NOMBRE de signalements « Défaut d'usine ». */
   usine: number;
-  /** Projets portant au moins un signalement « Dommage de transport ». */
+  /** NOMBRE de signalements « Dommage de transport ». */
   transport: number;
+  /** NOMBRE de signalements de pièces manquantes. */
+  piece: number;
+  /** Part des livraisons touchées par chaque sorte (%). */
   tauxUsine: number;
   tauxTransport: number;
+  tauxPiece: number;
 }
 
 /**
- * Défauts d'usine et dommages de transport, par fournisseur ou grossiste.
+ * Défauts d'usine, dommages de transport et pièces manquantes, par
+ * fournisseur ou grossiste — en NOMBRE de signalements, chaque sorte à part.
  *
  * Source : les SIGNALEMENTS de ces deux types (22.10.2026). Les photos
  * « État des cartons réceptionnés » n'y entrent plus : un carton abîmé n'est
@@ -548,7 +553,8 @@ export function degatsLivraison(
   defauts: DefautsParProjet = new Map(),
 ): LigneDegats[] {
   const champ = (p: Project) => (axe === "marque" ? p.fournisseurs : p.grossistesNames) || [];
-  const m = new Map<string, { livrees: number; usine: number; transport: number }>();
+  type Cumul = { livrees: number; usine: number; transport: number; piece: number; tUsine: number; tTransport: number; tPiece: number };
+  const m = new Map<string, Cumul>();
 
   projets.forEach((p) => {
     if (MORTS.has(p.etatCMD) || estServicePur(p)) return;
@@ -558,10 +564,14 @@ export function degatsLivraison(
     const d = defauts.get(p.id);
     champ(p).forEach((k) => {
       const cle = k || "Non renseigné";
-      const cur = m.get(cle) || { livrees: 0, usine: 0, transport: 0 };
+      const cur = m.get(cle) || { livrees: 0, usine: 0, transport: 0, piece: 0, tUsine: 0, tTransport: 0, tPiece: 0 };
       cur.livrees += 1;
-      if (d?.usine.size) cur.usine += 1;
-      if (d?.transport.size) cur.transport += 1;
+      cur.usine += d?.usine || 0;
+      cur.transport += d?.transport || 0;
+      cur.piece += d?.piece || 0;
+      if (d?.usine) cur.tUsine += 1;
+      if (d?.transport) cur.tTransport += 1;
+      if (d?.piece) cur.tPiece += 1;
       m.set(cle, cur);
     });
   });
@@ -570,11 +580,15 @@ export function degatsLivraison(
     .filter(([, v]) => v.livrees >= 5)
     .map(([cle, v]) => ({
       cle,
-      ...v,
-      tauxUsine: Math.round((v.usine / v.livrees) * 100),
-      tauxTransport: Math.round((v.transport / v.livrees) * 100),
+      livrees: v.livrees,
+      usine: v.usine,
+      transport: v.transport,
+      piece: v.piece,
+      tauxUsine: Math.round((v.tUsine / v.livrees) * 100),
+      tauxTransport: Math.round((v.tTransport / v.livrees) * 100),
+      tauxPiece: Math.round((v.tPiece / v.livrees) * 100),
     }))
-    .sort((x, y) => (y.tauxUsine + y.tauxTransport) - (x.tauxUsine + x.tauxTransport) || y.livrees - x.livrees);
+    .sort((x, y) => (y.usine + y.transport + y.piece) - (x.usine + x.transport + x.piece) || y.livrees - x.livrees);
 }
 
 /* ── Solo ou binôme ─────────────────────────────────────────────────────── */

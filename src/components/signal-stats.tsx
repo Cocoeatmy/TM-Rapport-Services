@@ -2384,8 +2384,8 @@ export function SignalStats({
             ))}
           </div>
 
-          <Fold title="Défauts d'usine et dommages de transport"
-            meta="d'après les signalements de ces deux types, par livraison"
+          <Fold title="Signalements par livraison"
+            meta="défauts d'usine, dommages de transport et pièces manquantes, en nombre"
             right={
               <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
                 <button type="button" className={axeDegats === "marque" ? "is-on" : ""} onClick={() => setAxeDegats("marque")}>Marque</button>
@@ -2399,28 +2399,28 @@ export function SignalStats({
                   { titre: "Livraisons", num: true },
                   { titre: "Défauts d'usine", num: true },
                   { titre: "Dommages de transport", num: true },
+                  { titre: "Pièces manquantes", num: true },
                 ]}>
                   {analyses.degats[axeDegats].map((l: any) => (
                     <tr key={l.cle}>
                       <td className="cle">{l.cle}</td>
                       <td className="num doux">{l.livrees}</td>
-                      <td className="num fort avec-part">
-                        <span className={l.tauxUsine >= 10 ? "sgs-pct is-faible" : "sgs-pct"}>{l.usine} · {l.tauxUsine} %</span>
-                        <Part valeur={l.tauxUsine} sur={100} ton={l.tauxUsine >= 10 ? "chaud" : undefined} />
-                      </td>
-                      <td className="num fort avec-part">
-                        <span className={l.tauxTransport >= 10 ? "sgs-pct is-faible" : "sgs-pct"}>{l.transport} · {l.tauxTransport} %</span>
-                        <Part valeur={l.tauxTransport} sur={100} ton={l.tauxTransport >= 10 ? "chaud" : undefined} />
-                      </td>
+                      {([["usine", "tauxUsine"], ["transport", "tauxTransport"], ["piece", "tauxPiece"]] as const).map(([n, t]) => (
+                        <td key={n} className="num fort avec-part" title={`${l[t]} % des livraisons touchées`}>
+                          <span className={l[t] >= 10 ? "sgs-pct is-faible" : "sgs-pct"}>{l[n]}</span>
+                          <Part valeur={l[t]} sur={100} ton={l[t] >= 10 ? "chaud" : undefined} />
+                        </td>
+                      ))}
                     </tr>
                   ))}
                 </Tableau>
                 <p className="sgs-note">
-                  Chaque colonne compte les livraisons (projets) portant au moins un
-                  signalement de ce type. Un défaut d&apos;usine met en cause le fabricant ;
-                  un dommage de transport, le livreur et l&apos;emballage. Les photos
-                  « État des cartons réceptionnés » ne comptent pas : un carton abîmé
-                  n&apos;est pas une cabine abîmée.
+                  Chaque colonne donne le NOMBRE de signalements de ce type sur les
+                  livraisons de la période ; la barre, la part des livraisons touchées
+                  (survol : le pourcentage). Un défaut d&apos;usine met en cause le
+                  fabricant ; un dommage de transport, le livreur et l&apos;emballage. Les
+                  photos « État des cartons réceptionnés » ne comptent pas : un carton
+                  abîmé n&apos;est pas une cabine abîmée.
                 </p>
               </>
             ) : (

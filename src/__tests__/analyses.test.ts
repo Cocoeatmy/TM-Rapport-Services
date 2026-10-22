@@ -293,9 +293,12 @@ describe("défauts d'usine et dommages de transport", () => {
       { projectId: projets[1].id, types: ["Dommage de transport"] },
       { projectId: projets[2].id, types: ["usine", "transport"], cabineIdx: 2 },
       { projectId: projets[3].id, types: ["mesures"] },
-    ]);
+      { projectId: projets[0].id, types: ["usine"] },                 // 2e défaut d'usine, même livraison
+    ], [{ projectId: projets[4].id }, { projectId: projets[4].id }, { projectId: projets[5].id }]);
     const [l] = degatsLivraison(projets, "marque", undefined, undefined, defauts);
-    expect(l).toMatchObject({ cle: "Duka", livrees: 10, usine: 2, transport: 2, tauxUsine: 20, tauxTransport: 20 });
+    // En NOMBRE de signalements ; le taux, en livraisons touchées.
+    expect(l).toMatchObject({ cle: "Duka", livrees: 10, usine: 3, transport: 2, piece: 3,
+      tauxUsine: 20, tauxTransport: 20, tauxPiece: 20 });
     expect(degatsLivraison(projets, "marque")[0]).toMatchObject({ usine: 0, transport: 0 });
   });
 

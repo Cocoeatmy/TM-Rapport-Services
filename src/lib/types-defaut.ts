@@ -33,20 +33,38 @@ export function naturesDefaut(d: SignalementPourStats): Set<NatureDefaut> {
   return out;
 }
 
-/** Par projet et par nature : les lots touchés (un signalement sans lot
-    compte pour un lot à lui seul). */
-export type DefautsParProjet = Map<string, Record<NatureDefaut, Set<string>>>;
+/** Les trois sortes de signalements suivies dans les statistiques : les
+    deux natures de défaut, et les pièces manquantes (leur propre liste). */
+export type NatureSignalement = NatureDefaut | "piece";
 
-export function defautsParProjet(liste: SignalementPourStats[]): DefautsParProjet {
+export const LIBELLES_SIGNALEMENT: Record<NatureSignalement, string> = {
+  usine: "Défauts d'usine",
+  transport: "Dommages de transport",
+  piece: "Pièces manquantes",
+};
+
+/** Par projet : le NOMBRE de signalements de chaque sorte. */
+export type DefautsParProjet = Map<string, Record<NatureSignalement, number>>;
+
+/**
+ * @param defauts  la liste « defauts » (défauts signalés, typés)
+ * @param pieces   la liste « pieces » (signalements de pièces manquantes)
+ */
+export function defautsParProjet(
+  defauts: SignalementPourStats[],
+  pieces: { projectId?: string | null }[] = [],
+): DefautsParProjet {
   const m: DefautsParProjet = new Map();
-  liste.forEach((d, i) => {
-    if (!d?.projectId) return;
+  const e = (id: string) => {
+    const x = m.get(id) || { usine: 0, transport: 0, piece: 0 };
+    m.set(id, x);
+    return x;
+  };
+  for (const d of defauts) {
+    if (!d?.projectId) continue;
     const natures = naturesDefaut(d);
-    if (!natures.size) return;
-    const lot = d.cabineIdx ? `lot-${d.cabineIdx}` : d.cabineLabel ? `nom-${d.cabineLabel}` : `sans-lot-${i}`;
-    const e = m.get(d.projectId) || { usine: new Set<string>(), transport: new Set<string>() };
-    natures.forEach((n) => e[n].add(lot));
-    m.set(d.projectId, e);
-  });
+    if (natures.size) natures.forEach((n) => { e(d.projectId)[n] += 1; });
+  }
+  for (const p of pieces) if (p?.projectId) e(p.projectId).piece += 1;
   return m;
 }

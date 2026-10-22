@@ -854,7 +854,7 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
           famille="clients"
           nom={entityName}
           libellePeriode={hasFilter ? "Période choisie" : "Toutes dates"}
-          sections={["activite", "qualite", "installateurs", "equipe", "prochains"]}
+          sections={["activite", "qualite", "signalements", "installateurs", "equipe", "prochains"]}
           entete={false}
           bexio={{
             cle: `${entityType}:${entityName}`,
