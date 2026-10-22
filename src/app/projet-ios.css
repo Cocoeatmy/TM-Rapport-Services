@@ -138,7 +138,9 @@ html.dark[data-app="ios"][data-ui="signal"] #project-header-card { background: #
   font-size: 16px; border-radius: 10px; padding: 8px 10px; background: #fff;
 }
 /* Trois colonnes de tuiles ne tiennent pas sur un iPhone : deux. */
-.tm-pj-sections [data-slot="card-content"] .grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 767px) {
+  .tm-pj-sections [data-slot="card-content"] .grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .tm-pj-sections [data-slot="card-content"] .grid { gap: 10px; }
 
 .dark .tm-pj-retour, .dark .tm-pj-sections [data-slot="card"] { background: #1e293b; border-color: rgba(255, 255, 255, 0.08); }
@@ -254,4 +256,16 @@ html.dark[data-app="ios"][data-ui="signal"] #project-header-card { background: #
    bloc : elle ne prend ni le retrait ni les capitales du libellé. */
 .tm-pj-sections .tm-champ > div > div > p.text-sm:first-child {
   padding-left: 0; margin-bottom: 0; text-transform: none; letter-spacing: -0.01em; font-size: 15px;
+}
+
+/* ── Mac et iPad (22.10.2026) ────────────────────────────────────────────
+   Les mêmes rubriques en cartes et les mêmes tuiles qu'iPhone, sur grand
+   écran (`tm-pj-large`, posé hors iPhone en thème Signal). Les champs d'une
+   même carte se rangent en grille plutôt qu'en colonne unique. */
+@media (min-width: 900px) {
+  .tm-pj-large [data-slot="card-content"] .space-y-2:has(> .tm-champ),
+  .tm-pj-large [data-slot="card-content"] .space-y-3:has(> .tm-champ) {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;
+  }
+  .tm-pj-large [data-slot="card-content"] :is(.space-y-2, .space-y-3):has(> .tm-champ) > * { margin: 0 !important; }
 }

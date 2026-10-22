@@ -9659,7 +9659,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
 
-      <div className={`px-4 sm:px-6 mt-4 ${isIOS && isSignalUi ? "tm-pj-sections " : ""}${
+      <div className={`px-4 sm:px-6 mt-4 ${isSignalUi ? `tm-pj-sections ${isIOS ? "" : "tm-pj-large "}` : ""}${
         isSignalUi ? "w-full space-y-4"
         : isMac ? "w-full space-y-4 !pl-24"
         : showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4"
