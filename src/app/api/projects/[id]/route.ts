@@ -141,8 +141,12 @@ export async function PATCH(
       const partiel = COUPLES_HEURES.some(([a, d]) =>
         (body[a] !== undefined) !== (body[d] !== undefined));
       if (!reference && partiel) {
+        /* Lecture FRAÎCHE : le cache (par instance, ou Redis) pouvait dater
+           d'avant le départ — une arrivée envoyée seule passait alors sans
+           être comparée au vrai départ (TM-2600765, 22.10.2026 : arrivée
+           15:06, départ 14:53). */
         try {
-          reference = (await cachedOrFetch(`project-${id}`, () => getProject(id))) as unknown as Record<string, unknown>;
+          reference = (await getProject(id)) as unknown as Record<string, unknown>;
         } catch {
           reference = null;
         }

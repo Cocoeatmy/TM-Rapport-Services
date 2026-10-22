@@ -133,7 +133,8 @@ import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { isMultiDayHours, parsePointages, encodePointages } from "@/lib/pointages";
-import { heureDesPhotos, arriveeAcceptable, departApresPhoto, type HeurePhoto } from "@/lib/heure-photo";
+import { heureDesPhotos, arriveeAcceptable, departApresPhoto, corrigerCoupleParPhoto, type HeurePhoto } from "@/lib/heure-photo";
+import { priseDeVueDuNom, lotDuNom } from "@/lib/heures-photos";
 import { cabinesPosees } from "@/lib/cabines-posees";
 import { mesuresFaites, pourcentMesures } from "@/lib/cabines-mesurees";
 import { interventionsDuLot, encodeInterventions, dernierPassage, type InterventionSav } from "@/lib/sav-interventions";
@@ -4452,6 +4453,13 @@ function AssistantRapport({
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
   const apresCoup = !!jour && jour < aujourdhuiLocal;
+  /* Le départ ne précède jamais l'arrivée — ici aussi, avant même le
+     serveur qui le refuse : le monteur voit tout de suite pourquoi. */
+  const departImpossible = (() => {
+    const mm = (h: string) => { const x = /^(\d{1,2}):(\d{2})$/.exec((h || "").trim()); return x ? +x[1] * 60 + +x[2] : -1; };
+    const a = mm(arriveeEff || ""), d = mm(depart || "");
+    return a >= 0 && d >= 0 && d < a;
+  })();
   const blocDepart = (
     <div className="rounded-xl border-2 border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/10 p-3 space-y-2">
       <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Heure de départ</p>
@@ -4491,12 +4499,17 @@ function AssistantRapport({
           ? "Vérifiez cette heure : si les photos ont été ajoutées aujourd'hui, l'heure relevée peut être celle de l'ajout."
           : "Relevée sur la dernière photo d'après intervention. Corrigez-la si elle ne correspond pas."}
       </p>
-      {departConfirme ? (
+      {departImpossible && (
+        <p className="text-[12px] font-semibold text-red-600 dark:text-red-400">
+          Le départ ({depart}) ne peut pas être avant l&apos;arrivée ({arriveeEff}). Corrigez l&apos;une des deux heures.
+        </p>
+      )}
+      {departConfirme && !departImpossible ? (
         <p className="text-[11px] text-green-700 dark:text-green-300 flex items-center gap-1">
           <Check className="w-3 h-3" strokeWidth={3} /> Heure confirmée
         </p>
       ) : (
-        <button type="button" disabled={!depart}
+        <button type="button" disabled={!depart || departImpossible}
           onClick={() => setDepartConfirme(true)}
           className="w-full py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold disabled:opacity-40">
           {depart ? "C'est bien l'heure de départ" : "Indiquez l'heure de départ"}
@@ -5972,6 +5985,24 @@ function ProjectPageContent({ id }: { id: string }) {
     const direDepart = (h: string, suffixe = "") => {
       toast.success(`Heure de départ : ${h}${suffixe}`, { duration: 4000 });
     };
+    /* Ce que disent déjà les photos du passage, par leur PRISE DE VUE : la
+       première du jour (avant, montage, après) et la dernière d'après
+       intervention. La photo qui arrive s'y ajoute dans la règle. */
+    const preuvesDuPassage = (lot: number | undefined, jourRef: string) => {
+      const p2 = (n: number) => String(n).padStart(2, "0");
+      const lire = (f: { name: string }) => {
+        const ms = priseDeVueDuNom(f.name);
+        if (ms === null) return null;
+        if (lot !== undefined && isCabineMode) { const l = lotDuNom(f.name); if (l !== null && l !== lot) return null; }
+        const d = new Date(ms);
+        if (`${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}` !== jourRef) return null;
+        return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+      };
+      const tri = (l: (string | null)[]) => l.filter((h): h is string => !!h).sort();
+      const chantier = tri([...(project?.photosAvant || []), ...(project?.photosMontage || [])].map(lire));
+      const apres = tri(filterByBucket(project?.photosMontage, "APRES_INTERVENTION").map(lire));
+      return { premierePrise: chantier[0] || null, dernierePriseApres: apres[apres.length - 1] || null };
+    };
 
     if (isCabineMode && cabineIdx !== undefined) {
       const idx0 = cabineIdx - 1; // cabineIdx est 1-based
@@ -5986,15 +6017,11 @@ function ProjectPageContent({ id }: { id: string }) {
         if (!u.date) u.date = capture.jour || todayStr;
         if (!estSousTraite) {
           const jourRef = u.date || todayStr;
-          // Heure d'arrivée : photos avant intervention
-          if (bucket === "AVANT_INTERVENTION" && !u.arrivee && arriveeAcceptable(capture, jourRef, u.depart || "")) {
-            u.arrivee = capture.heure;
-          }
-          // Heure de départ : photos montage ou après intervention
-          if (fin) {
-            const d = departApresPhoto(u.depart || "", capture, u.arrivee || "", { finDuChantier });
-            if (d) u.depart = d;
-          }
+          /* Arrivée et départ corrigés par la PRISE DE VUE (voir
+             corrigerCoupleParPhoto) — et jamais un départ avant l'arrivée. */
+          const r = corrigerCoupleParPhoto({ arrivee: u.arrivee || "", depart: u.depart || "" }, capture, bucket, jourRef, preuvesDuPassage(cabineIdx, jourRef));
+          u.arrivee = r.arrivee;
+          u.depart = r.depart;
         }
         /* Équipe du lot : celle PRÉVUE dans Notion, complétée par la
            personne réellement présente. L'expéditeur seul laissait les
@@ -6076,31 +6103,20 @@ function ProjectPageContent({ id }: { id: string }) {
       // Multi-interventions (mono-cabine) : NE JAMAIS écraser la chaîne de
       // pointages avec une heure unique (bug : les horaires étaient perdus dès
       // qu'on uploadait une photo). On remplit la 1re intervention sans heure.
-      if (bucket === "AVANT_INTERVENTION") {
-        const i = pointages.findIndex((p) => !p.arrivee);
-        if (i >= 0 && arriveeAcceptable(capture, pointages[i].date || capture.jour || todayStr, pointages[i].depart || "")) {
+      /* Le passage visé est celui du JOUR de la photo ; à défaut le premier
+         sans arrivée (photo d'avant) ou sans départ (photo de fin). */
+      let i = pointages.map((p, k) => (p.date === (capture.jour || todayStr) ? k : -1)).filter((k) => k >= 0).pop() ?? -1;
+      if (i < 0) i = bucket === "AVANT_INTERVENTION" ? pointages.findIndex((p) => !p.arrivee) : fin ? pointages.findIndex((p) => !p.depart) : -1;
+      if (i >= 0 && (bucket === "AVANT_INTERVENTION" || fin)) {
+        const pt = pointages[i];
+        const jourRef = pt.date || capture.jour || todayStr;
+        const r = corrigerCoupleParPhoto({ arrivee: pt.arrivee || "", depart: pt.depart || "" }, capture, bucket, jourRef, preuvesDuPassage(undefined, jourRef));
+        if (r.arrivee !== (pt.arrivee || "") || r.depart !== (pt.depart || "")) {
           setPointages((prev) => prev.map((p, k) => (k === i
-            ? { ...p, arrivee: capture.heure, date: p.date || capture.jour || todayStr }
+            ? { ...p, arrivee: r.arrivee, depart: r.depart, date: p.date || capture.jour || todayStr }
             : p)));
+          if (r.depart && r.depart !== (pt.depart || "")) direDepart(r.depart);
           scheduleAutoSave();
-        }
-      }
-      if (fin) {
-        /* Le passage visé est celui du JOUR de la photo ; à défaut le premier
-           sans départ. Ne chercher que « le premier sans départ » laissait sans
-           correction un départ posé par erreur. */
-        let i = pointages.map((p, k) => (p.date === (capture.jour || todayStr) ? k : -1)).filter((k) => k >= 0).pop() ?? -1;
-        if (i < 0) i = pointages.findIndex((p) => !p.depart);
-        if (i >= 0) {
-          const jourRef = pointages[i].date || capture.jour || todayStr;
-          const d = departApresPhoto(pointages[i].depart || "", capture, pointages[i].arrivee || "", { finDuChantier });
-          if (d) {
-            setPointages((prev) => prev.map((p, k) => (k === i
-              ? { ...p, depart: d, date: p.date || capture.jour || todayStr }
-              : p)));
-            direDepart(d);
-            scheduleAutoSave();
-          }
         }
       }
       if (userCollab && !project?.collaborateurs) {
@@ -6126,12 +6142,10 @@ function ProjectPageContent({ id }: { id: string }) {
       const jour = capture.jour || (project?.dateMontage || "").slice(0, 10) || todayStr;
       let arrivee = heureArrivee || "";
       let depart = heureDepart || "";
-      if (bucket === "AVANT_INTERVENTION" && !arrivee && arriveeAcceptable(capture, jour, depart)) {
-        arrivee = capture.heure;
-      }
-      if (fin) {
-        const d = departApresPhoto(depart, capture, arrivee, { finDuChantier });
-        if (d) depart = d;
+      {
+        const r = corrigerCoupleParPhoto({ arrivee, depart }, capture, bucket, jour, preuvesDuPassage(undefined, jour));
+        arrivee = r.arrivee;
+        depart = r.depart;
       }
       if (arrivee !== (heureArrivee || "") || depart !== (heureDepart || "")) {
         if (depart && depart !== (heureDepart || "")) direDepart(depart);
@@ -6154,7 +6168,7 @@ function ProjectPageContent({ id }: { id: string }) {
         }).catch(console.error);
       }
     }
-  }, [isCabineMode, cabines, autoCollab, isMultiDay, pointages, heureArrivee, heureDepart, project?.collaborateurs, project?.dateMontage, project?.monteursSousTraitance, id, scheduleAutoSave]);
+  }, [isCabineMode, cabines, autoCollab, isMultiDay, pointages, heureArrivee, heureDepart, project?.collaborateurs, project?.dateMontage, project?.monteursSousTraitance, project?.photosAvant, project?.photosMontage, id, scheduleAutoSave]);
 
   // Persiste IMMÉDIATEMENT la liste des interventions (pas de debounce) : le
   // serveur a toujours le format daté à jour, donc un rechargement re-parse les

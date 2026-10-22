@@ -140,3 +140,72 @@ export function departApresPhoto(
   if (minutesDe(nouveau) > courant && temoigneDeLaPriseDeVue) return nouveau;
   return null;
 }
+
+/**
+ * Le couple arrivée / départ, corrigé par la PRISE DE VUE d'une photo
+ * (22.10.2026 — TM-2600765).
+ *
+ * Deux heures voyagent avec chaque photo : celle de l'ajout dans l'app, et
+ * celle de la prise de vue. Un monteur qui remplit son rapport après coup
+ * appuie sur « Maintenant » à l'étape Arrivée : l'arrivée devenait l'heure
+ * où il écrivait (14:56), alors que sa photo d'avant intervention, prise à
+ * 14:10, disait la vérité. Et le départ, posé sur une photo, n'était jamais
+ * confronté à l'arrivée : « arrivée 15:06, départ 14:53 ».
+ *
+ * La photo fait foi quand elle atteste sa prise de vue (EXIF, ou date du
+ * fichier) et qu'elle est du jour du passage :
+ *   • AVANT : on ne peut pas arriver APRÈS sa photo d'avant intervention —
+ *     l'arrivée recule jusqu'à elle (jamais l'inverse : arriver avant la
+ *     première photo est normal) ;
+ *   • APRÈS : le départ est l'heure de la DERNIÈRE photo d'après
+ *     intervention (règle de Micael) — en avant comme en arrière, dès que
+ *     celle-ci est la plus récente des photos d'après connues ;
+ *   • MONTAGE : la règle d'avant (departApresPhoto) ;
+ *   • et jamais un départ avant l'arrivée : la première photo du jour
+ *     ramène l'arrivée si elle le peut ; sinon on garde le départ d'avant.
+ */
+export function corrigerCoupleParPhoto(
+  couple: { arrivee: string; depart: string },
+  c: HeurePhoto,
+  bucket: string,
+  jourRef: string,
+  preuves: { premierePrise?: string | null; dernierePriseApres?: string | null } = {},
+): { arrivee: string; depart: string } {
+  let arrivee = couple.arrivee || "";
+  let depart = couple.depart || "";
+  const atteste = c.source === "exif" || c.source === "fichier";
+  const memeJour = !c.jour || !jourRef || c.jour === jourRef;
+  const m = (h?: string | null) => minutesDe(h || "");
+
+  if (bucket === "AVANT_INTERVENTION") {
+    if (!arrivee) {
+      if (arriveeAcceptable(c, jourRef, depart)) arrivee = c.heure;
+    } else if (atteste && memeJour && m(c.heure) >= 0 && m(c.heure) < m(arrivee)) {
+      arrivee = c.heure;
+    }
+  }
+
+  const fin = ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE", "APRES_INTERVENTION"].includes(bucket);
+  if (fin) {
+    const finDuChantier = bucket === "APRES_INTERVENTION";
+    let d = departApresPhoto(depart, c, arrivee, { finDuChantier });
+    if (finDuChantier && atteste && memeJour) {
+      const dernier = preuves.dernierePriseApres;
+      if (!dernier || m(c.heure) >= m(dernier)) d = c.heure;
+    }
+    if (d) depart = d;
+  }
+
+  /* Jamais de départ avant l'arrivée. */
+  if (arrivee && depart && m(depart) >= 0 && m(arrivee) >= 0 && m(depart) < m(arrivee)) {
+    const premiere = preuves.premierePrise;
+    const candidats = [premiere, atteste && memeJour ? c.heure : null]
+      .filter((h): h is string => !!h && m(h) >= 0 && m(h) <= m(depart));
+    if (candidats.length) {
+      arrivee = candidats.reduce((a, b) => (m(a) <= m(b) ? a : b));
+    } else {
+      depart = couple.depart && m(couple.depart) >= m(arrivee) ? couple.depart : "";
+    }
+  }
+  return { arrivee, depart };
+}
