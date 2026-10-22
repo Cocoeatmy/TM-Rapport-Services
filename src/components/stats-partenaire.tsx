@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDroits } from "@/lib/use-droits";
 import { BexioPartenaire } from "@/components/bexio-partenaire";
 import { mesuresFaites } from "@/lib/cabines-mesurees";
-import { cabinesPosees as poseesSurLeChantier } from "@/lib/cabines-posees";
+import { posesDuChantier, type LotPose } from "@/lib/poses-lots";
 import { defautsParProjet, LIBELLES_SIGNALEMENT, type DefautsParProjet, type SignalementPourStats } from "@/lib/types-defaut";
 import "./stats-partenaire.css";
 
@@ -44,6 +44,9 @@ export interface StatsPartenaireProps {
   sections?: SectionStats[];
   /** Titre « Grossiste · Dubat » en tête (oui par défaut). */
   entete?: boolean;
+  /** Bornes de la période (AAAA-MM-JJ) : les poses se datent lot par lot,
+      il faut donc les bornes elles-mêmes, pas seulement la liste filtrée. */
+  bornes?: { de?: string; a?: string };
   /** Le bloc bexio : clé de correspondance, mots du nom et bornes de la
       période. Absent = pas de bloc (vue « Tous grossistes », par exemple). */
   bexio?: { cle: string; mots: string[]; de?: string; a?: string };
@@ -71,13 +74,12 @@ const chf = (n: number) => (Math.abs(n) >= 100_000
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 const cab = (p: P) => Number(p.nbCabines) || 0;
 const termine = (p: P) => p.etatCMD === "Terminé";
-/* Cabines RÉELLEMENT posées : toutes si le chantier est terminé, sinon la
-   règle commune (photos « .CabN. », compteur Notion, chantier d'une cabine).
-   Le graphique comptait toutes les cabines du chantier dès qu'une date de
-   montage tombait dans le mois — rendez-vous à venir compris (22.10.2026). */
-const posees = (p: P) => (termine(p) ? cab(p) : poseesSurLeChantier(p));
+/* Règle des statistiques de pose (22.10.2026) : seuls les chantiers
+   TERMINÉS comptent, et chaque cabine est datée par la pose de SON lot
+   enregistrée dans l'app (voir poses-lots) — la « Date montage » Notion ne
+   porte qu'un jour, faux pour un chantier posé en plusieurs fois. */
+type Pose = LotPose & { p: P };
 const aSav = (p: P) => !!p.sav || !!String(p.causeSAV || "").trim() || !!p.dateSAVRecu;
-const noms = (s: string) => String(s || "").split(/\s*(?:,|&|\+| et )\s*/).map((x) => x.trim()).filter(Boolean);
 
 /* Les signalements (défauts d'usine, dommages de transport) : une seule
    lecture pour toutes les fiches partenaires, gardée une minute. */
@@ -96,21 +98,22 @@ function chargerSignalements(): Promise<DefautsParProjet> {
   return signalementsMemo.p;
 }
 
-/** Compte pondéré (par cabines) → les `n` premiers, triés. */
-function classement(projets: P[], cles: (p: P) => string[], n = 6) {
-  const m = new Map<string, { cabines: number; projets: P[] }>();
-  for (const p of projets) {
-    for (const k of new Set(cles(p).filter(Boolean))) {
-      const e = m.get(k) || { cabines: 0, projets: [] };
-      e.cabines += cab(p) || 1;
-      e.projets.push(p);
+/** Compte pondéré (par cabines POSÉES dans la période) → les `n` premiers. */
+function classement(poses: Pose[], cles: (l: Pose) => string[], n = 6) {
+  const m = new Map<string, { cabines: number; projets: Set<P> }>();
+  for (const l of poses) {
+    for (const k of new Set(cles(l).filter(Boolean))) {
+      const e = m.get(k) || { cabines: 0, projets: new Set<P>() };
+      e.cabines += 1;
+      e.projets.add(l.p);
       m.set(k, e);
     }
   }
-  return [...m.entries()].map(([nom, e]) => ({ nom, ...e })).sort((a, b) => b.cabines - a.cabines).slice(0, n);
+  return [...m.entries()].map(([nom, e]) => ({ nom, cabines: e.cabines, projets: [...e.projets] }))
+    .sort((a, b) => b.cabines - a.cabines).slice(0, n);
 }
 
-export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, onOuvrir: ouvrirExterne, sections = TOUTES, entete = true, bexio }: StatsPartenaireProps) {
+export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, onOuvrir: ouvrirExterne, sections = TOUTES, entete = true, bexio, bornes }: StatsPartenaireProps) {
   const { mes, peut } = useDroits();
   const voir = (x: SectionStats) => sections.includes(x);
   const [feuille, setFeuille] = useState<{ titre: string; projets: P[] } | null>(null);
@@ -141,12 +144,16 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
       const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
       return { cle: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, lib: MOIS[d.getMonth()], an: d.getFullYear() };
     });
-    const auj = new Date().toISOString().slice(0, 10);
+    /* Toutes les cabines posées du partenaire, lot par lot, datées par l'app. */
+    const posesTous: Pose[] = tous.flatMap((p) => posesDuChantier(p).map((l) => ({ ...l, p })));
+    const dansPeriode = (d: string) => (!bornes?.de || d >= bornes.de) && (!bornes?.a || d <= bornes.a);
+    const posesPeriode = posesTous.filter((l) => dansPeriode(l.date));
+    const projetsPoses = [...new Set(posesPeriode.map((l) => l.p))];
     const parMois = mois.map((m) => {
-      /* Un montage encore à venir n'a rien posé. */
-      const montages = tous.filter((p) => jour(p.dateMontage).startsWith(m.cle) && jour(p.dateMontage) <= auj);
+      const lots = posesTous.filter((l) => l.date.startsWith(m.cle));
+      const montages = [...new Set(lots.map((l) => l.p))];
       const mesures = tous.filter((p) => jour(p.dateMesures).startsWith(m.cle));
-      return { ...m, montages, mesures, cabines: montages.reduce((n, p) => n + posees(p), 0) };
+      return { ...m, montages, mesures, cabines: lots.length };
     });
     const pic = Math.max(1, ...parMois.map((m) => Math.max(m.cabines, m.mesures.length)));
     const an12 = parMois.reduce((n, m) => n + m.cabines, 0);
@@ -154,54 +161,66 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
     const debut = `${mois[0].cle}-01`;
     const avant = new Date(now.getFullYear(), now.getMonth() - 23, 1);
     const debutAvant = `${avant.getFullYear()}-${String(avant.getMonth() + 1).padStart(2, "0")}-01`;
-    const an12Avant = tous.filter((p) => { const d = jour(p.dateMontage); return d >= debutAvant && d < debut; })
-      .reduce((n, p) => n + posees(p), 0);
+    const an12Avant = posesTous.filter((l) => l.date >= debutAvant && l.date < debut).length;
 
     const parcours = [
       { lib: "Demandes", liste: periode.filter((p) => p.dateDemandeProjet) },
       { lib: "Mesurés", liste: periode.filter((p) => mesuresFaites(p)) },
       { lib: "Offres", liste: periode.filter((p) => p.dateOffre || p.ofrTM) },
       { lib: "Commandés", liste: periode.filter((p) => p.dateCMDRecue || p.dateCMDUsine || p.cmdTM) },
-      { lib: "Posés", liste: poses },
+      { lib: "Posés", liste: projetsPoses },
     ];
 
+    /* Délais : sur les chantiers terminés de la période ; « montage » = le
+       premier jour de pose enregistré dans l'app. */
+    const debutPose = new Map<P, string>();
+    for (const l of posesTous) {
+      const d = debutPose.get(l.p);
+      if (!d || l.debut < d) debutPose.set(l.p, l.debut);
+    }
+    const champ = (p: P, k: string) => (k === "montage" ? debutPose.get(p) || p.dateMontage : p[k]);
     const delai = (lib: string, de: string, a: string) => {
-      const v = periode.map((p) => ecartJours(p[de], p[a])).filter((x): x is number => x !== null);
+      const v = projetsPoses.map((p) => ecartJours(champ(p, de), champ(p, a))).filter((x): x is number => x !== null);
       return { lib, j: mediane(v), n: v.length };
     };
     const delais = [
       delai("Demande → mesure", "dateDemandeProjet", "dateMesures"),
       delai("Offre → commande", "dateOffre", "dateCMDRecue"),
       delai("Commande usine → arrivage", "dateCMDUsine", "arrivageTM"),
-      delai("Arrivage → montage", "arrivageTM", "dateMontage"),
-      delai("Demande → montage", "dateDemandeProjet", "dateMontage"),
+      delai("Arrivage → montage", "arrivageTM", "montage"),
+      delai("Demande → montage", "dateDemandeProjet", "montage"),
     ];
     const delaiMax = Math.max(1, ...delais.map((d) => d.j || 0));
 
-    const base = Math.max(1, cabines);
+    /* Qualité : rapportée aux cabines posées (chantiers terminés) de la
+       période, sur ces seuls chantiers. */
+    const lotsDe = new Map<P, number>();
+    for (const l of posesPeriode) lotsDe.set(l.p, (lotsDe.get(l.p) || 0) + 1);
+    const base = Math.max(1, posesPeriode.length);
     const qualite = [
-      { lib: "SAV", liste: sav, ton: "is-sav" },
-      { lib: "Soucis de montage", liste: periode.filter((p) => p.soucisMontage), ton: "is-souci" },
-      { lib: "Pièces manquantes", liste: periode.filter((p) => String(p.infoPiecesManquantes || "").trim()), ton: "is-piece" },
-      { lib: "Défauts signalés", liste: periode.filter((p) => String(p.infoDefautsSignale || "").trim()), ton: "is-defaut" },
-    ].map((q) => ({ ...q, taux: Math.round((q.liste.reduce((n, p) => n + (cab(p) || 1), 0) / base) * 100) }));
+      { lib: "SAV", liste: projetsPoses.filter(aSav), ton: "is-sav" },
+      { lib: "Soucis de montage", liste: projetsPoses.filter((p) => p.soucisMontage), ton: "is-souci" },
+      { lib: "Pièces manquantes", liste: projetsPoses.filter((p) => String(p.infoPiecesManquantes || "").trim()), ton: "is-piece" },
+      { lib: "Défauts signalés", liste: projetsPoses.filter((p) => String(p.infoDefautsSignale || "").trim()), ton: "is-defaut" },
+    ].map((q) => ({ ...q, taux: Math.round((q.liste.reduce((n, p) => n + (lotsDe.get(p) || 1), 0) / base) * 100) }));
     /* Signalements, en NOMBRE et chaque sorte à part (22.10.2026) : défauts
        d'usine, dommages de transport (liste « defauts »), pièces manquantes
        (liste « pieces »). Jamais les photos « État des cartons réceptionnés »
        — un carton abîmé n'est pas une cabine abîmée. */
     const signalements = defauts
       ? (([["usine", "is-usine"], ["transport", "is-degat"], ["piece", "is-piece"]] as const).map(([n, ton]) => {
-          const liste = periode.filter((p) => (defauts.get(p.id)?.[n] || 0) > 0);
+          const liste = projetsPoses.filter((p) => (defauts.get(p.id)?.[n] || 0) > 0);
           return { lib: LIBELLES_SIGNALEMENT[n], ton, liste, nb: liste.reduce((k, p) => k + (defauts.get(p.id)?.[n] || 0), 0) };
         }))
       : null;
 
-    const series = classement(periode, (p) => p.seriesCabines || []);
+    const series = classement(posesPeriode, (l) => l.p.seriesCabines || []);
     const lies = famille === "grossistes"
-      ? classement(periode, (p) => p.fournisseursNames || [])
-      : classement(periode, (p) => p.grossistesNames || []);
-    const installateurs = classement(periode, (p) => p.sanitaireNames || []);
-    const equipe = classement(periode.filter((p) => p.dateMontage), (p) => noms(p.collaborateurs));
+      ? classement(posesPeriode, (l) => l.p.fournisseursNames || [])
+      : classement(posesPeriode, (l) => l.p.grossistesNames || []);
+    const installateurs = classement(posesPeriode, (l) => l.p.sanitaireNames || []);
+    /* Équipe : chaque cabine est créditée à ceux qui ont posé SON lot. */
+    const equipe = classement(posesPeriode, (l) => l.equipe);
 
     const aujourdhui = new Date().toISOString().slice(0, 10);
     const prochains = tous
@@ -211,7 +230,7 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
 
     return { cabines, poses, cabinesPosees, montant, avecMontant, sav, parMois, pic, an12, an12Avant,
       parcours, delais, delaiMax, qualite, signalements, series, lies, installateurs, equipe, prochains };
-  }, [tous, periode, famille, defauts]);
+  }, [tous, periode, famille, defauts, bornes?.de, bornes?.a]);
 
   /* Les numéros TM de TOUS ses chantiers : c'est par eux que bexio
      reconnaît le partenaire (l'offre porte ce numéro). */

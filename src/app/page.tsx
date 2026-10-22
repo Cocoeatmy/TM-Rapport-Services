@@ -3288,6 +3288,14 @@ function HomePage() {
                   libellePeriode={statsDateMode === "rolling12" ? "12 derniers mois"
                     : describeStatsRange({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear })}
                   onOuvrir={(titre, projets) => setFStatsPick({ titre, projets })}
+                  /* Bornes de la période : les poses se datent lot par lot. */
+                  bornes={(() => {
+                    if (statsDateMode === "all") return {};
+                    const r = statsDateMode === "rolling12"
+                      ? (() => { const x = getRolling12Range(); return { start: x.from, end: x.to }; })()
+                      : getDateRangeFromState({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear });
+                    return r ? { de: r.start || undefined, a: r.end || undefined } : {};
+                  })()}
                   /* bexio : seulement pour UN partenaire nommé (pas « Tous
                      grossistes »), et le bloc lui-même ne paraît que pour le
                      propriétaire de l'accès bexio. */

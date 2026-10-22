@@ -524,6 +524,23 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
       && Array.isArray(p[nf]) && p[nf].some((n: string) => n.toLowerCase() === lc)
       && estDonneurDOrdre(p, entityType));
   }, [allProjects, entityName, entityType]);
+  /* Bornes de la période (AAAA-MM-JJ), pour dater les poses lot par lot.
+     « De / à » sont des MOIS : du 1er du premier au dernier jour du second. */
+  const bornesPeriode = useMemo((): { de?: string; a?: string } => {
+    const fin = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
+    if (filterFrom || filterTo) {
+      return {
+        de: filterFrom ? `${filterFrom.slice(0, 7)}-01` : undefined,
+        a: filterTo ? (() => { const [y, m] = filterTo.split("-").map(Number); return fin(y, m); })() : undefined,
+      };
+    }
+    if (filterYear) {
+      return filterMonth
+        ? { de: `${filterYear}-${String(filterMonth).padStart(2, "0")}-01`, a: fin(filterYear, filterMonth) }
+        : { de: `${filterYear}-01-01`, a: `${filterYear}-12-31` };
+    }
+    return {};
+  }, [filterYear, filterMonth, filterFrom, filterTo]);
   const liesPeriode = useMemo(
     () => (hasFilter ? lies.filter((p) => projectMatchesFilter(p, filter)) : lies),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -856,20 +873,11 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
           libellePeriode={hasFilter ? "Période choisie" : "Toutes dates"}
           sections={["activite", "qualite", "signalements", "installateurs", "equipe", "prochains"]}
           entete={false}
+          bornes={bornesPeriode}
           bexio={{
             cle: `${entityType}:${entityName}`,
             mots: [entityName],
-            /* « De / à » sont des MOIS (AAAA-MM) : du 1er du premier au
-               dernier jour du second. */
-            ...(filterFrom || filterTo ? {
-                de: filterFrom ? `${filterFrom.slice(0, 7)}-01` : undefined,
-                a: filterTo ? (() => { const [y, m] = filterTo.split("-").map(Number); return `${filterTo.slice(0, 7)}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`; })() : undefined,
-              }
-              : filterYear ? (filterMonth
-                ? { de: `${filterYear}-${String(filterMonth).padStart(2, "0")}-01`,
-                    a: `${filterYear}-${String(filterMonth).padStart(2, "0")}-${String(new Date(filterYear, filterMonth, 0).getDate()).padStart(2, "0")}` }
-                : { de: `${filterYear}-01-01`, a: `${filterYear}-12-31` })
-              : {}),
+            ...bornesPeriode,
           }}
         />
       )}
