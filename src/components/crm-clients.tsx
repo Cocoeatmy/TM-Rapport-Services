@@ -856,6 +856,21 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
           libellePeriode={hasFilter ? "Période choisie" : "Toutes dates"}
           sections={["activite", "qualite", "installateurs", "equipe", "prochains"]}
           entete={false}
+          bexio={{
+            cle: `${entityType}:${entityName}`,
+            mots: [entityName],
+            /* « De / à » sont des MOIS (AAAA-MM) : du 1er du premier au
+               dernier jour du second. */
+            ...(filterFrom || filterTo ? {
+                de: filterFrom ? `${filterFrom.slice(0, 7)}-01` : undefined,
+                a: filterTo ? (() => { const [y, m] = filterTo.split("-").map(Number); return `${filterTo.slice(0, 7)}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`; })() : undefined,
+              }
+              : filterYear ? (filterMonth
+                ? { de: `${filterYear}-${String(filterMonth).padStart(2, "0")}-01`,
+                    a: `${filterYear}-${String(filterMonth).padStart(2, "0")}-${String(new Date(filterYear, filterMonth, 0).getDate()).padStart(2, "0")}` }
+                : { de: `${filterYear}-01-01`, a: `${filterYear}-12-31` })
+              : {}),
+          }}
         />
       )}
     </div>

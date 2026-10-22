@@ -18,6 +18,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useDroits } from "@/lib/use-droits";
+import { BexioPartenaire } from "@/components/bexio-partenaire";
 import "./stats-partenaire.css";
 
 type P = Record<string, any>;
@@ -40,6 +41,9 @@ export interface StatsPartenaireProps {
   sections?: SectionStats[];
   /** Titre « Grossiste · Dubat » en tête (oui par défaut). */
   entete?: boolean;
+  /** Le bloc bexio : clé de correspondance, mots du nom et bornes de la
+      période. Absent = pas de bloc (vue « Tous grossistes », par exemple). */
+  bexio?: { cle: string; mots: string[]; de?: string; a?: string };
 }
 
 const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
@@ -81,7 +85,7 @@ function classement(projets: P[], cles: (p: P) => string[], n = 6) {
   return [...m.entries()].map(([nom, e]) => ({ nom, ...e })).sort((a, b) => b.cabines - a.cabines).slice(0, n);
 }
 
-export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, onOuvrir: ouvrirExterne, sections = TOUTES, entete = true }: StatsPartenaireProps) {
+export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, onOuvrir: ouvrirExterne, sections = TOUTES, entete = true, bexio }: StatsPartenaireProps) {
   const { mes, peut } = useDroits();
   const voir = (x: SectionStats) => sections.includes(x);
   const [feuille, setFeuille] = useState<{ titre: string; projets: P[] } | null>(null);
@@ -164,6 +168,10 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
       parcours, delais, delaiMax, qualite, series, lies, installateurs, equipe, prochains };
   }, [tous, periode, famille]);
 
+  /* Les numéros TM de TOUS ses chantiers : c'est par eux que bexio
+     reconnaît le partenaire (l'offre porte ce numéro). */
+  const numerosTM = useMemo(() => [...new Set(tous.map((p) => String(p.ofrTM || "")).filter(Boolean))], [tous]);
+
   const tendance = s.an12Avant ? Math.round(((s.an12 - s.an12Avant) / s.an12Avant) * 100) : null;
   const titreLies = famille === "grossistes" ? "Marques commandées" : "Par quels grossistes";
 
@@ -219,6 +227,11 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
           </button>
         ))}
       </div>}
+
+      {bexio && (
+        <BexioPartenaire cle={bexio.cle} mots={bexio.mots} de={bexio.de} a={bexio.a}
+          numeros={numerosTM} />
+      )}
 
       {voir("activite") && <section className="sgpt-carte sgpt-activite">
         <div className="sgpt-carte-tete">

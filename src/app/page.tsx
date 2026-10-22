@@ -24,7 +24,7 @@ import { fetchWithRetry, prefetchProject } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import { toast as sonnerToast } from "sonner";
 import { numerosServices, prefixeManquant } from "@/lib/numeros-services";
-import { StatsDateFilter, filterByStatsDate, getRolling12Range, describeStatsRange, type StatsDateMode } from "@/components/stats-date-filter";
+import { StatsDateFilter, filterByStatsDate, getRolling12Range, getDateRangeFromState, describeStatsRange, type StatsDateMode } from "@/components/stats-date-filter";
 import { StatsPartenaire } from "@/components/stats-partenaire";
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { SignalStats } from "@/components/signal-stats";
@@ -3286,6 +3286,15 @@ function HomePage() {
                   libellePeriode={statsDateMode === "rolling12" ? "12 derniers mois"
                     : describeStatsRange({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear })}
                   onOuvrir={(titre, projets) => setFStatsPick({ titre, projets })}
+                  /* bexio : seulement pour UN partenaire nommé (pas « Tous
+                     grossistes »), et le bloc lui-même ne paraît que pour le
+                     propriétaire de l'accès bexio. */
+                  bexio={nameKeywords ? (() => {
+                    const r = statsDateMode === "rolling12"
+                      ? (() => { const x = getRolling12Range(); return { start: x.from, end: x.to }; })()
+                      : getDateRangeFromState({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear });
+                    return { cle: `${family}:${familyName}`, mots: nameKeywords, de: r?.start, a: r?.end };
+                  })() : undefined}
                 />
               </div>
             ) : (

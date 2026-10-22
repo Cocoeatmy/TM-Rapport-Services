@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-20T16:45:05.158Z",
+  "genereLe": "2026-10-22T05:19:14.812Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -338,6 +338,17 @@
       "gardePage": false,
       "methodes": [
         "GET"
+      ]
+    },
+    {
+      "url": "/api/bexio/partenaire",
+      "type": "api",
+      "fichier": "src/app/api/bexio/partenaire/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "POST",
+        "PUT"
       ]
     },
     {
