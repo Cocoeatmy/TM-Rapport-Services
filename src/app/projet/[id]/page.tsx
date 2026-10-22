@@ -4404,7 +4404,9 @@ function AssistantRapport({
   const maintenant = () => {
     const d = new Date();
     const h = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    const aujourdhui = d.toISOString().slice(0, 10);
+    /* Date LOCALE : en UTC, une arrivée notée entre minuit et deux heures
+       tombait sur la veille. */
+    const aujourdhui = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     /* Sur un lot, la date et l'heure se rangent dans le même passage : les
        poser l'une après l'autre ferait deux écritures dont la seconde part
        d'un état déjà périmé. */
@@ -4439,25 +4441,54 @@ function AssistantRapport({
   /* Le même contrôle sert aux deux fins — celle d'un lot et celle du
      chantier : la question posée est la même, et la réponse part au même
      endroit. */
+  /* Rapport rempli APRÈS COUP (intervention hier, rapport aujourd'hui) : le
+     départ appartient au jour de l'intervention, pas à aujourd'hui. On le
+     montre, modifiable — la date vaut pour toute l'intervention, arrivée
+     comprise — et « Maintenant » disparaît : l'heure actuelle n'a pas de
+     sens pour un passage d'hier (22.10.2026). */
+  const aujourdhuiLocal = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const apresCoup = !!jour && jour < aujourdhuiLocal;
   const blocDepart = (
     <div className="rounded-xl border-2 border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/10 p-3 space-y-2">
       <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Heure de départ</p>
+      {apresCoup && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-amber-900 dark:text-amber-200 shrink-0">Le</span>
+            <input type="date" value={jour}
+              onChange={(e) => { if (e.target.value) { poserJour(e.target.value); setDepartConfirme(false); } }}
+              className="h-11 px-3 text-base rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900 flex-1" />
+          </div>
+          <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
+            Rapport rempli après coup : le départ est compté le jour de l&apos;intervention
+            ({new Date(jour + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" })}).
+            Cette date vaut aussi pour l&apos;arrivée.
+          </p>
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <input type="time" value={depart}
           onChange={(e) => { setDepart(e.target.value); setDepartConfirme(false); }}
           className="h-11 px-3 text-base font-mono rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900 flex-1" />
-        <button type="button"
-          onClick={() => {
-            const d = new Date();
-            setDepart(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
-            setDepartConfirme(false);
-          }}
-          className="h-11 px-3 rounded-lg border border-amber-300 dark:border-amber-700 text-xs font-medium text-amber-800 dark:text-amber-300 shrink-0">
-          Maintenant
-        </button>
+        {!apresCoup && (
+          <button type="button"
+            onClick={() => {
+              const d = new Date();
+              setDepart(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
+              setDepartConfirme(false);
+            }}
+            className="h-11 px-3 rounded-lg border border-amber-300 dark:border-amber-700 text-xs font-medium text-amber-800 dark:text-amber-300 shrink-0">
+            Maintenant
+          </button>
+        )}
       </div>
       <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
-        Relevée sur la dernière photo d&apos;après intervention. Corrigez-la si elle ne correspond pas.
+        {apresCoup
+          ? "Vérifiez cette heure : si les photos ont été ajoutées aujourd'hui, l'heure relevée peut être celle de l'ajout."
+          : "Relevée sur la dernière photo d'après intervention. Corrigez-la si elle ne correspond pas."}
       </p>
       {departConfirme ? (
         <p className="text-[11px] text-green-700 dark:text-green-300 flex items-center gap-1">
