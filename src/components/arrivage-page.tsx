@@ -87,7 +87,14 @@ export default function ArrivagePage() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => { if (!choisi) setTimeout(() => champ.current?.focus(), 60); }, [choisi]);
+  /* Le curseur dans la recherche d'emblée — mais pas au doigt : sur iPhone,
+     ce focus n'ouvre pas le clavier et faisait disparaître la barre du bas
+     (elle s'efface quand un champ est actif). On touche le champ pour taper. */
+  useEffect(() => {
+    if (choisi) return;
+    if (typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches) return;
+    setTimeout(() => champ.current?.focus(), 60);
+  }, [choisi]);
 
   const ouverts = useMemo(() => projets.filter((p) => !FINIS.has(p.etatCMD)), [projets]);
 
