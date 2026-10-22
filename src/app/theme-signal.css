@@ -6250,6 +6250,12 @@ html[data-ui="signal"] .sg-plogo {
 }
 html[data-ui="signal"] .sg-plogo.is-voile { filter: grayscale(1) contrast(4) brightness(1.2); opacity: 1; mix-blend-mode: multiply; transform: scale(3.4); transform-origin: right center; }
 html[data-ui="signal"] .sg-prow:hover .sg-plogo { opacity: 0.9; }
+/* Logos centrés dans leur colonne (22.10.2026) : collés au bord droit, un
+   logo étroit paraissait décalé par rapport aux logos en longueur. */
+html[data-ui="signal"] .sg-plogo:not(.is-voile) { object-position: center center; }
+/* Logos carrés (Nelo, Matway) : plus hauts, et sans perdre de place en
+   hauteur de ligne (marges négatives) ; trait plus franc, ils sont fins. */
+html[data-ui="signal"] .sg-plogo.is-carre { height: 26px; margin-top: -5px; margin-bottom: -5px; opacity: 0.85; }
 html[data-ui="signal"].dark .sg-plogo { filter: brightness(0) invert(1); }
 @media (max-width: 1279px) {
   html[data-ui="signal"] .sg-pname.has-logo { align-items: flex-start; }
@@ -6257,6 +6263,7 @@ html[data-ui="signal"].dark .sg-plogo { filter: brightness(0) invert(1); }
 }
 @media (max-width: 767px) {
   html[data-ui="signal"] .sg-plogo { width: 46px; height: 14px; }
+  html[data-ui="signal"] .sg-plogo.is-carre { height: 22px; margin-top: -4px; margin-bottom: -4px; }
 }
 
 /* ── « Mes interventions » : une carte par jour, du lundi au vendredi ─────

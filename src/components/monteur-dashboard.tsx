@@ -525,13 +525,15 @@ function getClientLogo(projectName: string): string | null {
  * marque des cabines. On reprend les fichiers détourés des pages d'accueil
  * (les .jpg ont un fond blanc, que le noircissement peindrait en noir).
  */
-function logoClientNoir(projet: string): { src: string; voile: boolean } | null {
+function logoClientNoir(projet: string): { src: string; voile: boolean; carre: boolean } | null {
   const src = getClientLogo(String(projet || "").replace(/^\s*TM-?\s*\d+\s*[-–—]\s*/i, ""));
   if (!src) return null;
   const png = src.replace(/\.jpg$/, ".png")
     .replace("duka.ch-logo.png", "Duka-logo.png")
     .replace("ronal-logo-v2.png", "ronal-logo.png");
-  return { src: png, voile: png.includes("Bringhen") };
+  /* Nelo et Matway sont CARRÉS : dans le cadre bas et large prévu pour les
+     logos en longueur, ils tombaient à 16 px, pâles et collés au bord. */
+  return { src: png, voile: png.includes("Bringhen"), carre: /Nelo|Matway/.test(png) };
 }
 
 function getBestLogo(projectName: string, _fournisseurs?: string[]): string | null {
@@ -8529,7 +8531,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   <span className="sg-pname has-logo">
                                     <span className="sg-pname-txt">{p.projet}</span>
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img className={`sg-plogo${logo.voile ? " is-voile" : ""}`} src={logo.src} alt="" aria-hidden="true" />
+                                    <img className={`sg-plogo${logo.voile ? " is-voile" : ""}${logo.carre ? " is-carre" : ""}`} src={logo.src} alt="" aria-hidden="true" />
                                   </span>
                                 ) : <span className="sg-pname">{p.projet}</span>;
                               })()}
