@@ -4242,6 +4242,7 @@ function AssistantRapport({
   lot,
   signalements,
   sav,
+  sansMinimumPhotos = false,
 }: {
   projectId: string;
   project: Project;
@@ -4272,6 +4273,8 @@ function AssistantRapport({
   signalements?: React.ReactNode;
   /** Contenu « SAV », ouvrable à toute étape. */
   sav?: React.ReactNode;
+  /** Administrateur : le minimum de photos ne bloque pas (il reste affiché). */
+  sansMinimumPhotos?: boolean;
 }) {
   /* Tout ce qui suit lit et écrit SOIT le projet, SOIT le lot. Les deux
      chemins restent côte à côte, nommés, plutôt que dispersés dans le
@@ -4417,7 +4420,7 @@ function AssistantRapport({
     if (etape === "collaborateurs") return choisis.length > 0;
     if (etape === "heures") return !!arriveeEff && !!jour;
     if (etape === "nom") return !!lot?.nom.trim();
-    if (etape === "photos") return presentPlanche >= requisPlanche;
+    if (etape === "photos") return sansMinimumPhotos || presentPlanche >= requisPlanche;
     return true;
   };
 
@@ -4718,13 +4721,17 @@ function AssistantRapport({
                 accept={plancheCourante?.bucket === "VIDEO_MONTAGE" ? "video/*,image/*" : undefined}
               />
             )}
-            {requisPlanche > presentPlanche && (
+            {requisPlanche > presentPlanche && (sansMinimumPhotos ? (
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                Minimum conseillé : {requisPlanche} photo{requisPlanche > 1 ? "s" : ""} — non exigé pour un administrateur.
+              </p>
+            ) : (
               <p className="text-[11px] text-amber-600 dark:text-amber-400">
                 {requisPlanche - presentPlanche === 1
                   ? "Encore une photo avant de continuer."
                   : `Encore ${requisPlanche - presentPlanche} photos avant de continuer.`}
               </p>
-            )}
+            ))}
           </div>
         )}
 
@@ -8033,7 +8040,10 @@ function ProjectPageContent({ id }: { id: string }) {
     };
 
     const needsPresence = !hasPresenceStatement(rapport);
-    const required = missingRequiredPhotos(project, photoOpts); // BLOQUANT
+    /* BLOQUANT pour les collaborateurs ; l'administrateur n'a pas de
+       minimum de photos (22.10.2026) — la présence du client, elle, reste
+       demandée à tous. */
+    const required = isAdmin ? [] : missingRequiredPhotos(project, photoOpts);
 
     // ── Porte 1 : présence + photos ──
     // • Présence client OBLIGATOIRE (jamais contournable).
@@ -11873,6 +11883,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         onFermer={() => setAssistantActif(false)}
                         signalements={renderSignalementsMono()}
                         sav={renderSavMono()}
+                        sansMinimumPhotos={isAdmin}
                       />
                     )}
                     {!assistantActif && (
@@ -13647,6 +13658,7 @@ function ProjectPageContent({ id }: { id: string }) {
           onFermer={() => setAssistantLot(null)}
           signalements={renderSignalementsLot(assistantLot)}
           sav={renderSavLot(assistantLot)}
+          sansMinimumPhotos={isAdmin}
           lot={{
             numero: assistantLot + 1,
             titre: cabines[assistantLot].nom || `Lot ${assistantLot + 1}`,
