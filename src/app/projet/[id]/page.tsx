@@ -7483,6 +7483,27 @@ function ProjectPageContent({ id }: { id: string }) {
       if (typeof document !== "undefined" && document.hidden) return;
       refetch();
     }, 20_000);
+    /* Toutes les 3 s, l'heure de la dernière modification de la fiche (une
+       lecture Redis, pas Notion) : si elle a bougé — enregistrement d'un
+       collègue, ou modification faite directement dans Notion — la fiche se
+       relit aussitôt. Une saisie Notion apparaît ainsi en ~5 s (22.10.2026). */
+    let versionVue: number | null = null;
+    let versionEnCours = false;
+    const guetteur = setInterval(async () => {
+      if (versionEnCours || (typeof document !== "undefined" && document.hidden)) return;
+      versionEnCours = true;
+      try {
+        const r = await fetch(`/api/projects/${project.id}/version`, { cache: "no-store" });
+        if (!r.ok) return;
+        const { v } = (await r.json()) as { v?: number };
+        if (typeof v !== "number") return;
+        const change = versionVue !== null && v !== versionVue;
+        versionVue = v;
+        if (change) refetch();
+      } catch { /* hors ligne : la relecture des 20 s prendra le relais */ } finally {
+        versionEnCours = false;
+      }
+    }, 3_000);
     // Refetch immédiat quand l'onglet redevient visible : "instant
     // fresh" au retour sur l'app sans attendre le prochain tick.
     const onVisible = () => {
@@ -7494,6 +7515,7 @@ function ProjectPageContent({ id }: { id: string }) {
     window.addEventListener("focus", onVisible);
     return () => {
       clearInterval(interval);
+      clearInterval(guetteur);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };

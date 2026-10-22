@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
-import { revalidateInBackground } from "@/lib/server-cache";
+import { invalidateCache, revalidateInBackground } from "@/lib/server-cache";
 import { redisSetJSON } from "@/lib/redis-cache";
 import {
   getProjects, getProjectsMesures, getProjectsServices, getProjectsSAV, getAllActiveProjects,
@@ -101,9 +101,19 @@ let dernierRafraichissement = 0;
 /** Trace du dernier message reçu de Notion, partagée entre les serveurs.
  *  Sans elle, savoir si le webhook fonctionne demandait de fouiller les
  *  journaux — qui ne gardent que quelques minutes. */
-function noterEvenement(type: string, retenu: boolean): void {
-  redisSetJSON("webhook:dernier", { type, retenu, le: new Date().toISOString() }, 7 * 24 * 3600)
+function noterEvenement(type: string, retenu: boolean, emisLe?: string): void {
+  /* Délai entre la modification chez Notion et la réception ici : c'est lui
+     qui borne le temps d'affichage d'une saisie faite dans Notion. */
+  const t = emisLe ? Date.parse(emisLe) : NaN;
+  const delaiMs = Number.isFinite(t) ? Date.now() - t : null;
+  redisSetJSON("webhook:dernier", { type, retenu, le: new Date().toISOString(), delaiMs }, 7 * 24 * 3600)
     .catch(() => {});
+}
+
+/** La fiche visée par l'événement (page Notion), sinon null. */
+function pageVisee(payload: any): string | null {
+  const e = payload?.entity;
+  return e?.type === "page" && typeof e.id === "string" ? e.id : null;
 }
 
 function rafraichirListesActives(): number {
@@ -181,8 +191,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, skipped: "données internes de l'app" });
     }
 
-    noterEvenement(eventType, EVENEMENTS_SUIVIS.includes(eventType));
+    noterEvenement(eventType, EVENEMENTS_SUIVIS.includes(eventType), payload?.timestamp);
     if (EVENEMENTS_SUIVIS.includes(eventType)) {
+      /* La fiche elle-même, tout de suite et sans frein : sa copie est
+         écartée sur toutes les instances, et la fiche ouverte (qui guette
+         cette heure toutes les 3 s) se relit — modification Notion visible
+         en ~5 s (22.10.2026). Une écriture Redis, aucune requête Notion. */
+      const page = pageVisee(payload);
+      if (page) await invalidateCache(`project-${page}`);
       const listes = rafraichirListesActives();
       console.log(listes > 0
         ? `[notion-webhook] ${eventType} → ${listes} listes en cours de rafraîchissement`

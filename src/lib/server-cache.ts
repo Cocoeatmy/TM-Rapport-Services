@@ -162,8 +162,10 @@ const MARGE_PROPAGATION_MS = 2_000;
 const ecrituresLocales = new Map<string, number>();
 const estFicheProjet = (key: string) => key.startsWith("project-");
 
-/** Heure de la dernière écriture connue de cette fiche (Redis, sinon locale). */
-async function derniereEcriture(key: string): Promise<number> {
+/** Heure de la dernière écriture connue de cette fiche (Redis, sinon locale).
+    Exportée : la fiche ouverte la consulte toutes les 3 s (route « version »)
+    pour ne relire Notion que lorsque quelque chose a changé. */
+export async function derniereEcriture(key: string): Promise<number> {
   const locale = ecrituresLocales.get(key) || 0;
   if (!redisEnabled) return locale;
   try {
