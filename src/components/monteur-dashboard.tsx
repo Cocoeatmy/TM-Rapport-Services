@@ -1711,7 +1711,15 @@ const PASTILLES_RETIREES: Record<string, Set<string>> = (() => {
      finaux n'y filtrent rien d'utile. */
   const services = new Set(["En attente de mesures", "Cabines mesurées", "OFR envoyées sans mesures", "OFR envoyée sans mesures",
     "Cabines en CMD", "Annulé", "Terminé"]);
-  return { "rdv-mesures-a-fixer": mesures, "rdv-mesures-fixe": mesures, "rdv-services-a-fixer": services, "rdv-services-fixe": services };
+  /* Listes « à fixer » (22.10.2026) : « RDV - fixé » n'a rien à y filtrer —
+     le rendez-vous est justement ce qui manque. Toutes les graphies Notion. */
+  const fixe = ["RDV - fixé", "RDV - Fixé", "RDV fixé", "RDV Fixé"];
+  const plus = (base: Set<string>) => new Set([...base, ...fixe]);
+  return {
+    "rdv-mesures-a-fixer": plus(mesures), "rdv-mesures-fixe": mesures,
+    "rdv-services-a-fixer": plus(services), "rdv-services-fixe": services,
+    "rdv-montage-a-fixer": new Set(fixe), "rdv-sav-a-fixer": new Set(fixe),
+  };
 })();
 
 const RDV_STATUS_ORDER: Record<string, string[]> = {
