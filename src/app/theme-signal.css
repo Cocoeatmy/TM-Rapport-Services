@@ -6356,3 +6356,102 @@ html[data-ui="signal"] .tm-ofr-n {
   font-size: 15px; font-weight: 750; letter-spacing: 0.02em; color: var(--sg-text);
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Colonne « Appels » des listes « RDV … à fixer » (22.10.2026) ─────────
+   Une colonne de plus, entre l'état et l'emplacement. */
+@media (min-width: 1280px) {
+  html[data-ui="signal"] .sg-list.is-appels .sg-cols,
+  html[data-ui="signal"] .sg-list.is-appels .sg-prow {
+    grid-template-columns: 52px 108px 80px minmax(0, 1fr) 116px 118px 80px 52px 34px;
+  }
+  html[data-ui="signal"] .sg-list.is-sav.is-appels .sg-cols,
+  html[data-ui="signal"] .sg-list.is-sav.is-appels .sg-prow {
+    grid-template-columns: 52px 108px 80px minmax(0, 1fr) 116px 118px 80px 124px 34px;
+  }
+}
+@media (min-width: 768px) and (max-width: 1279px) {
+  html[data-ui="signal"] .sg-list.is-appels .sg-cols,
+  html[data-ui="signal"] .sg-list.is-appels .sg-prow {
+    grid-template-columns: 50px 104px 80px minmax(0, 1fr) 104px 120px 74px 44px 26px;
+  }
+  html[data-ui="signal"] .sg-list.is-sav.is-appels .sg-cols,
+  html[data-ui="signal"] .sg-list.is-sav.is-appels .sg-prow {
+    grid-template-columns: 50px 104px 80px minmax(0, 1fr) 104px 120px 74px 124px 26px;
+  }
+}
+@media (max-width: 767px) {
+  html[data-ui="signal"] .sg-list.is-appels .sg-prow {
+    grid-template-areas:
+      "name   name   cab"
+      "tm     tm     tm"
+      "appels appels state";
+  }
+  html[data-ui="signal"] .sg-list.is-appels.is-region .sg-prow {
+    grid-template-areas:
+      "name   name   cab"
+      "tm     tm     tm"
+      "delay  appels state";
+  }
+  html[data-ui="signal"] .sg-list.is-appels .sg-prow .sg-appels { grid-area: appels; justify-self: start; }
+}
+
+html[data-ui="signal"] .sg-appels { position: relative; display: inline-flex; min-width: 0; }
+html[data-ui="signal"] .sg-appels-btn {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0;
+  padding: 2px 8px; border-radius: 999px; border: 1px solid var(--sg-line); cursor: pointer;
+  background: var(--sg-paper); color: var(--sg-text-3);
+  font-family: inherit; font-size: 10.5px; font-weight: 600; line-height: 1.6;
+}
+html[data-ui="signal"] .sg-appels-btn:hover { border-color: var(--sg-signal); color: var(--sg-signal); }
+html[data-ui="signal"] .sg-appels-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-ui="signal"] .sg-appels-btn em { font-style: normal; font-weight: 500; opacity: 0.75; white-space: nowrap; }
+/* Grand écran : la pastille reste courte ; « il y a 2 h » est dans l'info-bulle. */
+@media (min-width: 768px) {
+  html[data-ui="signal"] .sg-appels-btn em { display: none; }
+}
+/* De plus en plus chaud à mesure que les tentatives s'accumulent. */
+html[data-ui="signal"] .sg-appels-btn.is-essai1 { background: #fff7e0; border-color: #f3d27a; color: #8a5a00; }
+html[data-ui="signal"] .sg-appels-btn.is-essai2 { background: #ffedd5; border-color: #fdba74; color: #9a3412; }
+html[data-ui="signal"] .sg-appels-btn.is-essai3 { background: #fee2e2; border-color: #fca5a5; color: #b91c1c; }
+html[data-ui="signal"] .sg-appels-btn.is-message { background: #e0f2fe; border-color: #7dd3fc; color: #075985; }
+html[data-ui="signal"] .sg-appels-btn.is-rappel { background: #ede9fe; border-color: #c4b5fd; color: #5b21b6; }
+html[data-ui="signal"] .sg-appels-btn.is-rappel-retard { background: #fee2e2; border-color: #f87171; color: #b91c1c; }
+html[data-ui="signal"] .sg-appels-btn.is-joint { background: #dcfce7; border-color: #86efac; color: #15803d; }
+html[data-ui="signal"].dark .sg-appels-btn:is(.is-essai1, .is-essai2, .is-essai3, .is-message, .is-rappel, .is-rappel-retard, .is-joint) { filter: brightness(0.75) saturate(1.2); }
+
+html[data-ui="signal"] .sg-appels-menu {
+  position: fixed; z-index: 80;
+  display: flex; flex-direction: column; gap: 6px; width: 290px; padding: 10px;
+  background: var(--sg-paper); border: 1px solid var(--sg-line); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .18); cursor: default; color: var(--sg-text);
+  white-space: normal;
+}
+html[data-ui="signal"] .sg-appels-titre { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sg-text-3); }
+html[data-ui="signal"] .sg-appels-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+html[data-ui="signal"] .sg-appels-act {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--sg-line); background: var(--sg-paper-2); color: var(--sg-text);
+  font-family: inherit; font-size: 11.5px; font-weight: 600; text-align: left; line-height: 1.2;
+}
+html[data-ui="signal"] .sg-appels-act:hover { border-color: var(--sg-signal); }
+html[data-ui="signal"] .sg-appels-act.is-sans-reponse svg { color: #d97706; }
+html[data-ui="signal"] .sg-appels-act.is-message svg, html[data-ui="signal"] .sg-appels-act.is-sms svg { color: #0284c7; }
+html[data-ui="signal"] .sg-appels-act.is-joint svg { color: #16a34a; }
+html[data-ui="signal"] .sg-appels-rappel { display: flex; align-items: center; gap: 6px; color: #7c3aed; }
+html[data-ui="signal"] .sg-appels-rappel input {
+  flex: 1; min-width: 0; height: 30px; padding: 0 6px; border-radius: 7px; border: 1px solid var(--sg-line);
+  background: var(--sg-paper); color: var(--sg-text); font-family: inherit; font-size: 12px;
+}
+html[data-ui="signal"] .sg-appels-rappel button {
+  height: 30px; padding: 0 10px; border-radius: 7px; border: 0; cursor: pointer;
+  background: #7c3aed; color: #fff; font-family: inherit; font-size: 11.5px; font-weight: 650;
+}
+html[data-ui="signal"] .sg-appels-rappel button:disabled { opacity: 0.45; cursor: default; }
+html[data-ui="signal"] .sg-appels-note {
+  height: 30px; padding: 0 8px; border-radius: 7px; border: 1px solid var(--sg-line);
+  background: var(--sg-paper); color: var(--sg-text); font-family: inherit; font-size: 12px;
+}
+html[data-ui="signal"] .sg-appels-histo { display: grid; gap: 3px; max-height: 150px; overflow-y: auto; padding-top: 6px; border-top: 1px solid var(--sg-line); }
+html[data-ui="signal"] .sg-appels-histo > span { display: flex; align-items: flex-start; gap: 5px; font-size: 11px; line-height: 1.35; color: var(--sg-text-2); }
+html[data-ui="signal"] .sg-appels-histo > span svg { margin-top: 2px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sg-appels-aide { font-size: 10.5px; color: var(--sg-text-3); }

@@ -35,6 +35,7 @@ import {
 } from "@/lib/rdv-a-fixer";
 import { TourneeAssistant } from "@/components/tournee-assistant";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
+import { SuiviAppels } from "@/components/suivi-appels";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SAV_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 import { clientFacture } from "@/lib/analyses";
@@ -7979,6 +7980,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           lireEtats(etatChamp.champ, etatChamp.repli).then((l) =>
             setEtatsDuChamp((m) => (m[etatChamp.champ] ? m : { ...m, [etatChamp.champ]: l }))).catch(() => {});
         }
+        /* Colonne « Appels » : seulement sur les listes où l'on cherche à
+           FIXER un rendez-vous (22.10.2026). */
+        const listeAppels = ({
+          "rdv-montage-a-fixer": "montage", "rdv-mesures-a-fixer": "mesures",
+          "rdv-services-a-fixer": "services", "rdv-sav-a-fixer": "sav",
+        } as Record<string, string>)[String(showSummaryPanel || "")] || "";
         let rdvStatusOptions: string[] = [];
         let rdvHiddenCount = 0;
         const rdvTotalCount = panelProjects.length;
@@ -8393,10 +8400,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {/* `is-region` : en tri par région, la pastille J+x n'est plus
                     portée par l'en-tête de groupe — elle doit rester sur la
                     ligne. En tri par date elle y ferait doublon. */}
-                <div className={`sg-list${sgRegion ? " is-region" : ""}${vueSav ? " is-sav" : ""}`}>
+                <div className={`sg-list${sgRegion ? " is-region" : ""}${vueSav ? " is-sav" : ""}${listeAppels ? " is-appels" : ""}`}>
                   <div className="sg-cols">
                     <span>DÉLAI</span><span>N° OFR TM</span><span>N° FOURN.</span>
-                    <span>PROJET</span><span>ÉTAT</span><span>EMPLACEMENT</span>
+                    <span>PROJET</span><span>ÉTAT</span>{listeAppels && <span>APPELS</span>}<span>EMPLACEMENT</span>
                     {/* Sur la liste SAV, le nombre de poseurs prévus au montage
                         n'apprend rien ; ce qu'on cherche, c'est combien de
                         cabines attendent. La colonne « CAB. » reste à côté :
@@ -8575,6 +8582,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               ) : (
                                 <span className={`sg-state ${cls}`}>{etat}</span>
                               )}
+                              {listeAppels && <SuiviAppels projectId={p.id} liste={listeAppels} />}
                               <span className="sg-place">
                                 <MapPin className="w-3 h-3" />
                                 <span>{p.emplacementCabine || "—"}</span>
