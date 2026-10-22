@@ -435,6 +435,12 @@ html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre {
   isolation: isolate;
 }
 html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre.is-replie { --tm-rayon: calc(var(--tm-barre-ios) / 2); }
+/* Pas de liseré blanc autour de la capsule (22.10.2026, demande de Micael) :
+   ni filet de bordure, ni reflet clair au bord — seule l'ombre la détache. */
+html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre {
+  border-color: transparent;
+  box-shadow: var(--tm-verre-ombre);
+}
 html[data-app="ios"][data-ui="signal"] #tm-ios-barre.tm-ios-barre::before {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   border-radius: inherit;
