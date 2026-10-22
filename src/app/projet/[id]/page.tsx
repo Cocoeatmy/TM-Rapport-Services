@@ -8681,6 +8681,12 @@ function ProjectPageContent({ id }: { id: string }) {
   /** Mono : cabine posée (photo de montage ou commande terminée) → le pas à
       pas devient « Consulter le rapport ». */
   const monoInstallee = (project.photosMontage || []).length > 0 || project.etatCMD === "Terminé";
+  /** « Type de services » = Services, et RIEN d'autre (ni mesures, ni
+      montage) : c'est une intervention de service — réparation, joint —
+      et la fiche parle de service, pas de montage (22.10.2026). */
+  const serviceSeul = (project.typeServices || []).length > 0
+    && (project.typeServices || []).every((t) => /^services?$/i.test(String(t || "").trim()));
+  const motRapport = serviceSeul ? "service" : "montage";
 
   // Ordre d'AFFICHAGE réconcilié : on part de l'ordre personnalisé (liste de
   // CabN), on ne garde que les CabN valides (1..N), puis on ajoute à la fin les
@@ -9799,7 +9805,9 @@ function ProjectPageContent({ id }: { id: string }) {
             projet: project.adresseChantier || project.emplacementCabine || "Adresse, client, statuts",
             dates: [jj(project.dateMesures) && `Mesures ${jj(project.dateMesures)}`, jj(project.dateMontage) && `Montage ${jj(project.dateMontage)}`].filter(Boolean).join(" · ") || "Aucune date fixée",
             client: (project.contactsRDV || "").split(/\n/)[0]?.trim() || "Contacts du chantier",
-            cabines: totalCab ? `${totalCab} cabine${totalCab > 1 ? "s" : ""} · ${poseesHub} posée${poseesHub > 1 ? "s" : ""}` : "Aucune cabine",
+            cabines: serviceSeul
+              ? `${Math.max(totalCab, 1)} service${totalCab > 1 ? "s" : ""}`
+              : totalCab ? `${totalCab} cabine${totalCab > 1 ? "s" : ""} · ${poseesHub} posée${poseesHub > 1 ? "s" : ""}` : "Aucune cabine",
             mesures: nbDocs ? `${nbDocs} document${nbDocs > 1 ? "s" : ""}` : "Mesures et montage",
             commentaires: nbComm ? `${nbComm} commentaire${nbComm > 1 ? "s" : ""}` : "Aucun commentaire",
             fiche: "Fiche de travail du chantier",
@@ -9826,8 +9834,10 @@ function ProjectPageContent({ id }: { id: string }) {
                   onClick={() => { setShowRapport(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                   <span className="tm-pj-cta-icone"><FileText className="w-5 h-5" /></span>
                   <span className="tm-pj-cta-txt">
-                    <b>{project.rapportMonteur ? "Consulter le rapport de montage" : "Démarrer le rapport de montage"}</b>
-                    <small>{totalCab ? `${poseesHub} / ${totalCab} cabine${totalCab > 1 ? "s" : ""} posée${poseesHub > 1 ? "s" : ""}` : "Photos, heures et signature"}</small>
+                    <b>{project.rapportMonteur ? `Consulter le rapport de ${motRapport}` : `Démarrer le rapport de ${motRapport}`}</b>
+                    <small>{serviceSeul
+                      ? `${Math.max(totalCab, 1)} service${totalCab > 1 ? "s" : ""}${totalCab && poseesHub >= totalCab ? " · effectué" : ""}`
+                      : totalCab ? `${poseesHub} / ${totalCab} cabine${totalCab > 1 ? "s" : ""} posée${poseesHub > 1 ? "s" : ""}` : "Photos, heures et signature"}</small>
                   </span>
                   <ChevronRight className="w-5 h-5 tm-pj-cta-fleche" />
                 </button>
@@ -9844,8 +9854,8 @@ function ProjectPageContent({ id }: { id: string }) {
                       {/* Projet : l'avancement du chantier dans la carte même,
                           à côté de l'icône — sans l'agrandir (21.10.2026). */}
                       {t.id === "projet" && (
-                        <span className="tm-pj-avance" aria-label={`Montage ${montageHeaderPercent} %, mesures ${mesuresHeaderPercent} %`}>
-                          {([["Montage", montageHeaderPercent], ["Mesures", mesuresHeaderPercent]] as const).map(([l, v]) => (
+                        <span className="tm-pj-avance" aria-label={`${serviceSeul ? "Services" : "Montage"} ${montageHeaderPercent} %, mesures ${mesuresHeaderPercent} %`}>
+                          {([[serviceSeul ? "Services" : "Montage", montageHeaderPercent], ["Mesures", mesuresHeaderPercent]] as const).map(([l, v]) => (
                             <span key={l} className={v >= 100 ? "is-fini" : ""}>
                               <i>{l}</i><em>{v}%</em>
                               <u><s style={{ width: `${Math.max(0, Math.min(100, v))}%` }} /></u>
@@ -9858,7 +9868,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         <span className="tm-pj-lignes">
                           {lignesDates.slice(0, 6).map((l, i) => (
                             <span key={i} className={`tm-pj-ligne is-${l.genre.toLowerCase()}${l.note === "prévu" ? " is-prevu" : ""}`}>
-                              <i>{l.genre}</i>
+                              <i>{l.genre === "Montage" && serviceSeul ? "Service" : l.genre}</i>
                               <time>{l.date || "—"}</time>
                               <span>{l.qui || "—"}{l.note && <em> · {l.note}</em>}</span>
                             </span>
@@ -9910,7 +9920,7 @@ function ProjectPageContent({ id }: { id: string }) {
             }`}
           >
             <FileText className="w-5 h-5" />
-            {project.rapportMonteur ? "Consulter le rapport de montage" : "Démarrer le rapport de montage"}
+            {project.rapportMonteur ? `Consulter le rapport de ${motRapport}` : `Démarrer le rapport de ${motRapport}`}
           </button>
         )}
         {/* === Grille 2 colonnes sur md+ : gauche = projet+dates, droite = client+cabines === */}
@@ -9929,7 +9939,7 @@ function ProjectPageContent({ id }: { id: string }) {
               <div className="w-full sm:w-72 space-y-2">
                 {[
                   {
-                    label: "Montage",
+                    label: serviceSeul ? "Services" : "Montage",
                     pct: montageHeaderPercent,
                     accent: "blue" as const,
                     // Sous-texte identique à la grande barre (multi-cabine seulement).
@@ -10980,7 +10990,7 @@ function ProjectPageContent({ id }: { id: string }) {
             onClick={() => { setShowRapport(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
             <ChevronRight className="w-4 h-4 tm-pj-retour-fleche" />
             <span>Projet</span>
-            <b>Rapport de montage</b>
+            <b>Rapport de {motRapport}</b>
           </button>
         )}
         {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (() => {
@@ -11087,7 +11097,7 @@ function ProjectPageContent({ id }: { id: string }) {
               <div className="glass-card rounded-2xl p-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Progression du montage</span>
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Progression du {motRapport}</span>
                     {percent === 100 && (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
                         Terminé
