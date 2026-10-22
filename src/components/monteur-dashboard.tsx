@@ -8240,12 +8240,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 <div className="sg-chips">
                   {rdvStatusOptions.map((st) => {
                     const off = hiddenStatusOf(showSummaryPanel).has(st);
+                    /* Le filtre porte la couleur de son état, comme la
+                       pastille de la ligne : on les associe d'un coup d'œil. */
+                    const estSav = String(showSummaryPanel || "").includes("sav");
+                    const teinte = (estSav ? STATUS_SAV_COLORS[st] : undefined)
+                      || STATUS_CMD_COLORS[st] || STATUS_MESURES_COLORS[st] || "";
                     return (
                       <button
                         key={st}
                         type="button"
                         onClick={(e) => { e.stopPropagation(); toggleRdvStatus(showSummaryPanel as string, st); }}
-                        className={`sg-chip${off ? " is-off" : ""}`}
+                        className={`sg-chip${off ? " is-off" : teinte ? ` sg-chip-etat ${teinte}` : ""}`}
                         title={off ? `Afficher : ${st}` : `Masquer : ${st}`}
                       >
                         {st}

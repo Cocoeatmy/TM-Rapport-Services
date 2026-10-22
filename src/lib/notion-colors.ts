@@ -50,16 +50,64 @@ const STATIC_MAPS: Array<[Record<string, string>, string]> = [
   [STATUS_CMD_COLORS, "État - CMD"],
   [STATUS_MESURES_COLORS, "État - Mesures"],
 ];
+/* Les couleurs d'origine de l'app, avant toute couleur Notion. */
+const ORIGINES = STATIC_MAPS.map(([m]) => ({ ...m }));
+
+/* Couleurs de secours, quand deux états tombent sur la même. Les classes
+   sont écrites en entier : Tailwind ne génère que ce qu'il lit. */
+const PALETTE_SECOURS = [
+  "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
+  "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300",
+  "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
+  "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+  "bg-lime-100 text-lime-800 dark:bg-lime-900/40 dark:text-lime-300",
+  "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
+  "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
+  "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
+  "bg-stone-200 text-stone-700 dark:bg-stone-700/40 dark:text-stone-300",
+];
+
+/**
+ * Un état = une couleur (22.10.2026). Dans Notion, « Pas contacté » et
+ * « Contact sans réponse » portaient le même gris : impossible de les
+ * distinguer dans les listes. Sans rien changer dans Notion, le second état
+ * qui tombe sur une couleur déjà prise reprend sa couleur d'origine de l'app
+ * si elle est libre, sinon la première couleur de secours libre. On compare
+ * le FOND (première classe) : c'est lui qui se voit.
+ */
+function distinguer(map: Record<string, string>, origine: Record<string, string>) {
+  const fond = (c: string) => (c || "").split(" ")[0];
+  const pris = new Set<string>();
+  /* Les états finaux gardent leurs couleurs convenues (vert, rouge) et ne
+     comptent pas : ils ne figurent pas dans les listes « à fixer ». */
+  for (const key of Object.keys(map).filter((k) => k !== "Terminé" && k !== "Annulé")) {
+    if (!pris.has(fond(map[key]))) { pris.add(fond(map[key])); continue; }
+    const libre = [origine[key], ...PALETTE_SECOURS].find((c) => c && !pris.has(fond(c)));
+    if (libre) map[key] = libre;
+    pris.add(fond(map[key]));
+  }
+}
+/* Seulement les états de MESURES : la table des états de commande est
+   partagée par toute l'app et ses couleurs sont connues de tous. */
+const A_DISTINGUER = new Set<Record<string, string>>([STATUS_MESURES_COLORS]);
+STATIC_MAPS.forEach(([m], i) => { if (A_DISTINGUER.has(m)) distinguer(m, ORIGINES[i]); });
+
 function applyToStaticMaps() {
   if (!colorMap) return;
-  for (const [map, prop] of STATIC_MAPS) {
-    const opts = colorMap[prop];
-    if (!opts) continue;
-    for (const key of Object.keys(map)) {
-      const c = opts[key];
-      if (c && NOTION_COLOR_CLASSES[c]) map[key] = NOTION_COLOR_CLASSES[c];
+  STATIC_MAPS.forEach(([map, prop], i) => {
+    const opts = colorMap?.[prop];
+    if (opts) {
+      for (const key of Object.keys(map)) {
+        const c = opts[key];
+        if (c && NOTION_COLOR_CLASSES[c]) map[key] = NOTION_COLOR_CLASSES[c];
+      }
     }
-  }
+    if (A_DISTINGUER.has(map)) distinguer(map, ORIGINES[i]);
+  });
 }
 
 export function loadNotionColors(): Promise<ColorMap> {
