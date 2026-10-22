@@ -8,7 +8,7 @@
  */
 import { dansAppApple, demanderAuPont } from "./pont-apple";
 import { versionAppDepuisAgent } from "./version-web";
-import type { Plateforme, SuiviNatif } from "./appareils";
+import type { Logiciel, Plateforme, SuiviNatif } from "./appareils";
 
 /** La plateforme, d'après le navigateur. Un iPad se présente parfois en « Mac » : le toucher le trahit. */
 export function plateformeLocale(ua = typeof navigator !== "undefined" ? navigator.userAgent : "", toucher = typeof navigator !== "undefined" ? navigator.maxTouchPoints : 0): Plateforme {
@@ -32,6 +32,25 @@ export function systemeNavigateur(ua = typeof navigator !== "undefined" ? naviga
   const android = /Android (\d+(?:\.\d+)?)/.exec(ua);
   if (android) return `Android ${android[1]}`;
   return null;
+}
+
+/**
+ * Le logiciel qui fait tourner l'app ici : l'app Apple, l'app web posée sur
+ * l'écran d'accueil, ou le navigateur, par son nom. Sert à distinguer sur la
+ * page Appareils les deux accès d'un même téléphone.
+ */
+export function logicielLocal(ua = typeof navigator !== "undefined" ? navigator.userAgent : ""): Logiciel {
+  if (/TMRapportApp\//.test(ua)) return "app-apple";
+  try {
+    const autonome = (typeof navigator !== "undefined" && (navigator as unknown as { standalone?: boolean }).standalone === true)
+      || (typeof window !== "undefined" && window.matchMedia?.("(display-mode: standalone)").matches);
+    if (autonome) return "ecran-accueil";
+  } catch { /* ignore */ }
+  if (/Edg\//.test(ua)) return "Edge";
+  if (/Firefox\/|FxiOS/.test(ua)) return "Firefox";
+  if (/Chrome\/|CriOS/.test(ua)) return "Chrome";
+  if (/Safari\//.test(ua)) return "Safari";
+  return "navigateur";
 }
 
 let natifEnCache: SuiviNatif | null | undefined;

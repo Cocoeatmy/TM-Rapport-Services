@@ -14,6 +14,8 @@ import { memeVersion, normaliserVersion, versionNativePlusAncienne, type Version
 
 export const CLE_APPAREILS = "appareils";
 export const CLE_SIGNAUX = "appareils-signaux";
+/** Le nom qu'un administrateur donne à un accès (« MacBook Pro », « iPad du dépôt »). */
+export const CLE_NOMS = "appareils-noms";
 
 /** Au-delà, un appareil qui ne bat plus n'est plus un appareil : il n'est plus affiché. */
 export const PEREMPTION_APPAREIL_MS = 14 * 24 * 3600_000;
@@ -50,6 +52,10 @@ export interface EtatAppareil {
   plateforme?: Plateforme;
   /** Système vu par le navigateur, quand l'app native ne l'a pas dit. */
   systemeNavigateur?: string | null;
+  /** Le logiciel qui fait tourner l'app : l'app Apple, l'app web de l'écran
+      d'accueil, ou le navigateur (Safari, Chrome…). Un même iPhone peut en
+      avoir deux — chacun est un « accès ». */
+  logiciel?: Logiciel | null;
   maj?: { etat: string; verifieLe: number | null } | null;
   /** Dernier battement, horloge du serveur. */
   vu: number;
@@ -57,6 +63,9 @@ export interface EtatAppareil {
 
 export const PLATEFORMES = ["iPhone", "iPad", "Mac", "Windows", "Android", "Linux", "autre"] as const;
 export type Plateforme = typeof PLATEFORMES[number];
+
+export const LOGICIELS = ["app-apple", "ecran-accueil", "Safari", "Chrome", "Firefox", "Edge", "navigateur"] as const;
+export type Logiciel = typeof LOGICIELS[number];
 
 export interface SuiviNatif {
   coque: string | null;
@@ -76,7 +85,7 @@ const court = (v: unknown, max: number): string | null =>
  * champ : types, longueurs, valeurs permises. Rien d'autre n'est recopié —
  * ni nom d'appareil, ni identifiant matériel.
  */
-export function validerSuivi(corps: Record<string, unknown>): Pick<EtatAppareil, "versionWeb" | "natif" | "plateforme" | "systemeNavigateur" | "maj"> {
+export function validerSuivi(corps: Record<string, unknown>): Pick<EtatAppareil, "versionWeb" | "natif" | "plateforme" | "systemeNavigateur" | "maj" | "logiciel"> {
   const n = corps.natif && typeof corps.natif === "object" ? corps.natif as Record<string, unknown> : null;
   const natif: SuiviNatif | null = n ? {
     coque: court(n.coque, 16), build: court(n.build, 16), systeme: court(n.systeme, 16),
@@ -90,6 +99,7 @@ export function validerSuivi(corps: Record<string, unknown>): Pick<EtatAppareil,
     natif: natif && Object.values(natif).some(Boolean) ? natif : null,
     plateforme: (PLATEFORMES as readonly string[]).includes(p || "") ? p as Plateforme : "autre",
     systemeNavigateur: court(corps.systemeNavigateur, 24),
+    logiciel: (LOGICIELS as readonly string[]).includes(String(corps.logiciel)) ? corps.logiciel as Logiciel : null,
     maj: m ? {
       etat: etat && (ETATS_MAJ as readonly string[]).includes(etat) ? etat : "inconnu",
       verifieLe: typeof m.verifieLe === "number" && Number.isFinite(m.verifieLe) ? Math.floor(m.verifieLe) : null,
@@ -125,6 +135,7 @@ export interface SignalAppareil {
 const memoire: Record<string, Map<string, string>> = {
   [CLE_APPAREILS]: new Map(),
   [CLE_SIGNAUX]: new Map(),
+  [CLE_NOMS]: new Map(),
 };
 
 export async function lireHash(cle: string): Promise<Record<string, string>> {

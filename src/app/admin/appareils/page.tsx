@@ -19,9 +19,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Smartphone, RefreshCw, Loader2, AlertTriangle, CheckCircle2, Image as ImageIcon, FileText,
+  ArrowLeft, Smartphone, Tablet, Laptop, Monitor, RefreshCw, Loader2, AlertTriangle, CheckCircle2,
+  Image as ImageIcon, FileText, Pencil, ChevronDown,
 } from "lucide-react";
-import { libelleVersion, type VersionWeb } from "@/lib/version-web";
+import type { VersionWeb } from "@/lib/version-web";
 
 interface RapportNonEnvoye { projectId: string; depuis: number; client: boolean; retenuPar: number }
 interface Appareil {
@@ -47,6 +48,9 @@ interface Appareil {
   maj?: { etat: string; verifieLe: number | null } | null;
   statutVersion: "a-jour" | "web-en-retard" | "natif-ancien" | "inconnu";
   dernierEtatConnu: boolean;
+  logiciel?: string | null;
+  /** Le nom donné à cet accès par l'administrateur. */
+  surnom?: string | null;
 }
 interface Reponse {
   maintenant: number;
@@ -61,32 +65,60 @@ interface Reponse {
 }
 
 const JOUR_MS = 24 * 3600_000;
-const ND = "Non disponible";
+/** Au-delà de trois jours sans nouvelles, un accès passe dans « Anciens accès ». */
+const ANCIEN_MS = 3 * JOUR_MS;
 
-const STATUTS: Record<Appareil["statutVersion"], { texte: string; classe: string }> = {
-  "a-jour": { texte: "À jour", classe: "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300" },
-  "web-en-retard": { texte: "Version Web ancienne", classe: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" },
-  "natif-ancien": { texte: "App native obsolète", classe: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300" },
-  "inconnu": { texte: "Version inconnue", classe: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" },
-};
+/** « 22 oct. à 07:19 » — l'heure de mise en ligne d'une version, à l'heure suisse. */
+function dateVersion(v: VersionWeb | null | undefined): string | null {
+  if (!v?.compile) return null;
+  const d = new Date(v.compile);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.toLocaleDateString("fr-CH", { day: "numeric", month: "short" })} à ${d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}`;
+}
 
-const ETATS_MAJ: Record<string, string> = {
-  "a-jour": "à jour", "disponible": "mise à jour disponible", "preparation": "en préparation",
-  "prete": "prête à être appliquée", "en-attente-synchro": "synchronisation en attente",
-  "hors-ligne": "vérification impossible hors ligne", "inconnu": "vérification impossible",
-};
+/** Le logiciel, en clair. Les anciens battements ne le disaient pas : on le déduit. */
+function logiciel(a: Appareil): string {
+  const l = a.logiciel || (a.natif ? "app-apple" : null);
+  if (l === "app-apple") return a.plateforme === "Mac" ? "App Apple (Mac)" : "App Apple";
+  if (l === "ecran-accueil") return "App web (écran d'accueil)";
+  if (l && l !== "navigateur") return l;
+  const ua = a.navigateur || "";
+  if (/Edg\//.test(ua)) return "Edge";
+  if (/Chrome\/|CriOS/.test(ua)) return "Chrome";
+  if (/Firefox\//.test(ua)) return "Firefox";
+  return "Navigateur";
+}
 
-/** « iPhone · iOS 18.1 » ; dans l'app : « iPhone · iOS 18.1 · App 1.0 (3) ». */
-function descriptionAppareil(a: Appareil): { appareil: string; natif: string } {
-  const plateforme = a.plateforme && a.plateforme !== "autre" ? a.plateforme : typeAppareil(a.navigateur);
+function plateforme(a: Appareil): string {
+  return a.plateforme && a.plateforme !== "autre" ? a.plateforme : typeAppareil(a.navigateur);
+}
+
+/** L'icône de l'appareil : iPhone, iPad, Mac portable ou de bureau… */
+function IconeAppareil({ a }: { a: Appareil }) {
+  const p = plateforme(a);
+  const nom = (a.surnom || "").toLowerCase();
+  const cls = "w-5 h-5";
+  if (p === "iPhone" || p === "Android") return <Smartphone className={cls} />;
+  if (p === "iPad") return <Tablet className={cls} />;
+  if (p === "Mac") return /studio|imac|mini|pro display|bureau/.test(nom) ? <Monitor className={cls} /> : <Laptop className={cls} />;
+  return <Monitor className={cls} />;
+}
+
+/** « iOS 18.7 · App 1.0 (5) » — le détail, en petit. */
+function detailTechnique(a: Appareil): string {
   const systeme = a.natif?.systeme
     ? [a.natif.systeme, a.natif.versionSysteme].filter(Boolean).join(" ")
     : a.systemeNavigateur || null;
-  const natif = a.natif
-    ? `App ${a.natif.coque || "?"}${a.natif.build ? ` (${a.natif.build})` : " (build non disponible)"}`
-    : "Navigateur";
-  return { appareil: [plateforme, systeme || `système ${ND.toLowerCase()}`].join(" · "), natif };
+  const app = a.natif?.coque ? `App ${a.natif.coque}${a.natif.build ? ` (${a.natif.build})` : ""}` : null;
+  return [systeme, app].filter(Boolean).join(" · ");
 }
+
+const STATUT_COURT: Record<Appareil["statutVersion"], { texte: string; classe: string }> = {
+  "a-jour": { texte: "À jour", classe: "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300" },
+  "web-en-retard": { texte: "Ancienne version", classe: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" },
+  "natif-ancien": { texte: "App à mettre à jour", classe: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300" },
+  "inconnu": { texte: "Version inconnue", classe: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" },
+};
 
 /** « il y a 3 min », « il y a 2 h », « il y a 4 j ». */
 function ilYA(t: number, maintenant: number): string {
@@ -184,11 +216,141 @@ export default function AppareilsPage() {
     }
   }
 
+  async function nommer(a: Appareil) {
+    const nom = window.prompt(
+      "Nom de cet accès (ex. « MacBook Pro », « Mac Studio », « iPad du dépôt »). Laisser vide pour l'effacer.",
+      a.surnom || "",
+    );
+    if (nom === null) return;
+    try {
+      const r = await fetch("/api/admin/appareils", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appareil: a.appareil, action: "nommer", nom }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      charger();
+    } catch (e) {
+      setErreur(`Nom non enregistré : ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  const [ouverts, setOuverts] = useState<Set<string>>(new Set());
+
   if (autorise === false) return null;
 
   const maintenant = donnees?.maintenant || Date.now();
   const r = donnees?.resume;
   const totalEnAttente = r ? r.photosEnAttente + r.photosEnEchec + r.requetesEnAttente + r.rapportsNonEnvoyes : 0;
+  const derniere = dateVersion(donnees?.derniereDisponible);
+
+  /* Un bloc par personne ; dans chaque bloc, les accès récents d'abord. */
+  const groupes = (() => {
+    const m = new Map<string, Appareil[]>();
+    for (const a of donnees?.appareils || []) {
+      const k = a.email || a.nom;
+      m.set(k, [...(m.get(k) || []), a]);
+    }
+    return [...m.values()].map((liste) => {
+      const tri = liste.slice().sort((x, y) => y.vu - x.vu);
+      const recents = tri.filter((a) => maintenant - a.vu <= ANCIEN_MS);
+      const anciens = tri.filter((a) => maintenant - a.vu > ANCIEN_MS);
+      const enRetard = recents.filter((a) => a.statutVersion === "web-en-retard" || a.statutVersion === "natif-ancien").length;
+      const attente = tri.reduce((n, a) => n + a.photosEnAttente + a.photosEnEchec + a.requetesEnAttente + a.rapportsNonEnvoyes.length, 0);
+      return { nom: tri[0].nom, cle: tri[0].email || tri[0].nom, recents, anciens, enRetard, attente, vu: tri[0].vu };
+    }).sort((x, y) => (y.attente - x.attente) || (y.enRetard - x.enRetard) || x.nom.localeCompare(y.nom));
+  })();
+  const accesRecents = groupes.reduce((n, g) => n + g.recents.length, 0);
+  const accesAJour = groupes.reduce((n, g) => n + g.recents.filter((a) => a.statutVersion === "a-jour").length, 0);
+
+  const ligne = (a: Appareil) => {
+    const enAttente = a.photosEnAttente + a.photosEnEchec + a.requetesEnAttente + a.rapportsNonEnvoyes.length;
+    const ancien = maintenant - a.vu > 2 * 3600_000;
+    const st = STATUT_COURT[a.statutVersion] || STATUT_COURT.inconnu;
+    const versionDe = dateVersion(a.versionWeb);
+    const detail = detailTechnique(a);
+    return (
+      <li key={a.appareil} className="py-3 first:pt-0 last:pb-0">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 w-9 h-9 shrink-0 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 flex items-center justify-center">
+            <IconeAppareil a={a} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="font-semibold text-sm">{a.surnom || plateforme(a)}</span>
+              <span className="text-xs text-gray-500">{a.surnom ? `${plateforme(a)} · ` : ""}{logiciel(a)}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.classe}`}
+                title={a.versionWeb?.sha ? `commit ${a.versionWeb.sha.slice(0, 7)}` : undefined}
+                data-testid="appareil-version">
+                {st.texte}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              vu <span className={ancien ? "text-amber-600 dark:text-amber-400" : ""}>{ilYA(a.vu, maintenant)}</span>
+              {a.statutVersion === "web-en-retard" && versionDe && <> · version du {versionDe}{a.maj?.etat === "prete" || a.maj?.etat === "disponible" ? " — la nouvelle s'installe à la prochaine ouverture" : ""}</>}
+              {a.statutVersion === "natif-ancien" && <> · mettre à jour l&apos;app depuis TestFlight</>}
+              {!a.enLigne && <> · hors ligne</>}
+              {a.preparesQuand > 0 && <> · {a.preparesHorsLigne} chantier{a.preparesHorsLigne > 1 ? "s" : ""} hors ligne</>}
+              {detail && <span className="text-gray-400"> · {detail}</span>}
+            </p>
+            {a.signalEnAttente && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                Relance demandée {ilYA(a.signalEnAttente.requestedAt, maintenant)} — en attente de la prochaine ouverture.
+              </p>
+            )}
+            {enAttente > 0 && (
+              <div className="text-sm space-y-1 mt-1.5">
+                {(a.photosEnAttente + a.photosEnEchec) > 0 && (
+                  <p className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-gray-400" />
+                    {a.photosEnAttente} envoi{a.photosEnAttente > 1 ? "s" : ""} de photos en attente
+                    {a.photosEnEchec > 0 && <span className="text-red-600 font-semibold">· {a.photosEnEchec} en échec</span>}
+                  </p>
+                )}
+                {a.requetesEnAttente > 0 && (
+                  <p className="flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-gray-400" />
+                    {a.requetesEnAttente} écriture{a.requetesEnAttente > 1 ? "s" : ""} en file (heures, rapports, signalements)
+                  </p>
+                )}
+                {a.rapportsNonEnvoyes.map((rp) => {
+                  const bloque = maintenant - rp.depuis > JOUR_MS;
+                  return (
+                    <p key={rp.projectId} className={`flex items-start gap-2 ${bloque ? "text-red-600 font-semibold" : ""}`}>
+                      <FileText className="w-4 h-4 shrink-0 mt-0.5 text-gray-400" />
+                      <span>
+                        Rapport{" "}
+                        <Link href={`/projet/${rp.projectId}`} className="underline">
+                          {noms[rp.projectId] || rp.projectId.slice(0, 8)}
+                        </Link>{" "}
+                        finalisé {ilYA(rp.depuis, maintenant)}, PDF non envoyé
+                        {rp.retenuPar > 0 ? ` — attend encore ${rp.retenuPar} envoi${rp.retenuPar > 1 ? "s" : ""}` : ""}
+                      </span>
+                    </p>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button type="button" onClick={() => nommer(a)} title="Nommer cet accès" aria-label="Nommer cet accès"
+              className="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => relancer(a)}
+              disabled={relance === a.appareil}
+              title="Relancer les envois de cet accès"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e3a5f] px-2.5 h-8 text-xs font-semibold text-white disabled:opacity-50"
+            >
+              {relance === a.appareil ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              Relancer
+            </button>
+          </div>
+        </div>
+      </li>
+    );
+  };
 
   return (
     <div className="min-h-screen p-4 sm:p-6 max-w-4xl mx-auto">
@@ -196,16 +358,15 @@ export default function AppareilsPage() {
         <ArrowLeft className="w-4 h-4" /> Accueil
       </Link>
 
-      <div className="sgch-entete mb-4">
+      <div className="sgch-entete mb-3">
         <h2 className="flex items-center gap-2">
           <Smartphone className="w-5 h-5" /> Appareils
         </h2>
       </div>
 
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Ce que chaque téléphone a signalé à son dernier passage en ligne. Un
-        téléphone ne rend compte que lorsque l&apos;application est ouverte :
-        « vu il y a 2 h » veut dire qu&apos;on ne sait rien de plus récent.
+        Chaque app ou navigateur compte pour un <b>accès</b> : l&apos;app Apple et Safari d&apos;un même iPhone font deux lignes.
+        Le crayon permet de nommer un accès (« MacBook Pro », « Mac Studio ») pour le reconnaître.
       </p>
 
       {erreur && (
@@ -225,6 +386,19 @@ export default function AppareilsPage() {
         </p>
       ) : (
         <>
+          {/* La version : une seule question — tout le monde est-il à jour ? */}
+          <section className={`mb-3 rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3 ${accesAJour === accesRecents
+            ? "border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900"
+            : "border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900"}`}>
+            <div>
+              <div className="text-sm font-semibold">
+                {accesAJour === accesRecents ? "Tout le monde est sur la dernière version" : `${accesRecents - accesAJour} accès sur une ancienne version`}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">Dernière version mise en ligne {derniere ? `le ${derniere}` : "— date inconnue"}</div>
+            </div>
+            <div className="text-2xl font-bold tabular-nums">{accesAJour}<span className="text-sm font-medium text-gray-500"> / {accesRecents} à jour</span></div>
+          </section>
+
           <section className="mb-5 rounded-xl border border-gray-200 dark:border-gray-700 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div><div className="text-2xl font-bold">{r!.photosEnAttente}</div><div className="text-xs text-gray-500">photos en attente</div></div>
             <div><div className={`text-2xl font-bold ${r!.photosEnEchec > 0 ? "text-red-600" : ""}`}>{r!.photosEnEchec}</div><div className="text-xs text-gray-500">photos en échec</div></div>
@@ -241,103 +415,40 @@ export default function AppareilsPage() {
 
           {totalEnAttente === 0 && donnees.appareils.length > 0 && (
             <p className="mb-4 text-sm text-green-700 dark:text-green-400 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Rien n&apos;attend sur aucun téléphone.
+              <CheckCircle2 className="w-4 h-4" /> Rien n&apos;attend sur aucun appareil.
             </p>
           )}
 
           <div className="space-y-3">
-            {donnees.appareils.map((a) => {
-              const enAttente = a.photosEnAttente + a.photosEnEchec + a.requetesEnAttente + a.rapportsNonEnvoyes.length;
-              const ancien = maintenant - a.vu > 2 * 3600_000;
+            {groupes.map((g) => {
+              const initiales = g.nom.split(/\s+/).map((x) => x[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+              const voirAnciens = ouverts.has(g.cle);
               return (
-                <section key={a.appareil} className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
-                    <div className="min-w-0">
-                      <div className="font-semibold">{a.nom}</div>
+                <section key={g.cle} className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                  <header className="flex flex-wrap items-center gap-3 mb-3">
+                    <span className="w-9 h-9 rounded-full bg-[#1e3a5f] text-white text-xs font-bold flex items-center justify-center shrink-0">{initiales}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold">{g.nom}</div>
                       <div className="text-xs text-gray-500">
-                        {typeAppareil(a.navigateur)} · vu{" "}
-                        <span className={ancien ? "text-amber-600 dark:text-amber-400" : ""}>{ilYA(a.vu, maintenant)}</span>
-                        {a.preparesQuand > 0 && <> · {a.preparesHorsLigne} chantier{a.preparesHorsLigne > 1 ? "s" : ""} prêt{a.preparesHorsLigne > 1 ? "s" : ""} hors ligne ({ilYA(a.preparesQuand, maintenant)})</>}
+                        {g.recents.length} accès actif{g.recents.length > 1 ? "s" : ""} · vu {ilYA(g.vu, maintenant)}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => relancer(a)}
-                      disabled={relance === a.appareil}
-                      className="inline-flex items-center gap-2 rounded-lg bg-[#1e3a5f] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                    >
-                      {relance === a.appareil ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                      Relancer
+                    {g.enRetard > 0
+                      ? <span className="rounded-full px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{g.enRetard} à mettre à jour</span>
+                      : g.recents.length > 0 && <span className="rounded-full px-2.5 py-1 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300">Tout à jour</span>}
+                    {g.attente > 0 && <span className="rounded-full px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300">{g.attente} en attente</span>}
+                  </header>
+                  <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {g.recents.map(ligne)}
+                    {voirAnciens && g.anciens.map(ligne)}
+                  </ul>
+                  {g.anciens.length > 0 && (
+                    <button type="button"
+                      onClick={() => setOuverts((prev) => { const n = new Set(prev); if (n.has(g.cle)) n.delete(g.cle); else n.add(g.cle); return n; })}
+                      className="mt-2 inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${voirAnciens ? "rotate-180" : ""}`} />
+                      {voirAnciens ? "Masquer" : "Voir"} {g.anciens.length} ancien{g.anciens.length > 1 ? "s" : ""} accès (sans nouvelles depuis plus de 3 jours — effacés après 14)
                     </button>
-                  </div>
-
-                  {(() => {
-                    const d = descriptionAppareil(a);
-                    const st = STATUTS[a.statutVersion] || STATUTS.inconnu;
-                    return (
-                      <div className="mb-2 text-xs text-gray-600 dark:text-gray-400 space-y-0.5" data-testid="appareil-version">
-                        <p className="flex flex-wrap items-center gap-2">
-                          <span className={`rounded-full px-2 py-0.5 font-semibold ${st.classe}`}>{st.texte}</span>
-                          <span>{d.appareil} · {d.natif}</span>
-                        </p>
-                        <p>
-                          Web : {libelleVersion(a.versionWeb) || (a.build ? `${a.build.slice(0, 7)} (ancienne page)` : ND)}
-                          {" · "}disponible : {libelleVersion(donnees.derniereDisponible) || ND}
-                        </p>
-                        <p>
-                          Mise à jour : {a.maj ? (ETATS_MAJ[a.maj.etat] || a.maj.etat) : ND}
-                          {" · "}dernière vérification : {a.maj?.verifieLe ? ilYA(a.maj.verifieLe, maintenant) : ND}
-                          {" · "}synchro : {a.enLigne ? "en ligne" : "hors ligne"}
-                        </p>
-                        {a.dernierEtatConnu && (
-                          <p className="text-amber-700 dark:text-amber-400">
-                            Dernier état connu · {new Date(a.vu).toLocaleString("fr-CH", { dateStyle: "short", timeStyle: "short" })}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {a.signalEnAttente && (
-                    <p className="text-xs text-amber-700 dark:text-amber-400 mb-2">
-                      Relance demandée {ilYA(a.signalEnAttente.requestedAt, maintenant)} — en attente de la prochaine ouverture du téléphone.
-                    </p>
-                  )}
-
-                  {enAttente === 0 ? (
-                    <p className="text-sm text-green-700 dark:text-green-400">Rien en attente.</p>
-                  ) : (
-                    <div className="text-sm space-y-1">
-                      {(a.photosEnAttente + a.photosEnEchec) > 0 && (
-                        <p className="flex items-center gap-2">
-                          <ImageIcon className="w-4 h-4 text-gray-400" />
-                          {a.photosEnAttente} envoi{a.photosEnAttente > 1 ? "s" : ""} de photos en attente
-                          {a.photosEnEchec > 0 && <span className="text-red-600 font-semibold">· {a.photosEnEchec} en échec</span>}
-                        </p>
-                      )}
-                      {a.requetesEnAttente > 0 && (
-                        <p className="flex items-center gap-2">
-                          <RefreshCw className="w-4 h-4 text-gray-400" />
-                          {a.requetesEnAttente} écriture{a.requetesEnAttente > 1 ? "s" : ""} en file (heures, rapports, signalements)
-                        </p>
-                      )}
-                      {a.rapportsNonEnvoyes.map((rp) => {
-                        const bloque = maintenant - rp.depuis > JOUR_MS;
-                        return (
-                          <p key={rp.projectId} className={`flex items-start gap-2 ${bloque ? "text-red-600 font-semibold" : ""}`}>
-                            <FileText className="w-4 h-4 shrink-0 mt-0.5 text-gray-400" />
-                            <span>
-                              Rapport{" "}
-                              <Link href={`/projet/${rp.projectId}`} className="underline">
-                                {noms[rp.projectId] || rp.projectId.slice(0, 8)}
-                              </Link>{" "}
-                              finalisé {ilYA(rp.depuis, maintenant)}, PDF non envoyé
-                              {rp.retenuPar > 0 ? ` — attend encore ${rp.retenuPar} envoi${rp.retenuPar > 1 ? "s" : ""}` : ""}
-                            </span>
-                          </p>
-                        );
-                      })}
-                    </div>
                   )}
                 </section>
               );

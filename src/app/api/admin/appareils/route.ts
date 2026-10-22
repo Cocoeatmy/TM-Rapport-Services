@@ -21,7 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { exigerDroit } from "@/lib/droits-serveur";
 import { sendPushToUser } from "@/lib/send-push";
 import {
-  CLE_SIGNAUX, DERNIER_ETAT_CONNU_MS, ecrireChamp, lireHash, listerAppareils, resumer, statutVersion, type SignalAppareil,
+  CLE_NOMS, CLE_SIGNAUX, DERNIER_ETAT_CONNU_MS, ecrireChamp, lireHash, listerAppareils, resumer, statutVersion, type SignalAppareil,
 } from "@/lib/appareils";
 import { COQUE_APPLE_MINIMUM } from "@/lib/coque-apple";
 import { versionCompilee } from "@/lib/version-web";
@@ -35,6 +35,7 @@ export async function GET() {
   const maintenant = Date.now();
   const appareils = await listerAppareils(maintenant);
   const signaux = await lireHash(CLE_SIGNAUX);
+  const noms = await lireHash(CLE_NOMS);
 
   /* La version que sert CE déploiement : la dernière disponible. */
   const disponible = versionCompilee();
@@ -48,6 +49,7 @@ export async function GET() {
       try { signal = signaux[a.appareil] ? JSON.parse(signaux[a.appareil]) : null; } catch { /* ignore */ }
       return {
         ...a,
+        surnom: noms[a.appareil] || null,
         signalEnAttente: signal && signal.requestedAt > a.vu ? signal : null,
         statutVersion: statutVersion(a, disponible, COQUE_APPLE_MINIMUM),
         dernierEtatConnu: maintenant - a.vu > DERNIER_ETAT_CONNU_MS,
@@ -60,9 +62,17 @@ export async function POST(request: NextRequest) {
   const v = await exigerDroit("administration.droits");
   if ("refus" in v) return v.refus;
 
-  let corps: { appareil?: string; action?: string };
+  let corps: { appareil?: string; action?: string; nom?: string };
   try { corps = await request.json(); } catch { return NextResponse.json({ error: "Requête illisible" }, { status: 400 }); }
   const appareil = String(corps.appareil || "").slice(0, 64);
+
+  /* Nommer un accès : « MacBook Pro », « iPad du dépôt ». Un nom vide
+     l'efface. Ce n'est qu'une étiquette pour le bureau. */
+  if (appareil && corps.action === "nommer") {
+    const nom = String(corps.nom || "").replace(/\s+/g, " ").trim().slice(0, 40);
+    await ecrireChamp(CLE_NOMS, appareil, nom);
+    return NextResponse.json({ ok: true, nom });
+  }
   if (!appareil || corps.action !== "relancer") {
     return NextResponse.json({ error: "appareil et action: \"relancer\" requis" }, { status: 400 });
   }

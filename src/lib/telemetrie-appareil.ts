@@ -37,8 +37,8 @@ import { lireEtat } from "./offline-prefetch";
 import { rapportsEnAttente, relancerEnvoisDifferes } from "./envois-differes";
 import { versionDuDocument, type VersionWeb } from "./version-web";
 import { etatMiseAJour } from "./etat-mise-a-jour";
-import { infosNatives, plateformeLocale, systemeNavigateur } from "./appareil-local";
-import type { Plateforme, SuiviNatif } from "./appareils";
+import { infosNatives, logicielLocal, plateformeLocale, systemeNavigateur } from "./appareil-local";
+import type { Logiciel, Plateforme, SuiviNatif } from "./appareils";
 
 const CLE_APPAREIL = "tm-appareil-id";
 const CLE_SIGNAL_VU = "tm-appareil-signal-vu";
@@ -77,6 +77,7 @@ export interface InstantaneAppareil {
   natif: SuiviNatif | null;
   plateforme: Plateforme;
   systemeNavigateur: string | null;
+  logiciel: Logiciel;
   maj: { etat: string; verifieLe: number | null };
 }
 
@@ -106,6 +107,7 @@ export async function instantane(build = ""): Promise<InstantaneAppareil> {
     natif: await infosNatives().catch(() => null),
     plateforme: plateformeLocale(),
     systemeNavigateur: systemeNavigateur(),
+    logiciel: logicielLocal(),
     maj: { etat: etatMiseAJour().etat, verifieLe: etatMiseAJour().derniereVerification },
   };
 }
