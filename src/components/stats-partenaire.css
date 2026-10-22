@@ -206,4 +206,10 @@ html[data-ui="signal"] .sgbx-factures em { font-style: normal; font-size: 11.5px
 
 /* Tuiles d'argent : le même cadenas que le bloc bexio — visibles par le
    propriétaire seul (22.10.2026). */
-html[data-ui="signal"] .sgpt-tuile-lib .sgpt-prive { width: 10px; height: 10px; margin-left: 5px; vertical-align: -1px; opacity: 0.55; }
+html[data-ui="signal"] .sgpt-tuile-lib .sgpt-prive { display: inline-block; width: 10px; height: 10px; margin-left: 5px; vertical-align: -1px; opacity: 0.55; }
+html[data-ui="signal"] .sgpt-tuile-lib:has(.sgpt-prive) { display: inline-flex; align-items: center; white-space: nowrap; }
+
+/* Le graphique suit la période : jusqu'à plusieurs années de mois. Les
+   libellés ne débordent pas sur la colonne voisine (23.10.2026). */
+html[data-ui="signal"] .sgpt-histo-lib { white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 100%; }
+html[data-ui="signal"] .sgpt-histo { gap: clamp(2px, 0.6vw, 6px); }

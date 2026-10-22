@@ -143,15 +143,31 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
     const avecMontant = periode.filter((p) => montantDe(p) > 0);
     const sav = periode.filter(aSav);
 
-    /* Douze mois glissants, mois courant compris : mesures (projets) et
-       montages (cabines), sur TOUS les projets du partenaire. */
-    const now = new Date();
-    const mois = Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
-      return { cle: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, lib: MOIS[d.getMonth()], an: d.getFullYear() };
-    });
     /* Toutes les cabines posées du partenaire, lot par lot, datées par l'app. */
     const posesTous: Pose[] = tous.flatMap((p) => posesDuChantier(p).map((l) => ({ ...l, p })));
+
+    /* Les mois du graphique SUIVENT LE FILTRE de la page (23.10.2026) : la
+       période choisie, mois par mois ; « Tout » = du premier mois connu au
+       mois courant. Il restait figé sur douze mois glissants. */
+    const now = new Date();
+    const cleMois = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const moisCourant = cleMois(now);
+    const premierConnu = [
+      ...posesTous.map((l) => l.date.slice(0, 7)),
+      ...tous.map((p) => jour(p.dateMesures).slice(0, 7)),
+    ].filter((x) => /^\d{4}-\d{2}$/.test(x)).sort()[0] || moisCourant;
+    const deMois = (bornes?.de || "").slice(0, 7) || premierConnu;
+    const aMois = (bornes?.a || "").slice(0, 7) || moisCourant;
+    const mois: { cle: string; lib: string; an: number }[] = [];
+    {
+      let [y, m] = deMois.split("-").map(Number);
+      const [ya, ma] = aMois.split("-").map(Number);
+      while ((y < ya || (y === ya && m <= ma)) && mois.length < 240) {
+        mois.push({ cle: `${y}-${String(m).padStart(2, "0")}`, lib: MOIS[m - 1], an: y });
+        m += 1; if (m > 12) { m = 1; y += 1; }
+      }
+      if (mois.length === 0) mois.push({ cle: moisCourant, lib: MOIS[now.getMonth()], an: now.getFullYear() });
+    }
     const dansPeriode = (d: string) => (!bornes?.de || d >= bornes.de) && (!bornes?.a || d <= bornes.a);
     const posesPeriode = posesTous.filter((l) => dansPeriode(l.date));
     const projetsPoses = [...new Set(posesPeriode.map((l) => l.p))];
@@ -168,11 +184,14 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
     });
     const pic = Math.max(1, ...parMois.map((m) => Math.max(m.cabines, m.mesures.length)));
     const an12 = parMois.reduce((n, m) => n + m.cabines, 0);
-    /* Les douze mois d'avant, pour la tendance. */
+    /* Tendance : contre la période de MÊME LONGUEUR juste avant. Sans
+       période (« Tout »), il n'y a rien à comparer. */
     const debut = `${mois[0].cle}-01`;
-    const avant = new Date(now.getFullYear(), now.getMonth() - 23, 1);
-    const debutAvant = `${avant.getFullYear()}-${String(avant.getMonth() + 1).padStart(2, "0")}-01`;
-    const an12Avant = posesTous.filter((l) => l.date >= debutAvant && l.date < debut).length;
+    const [y0, m0] = mois[0].cle.split("-").map(Number);
+    const avant = new Date(y0, m0 - 1 - mois.length, 1);
+    const debutAvant = `${cleMois(avant)}-01`;
+    const an12Avant = bornes?.de ? posesTous.filter((l) => l.date >= debutAvant && l.date < debut).length : 0;
+    const plusieursAnnees = mois[0].an !== mois[mois.length - 1].an;
 
     const parcours = [
       { lib: "Demandes", liste: periode.filter((p) => p.dateDemandeProjet) },
@@ -246,7 +265,7 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
       .sort((a, b) => jour(a.dateMontage).localeCompare(jour(b.dateMontage)))
       .slice(0, 6);
 
-    return { cabines, poses, cabinesPosees, montant, avecMontant, sav, parMois, pic, an12, an12Avant,
+    return { cabines, poses, cabinesPosees, montant, avecMontant, sav, parMois, pic, an12, an12Avant, plusieursAnnees,
       parcours, delais, delaiMax, qualite, signalements, series, lies, installateurs, equipe, prochains };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tous, periode, famille, defauts, bornes?.de, bornes?.a, montants]);
@@ -318,18 +337,18 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
 
       {voir("activite") && <section className="sgpt-carte sgpt-activite">
         <div className="sgpt-carte-tete">
-          <h3>Activité sur 12 mois</h3>
+          <h3>Activité <small>{libellePeriode}</small></h3>
           <p>
             <span className="sgpt-pastille is-montage" /> Cabines posées
             <span className="sgpt-pastille is-mesure" /> Mesures
             {tendance !== null && (
               <b className={tendance >= 0 ? "is-hausse" : "is-baisse"}>
-                {tendance >= 0 ? "▲" : "▼"} {Math.abs(tendance)} % sur un an
+                {tendance >= 0 ? "▲" : "▼"} {Math.abs(tendance)} % vs période précédente
               </b>
             )}
           </p>
         </div>
-        <div className="sgpt-histo">
+        <div className="sgpt-histo" style={{ gridTemplateColumns: `repeat(${s.parMois.length}, minmax(0, 1fr))` }}>
           {s.parMois.map((m) => (
             <button key={m.cle} type="button" className="sgpt-histo-mois"
               title={`${m.lib} ${m.an} : ${m.cabines} cabine(s) posée(s), ${m.mesures.length} mesure(s)`}
@@ -338,7 +357,7 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
                 <i className="is-montage" style={{ height: `${(m.cabines / s.pic) * 100}%` }}>{m.cabines > 0 && <em>{m.cabines}</em>}</i>
                 <i className="is-mesure" style={{ height: `${(m.mesures.length / s.pic) * 100}%` }} />
               </span>
-              <span className="sgpt-histo-lib">{m.lib}</span>
+              <span className="sgpt-histo-lib">{m.lib}{s.plusieursAnnees && (m.lib === MOIS[0] || m.cle === s.parMois[0].cle) ? ` ${String(m.an).slice(2)}` : ""}</span>
             </button>
           ))}
         </div>
