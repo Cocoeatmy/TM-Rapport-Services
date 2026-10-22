@@ -9574,18 +9574,8 @@ function ProjectPageContent({ id }: { id: string }) {
                       {project.ofrTM ? <p className="text-xs text-gray-500 truncate min-w-0 tm-ofr"><span className="tm-ofr-lib">OFR </span><span className="tm-ofr-n">{project.ofrTM}</span></p> : <span />}
                       <div className="flex items-center shrink-0">{actionButtons}</div>
                     </div>
-                    {isAdmin && (
-                      <div className="mt-1.5">
-                        <StatusDropdown
-                          project={project}
-                          mode="cmd"
-                          label="État – CMD"
-                          onUpdate={(field, value) => {
-                            setProject((prev) => prev ? { ...prev, [field]: value } : prev);
-                          }}
-                        />
-                      </div>
-                    )}
+                    {/* Dans le rapport, l'état CMD n'a plus sa place (22.10.2026) :
+                        il se règle depuis la fiche. L'en-tête reste court. */}
                   </>
                 )}
                 {/* Mode rapport : OFR + État – CMD + icônes sur une ligne. */}
