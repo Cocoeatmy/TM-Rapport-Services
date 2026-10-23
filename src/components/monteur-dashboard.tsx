@@ -1755,6 +1755,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
      propriétaire SEUL — ni les autres administrateurs, ni les employés
      (22.10.2026). Droits confirmés obligatoires. */
   const voitArgent = !!mesDroits && peut("argent.voir");
+  /* Vue « collaborateur » du tableau Signal : tout le monde SAUF Micael
+     (le propriétaire) — un autre administrateur aussi (23.10.2026). Tant que
+     les droits ne sont pas lus, un administrateur garde sa vue. */
+  const vueCollaborateur = restreint || (!!mesDroits && !voitArgent);
   const montantsProjets = useMontants();
   const facturationDe = (p: Project) => montantsProjets?.get(p.id)?.facturations ?? p.facturations;
   /** Charge et disponibilité de l'ÉQUIPE : « suivre l'activité de l'équipe ». */
@@ -4021,6 +4025,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           </div>
           </>)}
 
+          {/* Collaborateur : les rendez-vous DÉJÀ FIXÉS d'abord — c'est sa
+              journée — puis ce qui reste à planifier (23.10.2026). */}
+          {(() => {
+            const sectionAFixer = (
+              <>
           {/* À planifier */}
           <div className="sg-section">
             <div className="sg-section-head">
@@ -4053,7 +4062,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               ))}
             </div>
           </div>
-
+              </>
+            );
+            const sectionFixes = (
+              <>
           {/* Déjà fixés */}
           {/* Une seule tuile les réunissait tous : trente-six projets dans
               un chiffre, où un montage de la semaine et une prise de
@@ -4088,6 +4100,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               ))}
             </div>
           </div>
+              </>
+            );
+            return vueCollaborateur ? <>{sectionFixes}{sectionAFixer}</> : <>{sectionAFixer}{sectionFixes}</>;
+          })()}
 
           {/* L'état hors-ligne a quitté le tableau de bord pour la barre du
               haut (BoutonHorsLigne) : il l'encombrait, et disparaissait dès
@@ -5161,7 +5177,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               Ces onglets sont aussi la POIGNÉE de la grille : elle est repliée
               tant qu'aucun n'est choisi, et un second appui sur l'onglet
               ouvert la referme. */}
-          <div className="sg-cats">
+          {/* Les onglets de rangement (Tout, Le jour même…) : pour Micael
+              seul (23.10.2026). */}
+          {!vueCollaborateur && <div className="sg-cats">
             {SG_CATS.map((c) => {
               const ouvert = sgCat === c.id;
               return (
@@ -5182,7 +5200,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </button>
               );
             })}
-          </div>
+          </div>}
         </div>
       )}
 
@@ -5504,7 +5522,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             {/* Repliée tant qu'aucun filtre n'est ouvert — en thème Signal
                 seulement. Le mode édition la rouvre d'office : on ne range pas
                 des tuiles qu'on ne voit pas. */}
-            {(!isSignal || isEditMode || sgCat !== "") && (
+            {(!isSignal || isEditMode || (sgCat !== "" && !vueCollaborateur)) && (
             <div className={`dash-grid grid grid-cols-2 sm:grid-cols-6 gap-1.5 sm:gap-3 ${isEditMode ? "select-none" : ""}`}>
               {buttonOrder
                 .filter((id) => {
