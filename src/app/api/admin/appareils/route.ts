@@ -21,10 +21,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { exigerDroit } from "@/lib/droits-serveur";
 import { sendPushToUser } from "@/lib/send-push";
 import {
-  CLE_NOMS, CLE_SIGNAUX, DERNIER_ETAT_CONNU_MS, ecrireChamp, lireHash, listerAppareils, resumer, statutVersion, type SignalAppareil,
+  CLE_APPAREILS, CLE_NOMS, CLE_SIGNAUX, DERNIER_ETAT_CONNU_MS, ecrireChamp, lireHash, listerAppareils, resumer, statutVersion, supprimerChamp,
+  type EtatAppareil, type SignalAppareil,
 } from "@/lib/appareils";
 import { COQUE_APPLE_MINIMUM } from "@/lib/coque-apple";
 import { versionCompilee } from "@/lib/version-web";
+import { CLE_SESSIONS_REVOQUEES, oublierSessionsRevoquees } from "@/lib/revocation";
 
 export const dynamic = "force-dynamic";
 
@@ -47,8 +49,12 @@ export async function GET() {
     appareils: appareils.map((a) => {
       let signal: SignalAppareil | null = null;
       try { signal = signaux[a.appareil] ? JSON.parse(signaux[a.appareil]) : null; } catch { /* ignore */ }
+      /* L'identifiant de session reste au serveur : l'écran sait seulement
+         si l'accès peut être retiré. */
+      const { session, ...visible } = a;
       return {
-        ...a,
+        ...visible,
+        revocable: !!session,
         surnom: noms[a.appareil] || null,
         signalEnAttente: signal && signal.requestedAt > a.vu ? signal : null,
         statutVersion: statutVersion(a, disponible, COQUE_APPLE_MINIMUM),
@@ -72,6 +78,27 @@ export async function POST(request: NextRequest) {
     const nom = String(corps.nom || "").replace(/\s+/g, " ").trim().slice(0, 40);
     await ecrireChamp(CLE_NOMS, appareil, nom);
     return NextResponse.json({ ok: true, nom });
+  }
+  /* Retirer l'accès d'UN appareil (23.10.2026) : sa session est révoquée —
+     il est renvoyé à la connexion à sa prochaine requête, et doit se
+     reconnecter pour retrouver l'app. Ses données ne sont pas touchées. */
+  if (appareil && corps.action === "revoquer") {
+    const etats = await lireHash(CLE_APPAREILS);
+    let etat: EtatAppareil | null = null;
+    try { etat = etats[appareil] ? JSON.parse(etats[appareil]) as EtatAppareil : null; } catch { etat = null; }
+    if (!etat) return NextResponse.json({ error: "Appareil inconnu" }, { status: 404 });
+    if (!etat.session) {
+      return NextResponse.json({
+        error: "Cet appareil ne s'est pas encore signalé avec la nouvelle version : réessayez après sa prochaine ouverture de l'app.",
+      }, { status: 409 });
+    }
+    await ecrireChamp(CLE_SESSIONS_REVOQUEES, etat.session, JSON.stringify({
+      appareil, email: etat.email, nom: etat.nom, par: v.user.email, quand: Date.now(),
+    }));
+    oublierSessionsRevoquees();
+    await supprimerChamp(CLE_APPAREILS, appareil);
+    console.log(`[APPAREILS] accès retiré par ${v.user.email} : ${etat.nom} (${appareil})`);
+    return NextResponse.json({ ok: true });
   }
   if (!appareil || corps.action !== "relancer") {
     return NextResponse.json({ error: "appareil et action: \"relancer\" requis" }, { status: 400 });

@@ -9,7 +9,7 @@
  * Un fichier de route n'est pas un module d'utilitaires — Next restreint
  * ses exports — d'où cette bibliothèque à part.
  */
-import { redisEnabled, redisHGetAll, redisHSet } from "./redis-cache";
+import { redisEnabled, redisHDel, redisHGetAll, redisHSet } from "./redis-cache";
 import { memeVersion, normaliserVersion, versionNativePlusAncienne, type VersionWeb } from "./version-web";
 
 export const CLE_APPAREILS = "appareils";
@@ -33,6 +33,8 @@ export interface RapportNonEnvoye {
 
 export interface EtatAppareil {
   appareil: string;
+  /** La session (connexion) de cet appareil — pour lui retirer l'accès. */
+  session?: string;
   email: string;
   nom: string;
   role: string;
@@ -150,6 +152,13 @@ export async function ecrireChamp(cle: string, champ: string, valeur: string): P
     try { await redisHSet(cle, champ, valeur); return; } catch { /* repli */ }
   }
   (memoire[cle] ||= new Map()).set(champ, valeur);
+}
+
+export async function supprimerChamp(cle: string, champ: string): Promise<void> {
+  if (redisEnabled) {
+    try { await redisHDel(cle, champ); } catch { /* repli */ }
+  }
+  memoire[cle]?.delete(champ);
 }
 
 /** Pour les tests : repartir à vide. */

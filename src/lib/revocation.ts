@@ -61,3 +61,55 @@ export function oublierComptesDesactives(): void {
 export function _definirComptesDesactives(emails: string[] | null): void {
   memoire = emails ? { emails: new Set(emails.map((e) => e.toLowerCase())), expire: Date.now() + 60_000 } : null;
 }
+
+/* ── Sessions révoquées : l'accès d'UN appareil (23.10.2026) ─────────────
+   Désactiver coupe un compte entier. Pour retirer l'accès d'un seul appareil
+   (un téléphone perdu, un iPad prêté), on révoque SA session : chaque
+   connexion porte un identifiant (`sid`, posé à la connexion ; pour les
+   sessions d'avant, « v1:email:iat », l'instant de connexion, unique par
+   appareil). L'appareil révoqué est renvoyé à la page de connexion ; une
+   nouvelle connexion lui donne une nouvelle session. */
+export const CLE_SESSIONS_REVOQUEES = "sessions-revoquees";
+let memoireSessions: { ids: Set<string>; expire: number } | null = null;
+
+/** L'identifiant de session d'un jeton (déjà vérifié). */
+export function idSession(payload: { sid?: unknown; email?: unknown; iat?: unknown }): string {
+  if (typeof payload.sid === "string" && payload.sid) return payload.sid;
+  return `v1:${String(payload.email || "").toLowerCase()}:${Number(payload.iat) || 0}`;
+}
+
+/** Les sessions révoquées ; `null` = impossible de savoir (on laisse passer). */
+export async function sessionsRevoquees(): Promise<Set<string> | null> {
+  if (memoireSessions && Date.now() < memoireSessions.expire) return memoireSessions.ids;
+  if (!URL_REDIS || !JETON_REDIS) return null;
+  try {
+    const r = await fetch(URL_REDIS, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${JETON_REDIS}`, "Content-Type": "application/json" },
+      body: JSON.stringify(["HKEYS", CLE_SESSIONS_REVOQUEES]),
+      cache: "no-store",
+      signal: AbortSignal.timeout(1500),
+    });
+    if (!r.ok) throw new Error(`redis ${r.status}`);
+    const j = (await r.json()) as { result?: unknown };
+    const liste = Array.isArray(j.result) ? j.result : [];
+    memoireSessions = { ids: new Set(liste.map((e) => String(e))), expire: Date.now() + 20_000 };
+    return memoireSessions.ids;
+  } catch {
+    if (memoireSessions) {
+      memoireSessions = { ...memoireSessions, expire: Date.now() + 10_000 };
+      return memoireSessions.ids;
+    }
+    return null;
+  }
+}
+
+/** Après une révocation : relire tout de suite. */
+export function oublierSessionsRevoquees(): void {
+  memoireSessions = null;
+}
+
+/** Pour les tests. */
+export function _definirSessionsRevoquees(ids: string[] | null): void {
+  memoireSessions = ids ? { ids: new Set(ids), expire: Date.now() + 60_000 } : null;
+}

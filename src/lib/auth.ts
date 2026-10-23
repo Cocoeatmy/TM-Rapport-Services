@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import crypto from "crypto";
 import { getData, getDataFresh, setData } from "./kv-store";
 import { CLE_DESACTIVES, oublierComptesDesactives } from "./revocation";
+import { idSession, sessionsRevoquees } from "@/lib/revocation";
 
 export interface User {
   email: string;
@@ -314,8 +315,12 @@ export async function updateUserInfo(currentEmail: string, newName?: string, new
   });
 }
 
-export async function createToken(user: User): Promise<string> {
-  return new SignJWT({ email: user.email, name: user.name, role: user.role })
+/** `sid` : l'identifiant de la session (voir revocation) — gardé tel quel
+    au renouvellement, pour qu'une révocation suive l'appareil. */
+export async function createToken(user: User, sid?: string): Promise<string> {
+  const id = sid || (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
+  return new SignJWT({ email: user.email, name: user.name, role: user.role, sid: id })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("365d") // 1 an — session persistante sur mobile
@@ -327,6 +332,8 @@ export async function verifyToken(token: string): Promise<User | null> {
     const { payload } = await jwtVerify(token, cleDeSignature());
     // Une session signée ne suffit plus : le compte ne doit pas être désactivé.
     if (await compteDesactive(payload.email as string)) return null;
+    // … ni la session de CET appareil, révoquée.
+    if ((await sessionsRevoquees())?.has(idSession(payload))) return null;
     return {
       email: payload.email as string,
       name: payload.name as string,
@@ -347,6 +354,7 @@ export async function verifyTokenWithExpiry(
   try {
     const { payload } = await jwtVerify(token, cleDeSignature());
     if (await compteDesactive(payload.email as string)) return { user: null };
+    if ((await sessionsRevoquees())?.has(idSession(payload))) return { user: null };
     return {
       user: {
         email: payload.email as string,
@@ -366,3 +374,15 @@ export async function getUser(): Promise<User | null> {
   if (!token) return null;
   return verifyToken(token);
 }
+
+/** L'identifiant de session d'un jeton valide, sinon null. */
+export async function sessionDuJeton(token: string | undefined | null): Promise<string | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, cleDeSignature());
+    return idSession(payload);
+  } catch {
+    return null;
+  }
+}
+

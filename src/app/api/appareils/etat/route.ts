@@ -23,7 +23,7 @@
  * ce que cette instance a vu, et c'est dit dans la réponse.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { sessionDuJeton, verifyToken } from "@/lib/auth";
 import { redisEnabled } from "@/lib/redis-cache";
 import { CLE_APPAREILS, CLE_SIGNAUX, ecrireChamp, lireHash, validerSuivi, type EtatAppareil } from "@/lib/appareils";
 
@@ -57,6 +57,8 @@ export async function POST(request: NextRequest) {
 
   const etat: EtatAppareil = {
     appareil,
+    /* Sa session : c'est elle qu'on révoque pour retirer l'accès. */
+    session: (await sessionDuJeton(token)) || undefined,
     email: user.email,
     nom: user.name,
     role: user.role,

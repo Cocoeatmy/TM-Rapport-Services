@@ -20,13 +20,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Smartphone, Tablet, Laptop, Monitor, RefreshCw, Loader2, AlertTriangle, CheckCircle2,
-  Image as ImageIcon, FileText, Pencil, ChevronDown,
+  Image as ImageIcon, FileText, Pencil, ChevronDown, Trash2,
 } from "lucide-react";
 import type { VersionWeb } from "@/lib/version-web";
 
 interface RapportNonEnvoye { projectId: string; depuis: number; client: boolean; retenuPar: number }
 interface Appareil {
   appareil: string;
+  /** L'accès peut être retiré (sa session est connue du serveur). */
+  revocable?: boolean;
   nom: string;
   email: string;
   role: string;
@@ -216,6 +218,29 @@ export default function AppareilsPage() {
     }
   }
 
+  /* Retirer l'accès de CET appareil (23.10.2026) : il est renvoyé à la page
+     de connexion, et la personne doit se reconnecter pour s'en resservir.
+     Ses données (heures, photos, rapports) ne sont pas touchées. */
+  async function retirer(a: Appareil) {
+    const qui = `${a.surnom || plateforme(a)} de ${a.nom}`;
+    if (!window.confirm(`Retirer l'accès de ${qui} ?\n\nCet appareil sera déconnecté : ${a.nom} devra se reconnecter pour l'utiliser à nouveau. Rien n'est effacé.`)) return;
+    setRelance(a.appareil); setMessage(null); setErreur(null);
+    try {
+      const r = await fetch("/api/admin/appareils", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appareil: a.appareil, action: "revoquer" }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      setMessage(`Accès retiré : ${qui}. L'appareil devra se reconnecter.`);
+      charger();
+    } catch (e) {
+      setErreur(`Accès non retiré : ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setRelance(null);
+    }
+  }
+
   async function nommer(a: Appareil) {
     const nom = window.prompt(
       "Nom de cet accès (ex. « MacBook Pro », « Mac Studio », « iPad du dépôt »). Laisser vide pour l'effacer.",
@@ -345,6 +370,12 @@ export default function AppareilsPage() {
             >
               {relance === a.appareil ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               Relancer
+            </button>
+            <button type="button" onClick={() => void retirer(a)} disabled={relance === a.appareil || !a.revocable}
+              title={a.revocable ? "Retirer l'accès de cet appareil (il devra se reconnecter)" : "Disponible dès la prochaine ouverture de l'app sur cet appareil"}
+              aria-label="Retirer l'accès de cet appareil"
+              className="w-8 h-8 rounded-lg border border-red-200 dark:border-red-900/60 flex items-center justify-center text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-35">
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

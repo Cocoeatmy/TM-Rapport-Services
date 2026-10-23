@@ -15,7 +15,8 @@ function LoginForm() {
   /* Arrivé ici parce que le compte a été désactivé : on le dit, plutôt
      qu'un « mot de passe incorrect » qui ferait chercher ailleurs. */
   const [error, setError] = useState(
-    searchParams.get("desactive") === "1" ? "Ce compte a été désactivé. Contactez l'administrateur." : "",
+    searchParams.get("desactive") === "1" ? "Ce compte a été désactivé. Contactez l'administrateur."
+      : searchParams.get("revoque") === "1" ? "L'accès de cet appareil a été retiré. Reconnectez-vous pour continuer." : "",
   );
   const [loading, setLoading] = useState(false);
 

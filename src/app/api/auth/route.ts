@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticate, createToken, verifyTokenWithExpiry } from "@/lib/auth";
+import { authenticate, createToken, verifyTokenWithExpiry, sessionDuJeton } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 an en secondes
@@ -64,7 +64,8 @@ export async function GET(request: NextRequest) {
     const THIRTY_DAYS_SEC = 30 * 24 * 60 * 60;
     if (remainingSec < THIRTY_DAYS_SEC) {
       try {
-        const newToken = await createToken(user);
+        // Même session : une révocation de cet appareil reste valable.
+        const newToken = await createToken(user, (await sessionDuJeton(token)) || undefined);
         setAuthCookie(response, newToken);
       } catch {
         // Échec silencieux : le token actuel reste valide

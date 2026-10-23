@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { comptesDesactives } from "@/lib/revocation";
+import { comptesDesactives, idSession, sessionsRevoquees } from "@/lib/revocation";
 
 /* Aucune valeur de repli : avec un secret connu de tous, n'importe qui
    pourrait se fabriquer une session d'administrateur le jour où la vraie clé
@@ -62,9 +62,11 @@ export async function middleware(request: NextRequest) {
   }
 
   let email = "";
+  let session = "";
   try {
     const { payload } = await jwtVerify(token, secret);
     email = String(payload.email || "").toLowerCase();
+    session = idSession(payload);
   } catch {
     return NextResponse.redirect(new URL("/login", request.url));
   }
@@ -73,6 +75,18 @@ export async function middleware(request: NextRequest) {
      données restent intactes ; seul l'accès est coupé. Si la liste est
      illisible (panne Redis), on laisse passer : les routes qui vérifient la
      session relisent de toute façon la fiche du compte. */
+  /* Accès de CET appareil retiré depuis la page Appareils : on le renvoie à
+     la connexion (une nouvelle connexion ouvre une nouvelle session). */
+  const revoquees = await sessionsRevoquees();
+  if (session && revoquees?.has(session)) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Accès de cet appareil retiré" }, { status: 401 });
+    }
+    const reponse = NextResponse.redirect(new URL("/login?revoque=1", request.url));
+    reponse.cookies.delete("auth-token");
+    return reponse;
+  }
+
   const desactives = await comptesDesactives();
   if (email && desactives?.has(email)) {
     if (pathname.startsWith("/api/")) {

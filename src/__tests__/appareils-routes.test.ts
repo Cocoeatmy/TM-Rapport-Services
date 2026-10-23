@@ -19,7 +19,7 @@ vi.mock("@/lib/redis-cache", () => ({
   redisHGetAll: vi.fn(async () => ({})),
   redisHSet: vi.fn(async () => {}),
 }));
-vi.mock("@/lib/auth", () => ({ verifyToken: vi.fn(async () => compte) }));
+vi.mock("@/lib/auth", () => ({ verifyToken: vi.fn(async () => compte), sessionDuJeton: vi.fn(async () => "session-test") }));
 vi.mock("@/lib/droits-serveur", () => ({
   exigerDroit: vi.fn(async () =>
     admin ? { user: { email: "micael@tm.ch", name: "Micael", role: "admin" } }
@@ -240,5 +240,20 @@ describe("Versions et appareil", () => {
     expect(vue.derniereDisponible).toMatchObject({ deploiement: "dpl_COURANT" });
     expect(vue.coqueAppleMinimum).toBe("1.0");
     expect(vue.appareils[0].dernierEtatConnu).toBe(false);
+  });
+});
+
+describe("Retirer l'accès d'un appareil", () => {
+  it("révoque SA session, le retire de la liste, sans exposer l'identifiant", async () => {
+    await battre(etatNominal("tel-1"));
+    const avant = await (await bureau.GET()).json();
+    const ligne = avant.appareils.find((a: { appareil: string }) => a.appareil === "tel-1");
+    expect(ligne.revocable).toBe(true);
+    expect(ligne.session).toBeUndefined();
+
+    const r = await bureau.POST(poster("http://local/x", { appareil: "tel-1", action: "revoquer" }));
+    expect(r.status).toBe(200);
+    const apres = await (await bureau.GET()).json();
+    expect(apres.appareils.some((a: { appareil: string }) => a.appareil === "tel-1")).toBe(false);
   });
 });
