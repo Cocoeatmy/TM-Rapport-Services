@@ -25,6 +25,8 @@ const CLE_FACTURES = "bexio:factures5";
 const CLE_ACHATS = "bexio:achats1";
 const CLE_COMPTES = "bexio:comptes1";
 const CLE_SYNCHRO = "bexio:synchro";
+/** Date du (dernier) paiement de chaque facture réglée : { [id]: AAAA-MM-JJ }. */
+const CLE_PAIEMENTS = "bexio:paiements1";
 /** Un mois : la copie est refaite chaque nuit, ce plafond n'est qu'un filet. */
 const DUREE = 30 * 24 * 3600;
 /** Plafond imposé par bexio sur une page de résultats. */
@@ -174,6 +176,12 @@ export async function synchroniserBexio(): Promise<{ offres: number; factures: n
     id: c.id, no: c.account_no || "", nom: c.name || "",
   }));
 
+  /* Les dates de paiement, pour les délais de paiement par client. bexio ne
+     les donne qu'une facture à la fois : on ne demande que celles qu'on
+     n'a pas encore, par lots — la première nuit en rattrape une partie, les
+     suivantes le reste (23.10.2026). */
+  await completerPaiements(factures).catch((e) => console.warn("[bexio] paiements :", (e as Error).message));
+
   await siRedis(() => redisSetJSON(CLE_OFFRES, offres, DUREE));
   await siRedis(() => redisSetJSON(CLE_FACTURES, factures, DUREE));
   await siRedis(() => redisSetJSON(CLE_ACHATS, achats, DUREE));
@@ -242,3 +250,38 @@ export async function lireCopieBexio(forcer = false): Promise<CopieBexio> {
     le: new Date().toISOString(),
   };
 }
+
+/* ── Dates de paiement (23.10.2026) ───────────────────────────────────── */
+
+/** Les dates de paiement connues : { [id facture]: AAAA-MM-JJ }. */
+export async function lirePaiements(): Promise<Record<string, string>> {
+  const r = await siRedis(() => redisGetJSON<Record<string, string>>(CLE_PAIEMENTS));
+  return r?.valeur || {};
+}
+
+const LOT_PAIEMENTS = 200;
+
+/** Va chercher la date de paiement des factures réglées qu'on ne connaît pas encore. */
+export async function completerPaiements(factures: FactureBexio[]): Promise<number> {
+  const connus = await lirePaiements();
+  const manquants = factures
+    .filter((f) => f.total > 0 && f.restant <= 0.009 && !connus[String(f.id)])
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, LOT_PAIEMENTS);
+  if (manquants.length === 0) return 0;
+  let trouves = 0;
+  const parQuatre = async (debut: number) => {
+    for (let i = debut; i < manquants.length; i += 4) {
+      const f = manquants[i];
+      try {
+        const l = await bexioFetch<{ date?: string; value?: string | number }[]>(`/2.0/kb_invoice/${f.id}/payment`);
+        const dates = (Array.isArray(l) ? l : []).map((x) => String(x.date || "").slice(0, 10)).filter(Boolean).sort();
+        if (dates.length) { connus[String(f.id)] = dates[dates.length - 1]; trouves++; }
+      } catch { /* la nuit suivante réessaiera */ }
+    }
+  };
+  await Promise.all([0, 1, 2, 3].map(parQuatre));
+  await siRedis(() => redisSetJSON(CLE_PAIEMENTS, connus, 400 * 24 * 3600));
+  return trouves;
+}
+

@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-23T17:29:32.973Z",
+  "genereLe": "2026-10-23T21:08:54.022Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -320,6 +320,16 @@
       ]
     },
     {
+      "url": "/api/bexio/delais",
+      "type": "api",
+      "fichier": "src/app/api/bexio/delais/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
       "url": "/api/bexio/devis",
       "type": "api",
       "fichier": "src/app/api/bexio/devis/route.ts",
@@ -523,6 +533,16 @@
       "type": "api",
       "fichier": "src/app/api/crm/entry/route.ts",
       "niveau": "droit",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cron/alerte-envois",
+      "type": "api",
+      "fichier": "src/app/api/cron/alerte-envois/route.ts",
+      "niveau": "cron",
       "gardePage": false,
       "methodes": [
         "GET"

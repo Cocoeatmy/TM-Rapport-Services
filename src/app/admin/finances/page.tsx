@@ -19,7 +19,9 @@ import Link from "next/link";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
 import { coutHoraireDe, coutHoraire, HEURES_MOIS_DEFAUT } from "@/lib/cout-horaire";
 import { minutesDuChantier } from "@/lib/heures-chantier";
+import { minutesParPersonne } from "@/lib/heures-hommes";
 import { numerosTMClient } from "@/lib/montants-ofr";
+import { DelaisPaiementVue } from "@/components/delais-paiement-vue";
 import {
   ArrowLeft, Loader2, Save, CheckCircle2, TrendingUp, Wallet, Timer,
   PiggyBank, Users, Percent, Info, ReceiptText, Sparkles, X,
@@ -124,10 +126,11 @@ export default function FinancesPage() {
   /* Deux onglets plutôt qu'une page de plus : les indicateurs financiers
      posaient déjà ces questions, en attendant des chiffres qu'on n'avait pas.
      L'onglet se lit dans l'adresse, pour qu'un lien mène droit au bon. */
-  const [onglet, setOnglet] = useState<"indicateurs" | "ca">("indicateurs");
+  const [onglet, setOnglet] = useState<"indicateurs" | "ca" | "paiements">("indicateurs");
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("onglet");
     if (p === "ca") setOnglet("ca");
+    if (p === "paiements") setOnglet("paiements");
   }, []);
   const [enreg, setEnreg] = useState(false);
   const [enregOk, setEnregOk] = useState(false);
@@ -330,7 +333,15 @@ export default function FinancesPage() {
       .map((p) => {
         const cab = Number(p.nbCabines) || 0;
         const min = minutes(p);
-        const mo = (min / 60) * (tauxDe(p) ?? 0);
+        /* Main-d'œuvre : les heures de CHAQUE personne présente, à son
+           propre coût (23.10.2026) — deux monteurs pendant deux heures, ce
+           sont quatre heures payées. Équipe selon l'app (passages, heures,
+           monteur responsable). Présence sans nom : au coût moyen. */
+        const hh = minutesParPersonne(p);
+        const minHomme = Object.values(hh.parPersonne).reduce((a, b) => a + b, 0) + hh.sansNom;
+        const mo = Object.entries(hh.parPersonne)
+          .reduce((t, [nom, m2]) => t + (m2 / 60) * (coutHoraireDe(nom, vals) ?? tauxDefaut ?? tauxDe(p) ?? 0), 0)
+          + (hh.sansNom / 60) * (tauxDe(p) ?? 0);
         const achats = cab * (achat + acc + conso);
         const cout = mo + achats + dep;
         /* La recette vient de bexio quand elle existe : c'est le montant
@@ -351,6 +362,8 @@ export default function FinancesPage() {
           fournisseur: (p.fournisseurs || []).join(", ") || "Non renseigné",
           cabines: cab,
           minutes: min,
+          minutesHomme: minHomme,
+          grossiste: (p.grossistesNames || [])[0] || "Sans grossiste",
           coutMO: mo,
           cout,
           coutParCabine: cab > 0 ? cout / cab : 0,
@@ -359,7 +372,7 @@ export default function FinancesPage() {
       })
       .filter((l) => l.cabines > 0 && l.minutes > 0);
 
-    if (lignes.length === 0) return { lignes: [], moyenneCoutCabine: 0, parSerie: [], cible };
+    if (lignes.length === 0) return { lignes: [], moyenneCoutCabine: 0, parSerie: [], cible, parGrossiste: [], parFournisseur: [] };
 
     const moyenneCoutCabine =
       lignes.reduce((s2, l) => s2 + l.coutParCabine, 0) / lignes.length;
@@ -379,10 +392,29 @@ export default function FinancesPage() {
       }))
       .sort((a, b) => b.coutParCabine - a.coutParCabine);
 
+    /* Par grossiste et par fournisseur : qui rapporte, qui coûte du temps. */
+    const grouper = (cle: (l: (typeof lignes)[number]) => string) => {
+      const g = new Map<string, { n: number; recette: number; avecRecette: number; cout: number; minH: number }>();
+      for (const l of lignes) {
+        const k = cle(l);
+        const cur = g.get(k) || { n: 0, recette: 0, avecRecette: 0, cout: 0, minH: 0 };
+        cur.n += 1; cur.cout += l.cout; cur.minH += l.minutesHomme;
+        if (l.recette !== null) { cur.recette += l.recette; cur.avecRecette += 1; }
+        g.set(k, cur);
+      }
+      return [...g.entries()].map(([nom, v]) => ({
+        nom, chantiers: v.n, recette: v.avecRecette ? v.recette : null, cout: v.cout,
+        marge: v.avecRecette ? v.recette - v.cout : null,
+        margePct: v.avecRecette && v.recette > 0 ? ((v.recette - v.cout) / v.recette) * 100 : null,
+        chfHeure: v.avecRecette && v.minH > 0 ? v.recette / (v.minH / 60) : null,
+      })).sort((a, b) => (a.margePct ?? 999) - (b.margePct ?? 999));
+    };
     return {
       lignes: lignes.sort((a, b) =>
         (a.margePct ?? -a.coutParCabine) - (b.margePct ?? -b.coutParCabine)),
       moyenneCoutCabine, parSerie, cible,
+      parGrossiste: grouper((l) => l.grossiste),
+      parFournisseur: grouper((l) => l.fournisseur),
     };
   }, [chantiers, annee, n]);
 
@@ -632,11 +664,11 @@ export default function FinancesPage() {
       </div>
 
       <div className="flex gap-1.5 mb-4">
-        {([["indicateurs", "Indicateurs"], ["ca", "Chiffre d'affaires"]] as const).map(([k, l]) => (
+        {([["indicateurs", "Indicateurs"], ["ca", "Chiffre d'affaires"], ["paiements", "Paiements"]] as const).map(([k, l]) => (
           <button key={k} onClick={() => {
             setOnglet(k);
             const u = new URL(window.location.href);
-            if (k === "ca") u.searchParams.set("onglet", "ca"); else u.searchParams.delete("onglet");
+            if (k !== "indicateurs") u.searchParams.set("onglet", k); else u.searchParams.delete("onglet");
             window.history.replaceState(null, "", u.pathname + u.search);
           }}
             className={`text-xs font-medium px-4 py-2 rounded-xl transition-colors ${
@@ -645,7 +677,7 @@ export default function FinancesPage() {
         ))}
       </div>
 
-      {onglet === "ca" ? <CaVue /> : chargement ? (
+      {onglet === "paiements" ? <DelaisPaiementVue /> : onglet === "ca" ? <CaVue /> : chargement ? (
         <p className="flex items-center gap-2 text-sm text-gray-400 py-10">
           <Loader2 className="w-4 h-4 animate-spin" /> Chargement…
         </p>
@@ -906,6 +938,30 @@ export default function FinancesPage() {
                     Au-delà de +10 %, la série coûte plus cher que la moyenne à poser.
                   </p>
                 </div>
+
+                {/* Qui rapporte : par grossiste et par fournisseur (23.10.2026) */}
+                {([["Marge par grossiste", rentabilite.parGrossiste], ["Marge par fournisseur", rentabilite.parFournisseur]] as const).map(([titre, liste]) => (
+                  <div key={titre} className="mb-5">
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">{titre}</h3>
+                    <div className="space-y-1">
+                      {liste.map((g) => (
+                        <div key={g.nom} className="flex items-center gap-3 text-sm py-1.5 border-b border-gray-100 dark:border-gray-700/50">
+                          <span className="flex-1 min-w-0 truncate text-gray-700 dark:text-gray-300">{g.nom}</span>
+                          <span className="text-xs text-gray-400 w-20 text-right">{g.chantiers} chantier{g.chantiers > 1 ? "s" : ""}</span>
+                          <span className="text-xs text-gray-400 w-24 text-right" title="Recette (HT) par heure de travail payée">{g.chfHeure !== null ? `${Math.round(g.chfHeure)} CHF/h` : "—"}</span>
+                          <span className="font-semibold w-24 text-right text-gray-900 dark:text-gray-100">{g.marge !== null ? fmtCHF(g.marge) : "—"}</span>
+                          <span className={`text-xs font-semibold w-14 text-right ${g.margePct === null ? "text-gray-400" : g.margePct < 0 ? "text-red-600" : g.margePct < (rentabilite.cible ?? 20) ? "text-amber-600" : "text-green-600"}`}>
+                            {g.margePct !== null ? `${Math.round(g.margePct)}%` : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <p className="text-[11px] text-gray-400 -mt-3 mb-5">
+                  Main-d&apos;œuvre comptée par personne présente (deux monteurs = deux fois les heures), à son propre coût ;
+                  recette = montant bexio du chantier. Les moins rentables d&apos;abord.
+                </p>
 
                 {/* Chantiers, du moins rentable au plus rentable */}
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
