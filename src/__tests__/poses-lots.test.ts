@@ -20,10 +20,10 @@ describe("poses lot par lot (date de l'app, pas la Date montage Notion)", () => 
     ]);
   });
 
-  it("sans trace dans l'app : la Date montage Notion et l'équipe du chantier", () => {
+  it("sans trace dans l'app : la Date montage Notion, et AUCUNE équipe tirée de Notion", () => {
     const l = posesDuChantier({ etatCMD: "Terminé", nbCabines: 2, dateMontage: "2026-05-04T08:00", collaborateurs: "Claudio & Javier" });
     expect(l).toHaveLength(2);
-    expect(l[0]).toMatchObject({ date: "2026-05-04", equipe: ["Claudio", "Javier"] });
+    expect(l[0]).toMatchObject({ date: "2026-05-04", equipe: [] });
   });
 
   it("aucune date nulle part : le lot n'est pas placé", () => {
@@ -33,7 +33,7 @@ describe("poses lot par lot (date de l'app, pas la Date montage Notion)", () => 
 
 describe("équipe : toutes les écritures de liste", () => {
   it("virgule, &, + et « et » séparent les noms", () => {
-    const [l] = posesDuChantier({ etatCMD: "Terminé", nbCabines: 1, dateMontage: "2026-05-04", collaborateurs: "Javier, Miguel & Claudio + Jacobo et Loïc" });
+    const [l] = posesDuChantier({ etatCMD: "Terminé", nbCabines: 1, dateMontage: "2026-05-04", attributionCabines: "Cab1:Javier, Miguel & Claudio + Jacobo et Loïc" });
     expect(l.equipe).toEqual(["Javier", "Miguel", "Claudio", "Jacobo", "Loïc"]);
   });
 });

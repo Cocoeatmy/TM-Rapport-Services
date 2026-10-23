@@ -17,6 +17,7 @@
  */
 
 import { parseInterventions } from "@/lib/sav-interventions";
+import { equipeApp } from "@/lib/equipe-app";
 
 /** « Javier, Miguel », « A & B », « A + B », « A et B » → noms, sans doublon. */
 function listeDeNoms(brut?: string | null): string[] {
@@ -72,7 +73,9 @@ export function posesDuChantier(p: SourcePoseLots): LotPose[] {
   const departs = parLot(p.heureDepart);
   const monteurs = parLot(p.attributionCabines);
   const notion = String(p.dateMontage || "").slice(0, 10);
-  const equipeChantier = listeDeNoms(p.collaborateurs);
+  /* Repli : l'équipe vue par l'APP sur tout le chantier — jamais le champ
+     Notion « Collaborateurs montages » (23.10.2026, voir equipe-app). */
+  const equipeChantier = equipeApp(p);
 
   const out: LotPose[] = [];
   for (let lot = 1; lot <= n; lot++) {

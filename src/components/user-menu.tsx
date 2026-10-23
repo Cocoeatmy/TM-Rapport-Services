@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { BoutonHorsLigne } from "@/components/bouton-hors-ligne";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins, RefreshCcw, Database, Smartphone, Info
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins, RefreshCcw, Database, Smartphone, Info, Receipt
 } from "lucide-react";
 import { viderCachesDeLecture, viderCacheServiceWorker } from "@/lib/vider-caches";
 import { getQueue } from "@/lib/offline";
@@ -354,6 +354,18 @@ export function UserMenu() {
               >
                 <TrendingUp className="w-4 h-4" />
                 Indicateurs financiers
+              </button>
+            )}
+            {/* Facturation (chantiers sans facture, marge, délais de paiement) :
+                au propriétaire seul — et c'est son seul accès sur iPhone,
+                qui n'a pas la barre de gauche (23.10.2026). */}
+            {voitArgent && (
+              <button
+                onClick={() => { setOpen(false); router.push("/?mode=facturation"); }}
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              >
+                <Receipt className="w-4 h-4" />
+                Facturation
               </button>
             )}
             {user.role === "admin" && (

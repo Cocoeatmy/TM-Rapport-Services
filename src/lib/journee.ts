@@ -32,6 +32,7 @@ import {
   type Lieu, type Position,
 } from "@/lib/tournee";
 import { regionLabel, cantonOf } from "@/lib/swiss-cantons";
+import { equipeApp } from "@/lib/equipe-app";
 
 export interface LigneJournee {
   /** Monteur, ou « Ensemble » pour la ligne de synthèse. */
@@ -103,9 +104,10 @@ function lieuDe(p: Project, positions: Record<string, Position | null>): Lieu | 
 
 /** Monteurs nommés d'un projet ; vide pour « Team », dont on ignore l'effectif. */
 function monteurs(p: Project): string[] {
-  const brut = String(p.collaborateurs || "").trim();
-  if (!brut || /\bteams?\b/i.test(brut)) return [];
-  return brut.split("&").map((x) => x.trim()).filter(Boolean);
+  /* Selon l'APP seulement (voir equipe-app). */
+  const l = equipeApp(p);
+  if (l.some((x) => /\bteams?\b/i.test(x))) return [];
+  return l;
 }
 
 interface Journee {

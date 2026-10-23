@@ -22,6 +22,7 @@ import { minutesPointees, trajet, lieuDepot, type Position } from "@/lib/tournee
 import { regionLabel, cantonOf } from "@/lib/swiss-cantons";
 import { parseInterventions, minutesInterventions } from "@/lib/sav-interventions";
 import type { DefautsParProjet } from "@/lib/types-defaut";
+import { equipeApp } from "@/lib/equipe-app";
 
 const MORTS = new Set(["Annulé"]);
 
@@ -629,12 +630,10 @@ export function soloOuBinome(
        sur place, sinon le champ « Collaborateurs montages ». « Team » désigne
        l'équipe entière : on ne sait pas combien, on l'écarte plutôt que de
        deviner. */
-    const attr = String(p.attributionCabines || "");
-    const noms = attr
-      ? [...attr.matchAll(/Cab\d+\s*:\s*([^|]*)/g)].map((x) => x[1])
-      : [String(p.collaborateurs || "")];
-    const personnes = new Set(
-      noms.flatMap((v) => v.split("&").map((x) => x.trim()).filter(Boolean)));
+    /* Selon l'APP seulement (passages, heures, monteur responsable) —
+       « Collaborateurs montages » de Notion dit qui était prévu, pas qui
+       est venu (voir equipe-app). */
+    const personnes = new Set(equipeApp(p));
     if (personnes.size === 0) return;
     if ([...personnes].some((x) => /team/i.test(x))) return;
 

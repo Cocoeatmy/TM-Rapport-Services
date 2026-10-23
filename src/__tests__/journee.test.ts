@@ -13,7 +13,7 @@ const BASE = {
   id: "p", ofrTM: "TM-1", projet: "Duka - Lot A, Rue du Test 1 à 1400 Yverdon",
   adresseChantier: "Rue du Test 1, 1400 Yverdon-les-Bains, Suisse",
   etatCMD: "Terminé", typeServices: [], nbCabines: 1,
-  dateMontage: "2026-06-01", collaborateurs: "Miguel",
+  dateMontage: "2026-06-01", attributionCabines: "Cab1:Miguel",
   heureArrivee: "08:00", heureDepart: "12:00",
 } as unknown as Project;
 
@@ -36,14 +36,14 @@ describe("journée type", () => {
 
   it("compte un binôme comme deux journées, sur la même amplitude", () => {
     const solo = journeeType(jours(6), {}).ensemble!;
-    const duo = journeeType(jours(6, { collaborateurs: "Miguel & Claudio" }), {}).ensemble!;
+    const duo = journeeType(jours(6, { attributionCabines: "Cab1:Miguel & Claudio" }), {}).ensemble!;
     expect(duo.jours).toBe(solo.jours * 2);
     // La journée de CHACUN reste la même : on décrit une personne, pas un chantier.
     expect(duo.minutesJournee).toBe(solo.minutesJournee);
   });
 
   it("écarte « Team », dont on ignore l'effectif", () => {
-    expect(journeeType(jours(6, { collaborateurs: "Team TM" }), {}).ensemble).toBeNull();
+    expect(journeeType(jours(6, { attributionCabines: "Cab1:Team TM" }), {}).ensemble).toBeNull();
   });
 
   it("ne compte pas deux fois la liaison entre deux chantiers du même jour", () => {

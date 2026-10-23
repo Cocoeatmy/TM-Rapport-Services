@@ -24,6 +24,7 @@ import { filterByStatsDate, describeStatsRange, getRolling12Range, type StatsDat
 
 import { getTeamColor, getCollaboratorColor } from "@/lib/collaborators";
 import { useVoitArgent } from "@/lib/use-argent";
+import { equipeApp } from "@/lib/equipe-app";
 
 export type SignalStatsMonth = {
   mesures: number; cabines: number; montages: number; demontages: number;
@@ -329,7 +330,8 @@ export function SignalStats({
   const byCollab = useMemo(() => {
     const m = new Map<string, { cab: number; items: any[] }>();
     P.forEach((p) => {
-      const names = String(p.collaborateurs || "").split("&").map((n: string) => n.trim()).filter(Boolean);
+      /* Qui a TRAVAILLÉ, selon l'app — pas Notion (voir equipe-app). */
+      const names = equipeApp(p);
       if (names.length === 0) return;
       names.forEach((n: string) => {
         const cur = m.get(n) || { cab: 0, items: [] as any[] };
@@ -347,7 +349,7 @@ export function SignalStats({
   const byTeam = useMemo(() => {
     const m = new Map<string, { cab: number; items: any[] }>();
     P.forEach((p) => {
-      const label = String(p.collaborateurs || "").trim() || "Non attribué";
+      const label = equipeApp(p).join(" & ") || "Non attribué";
       const cur = m.get(label) || { cab: 0, items: [] };
       cur.cab += cabOf(p); cur.items.push(p);
       m.set(label, cur);
@@ -512,7 +514,7 @@ export function SignalStats({
       const dur = b - a;
       const cab = cabOf(p);
       totalMin += dur; totalCab += cab;
-      String(p.collaborateurs || "").split("&").map((n: string) => n.trim()).filter(Boolean)
+      equipeApp(p)
         .forEach((n: string) => {
           const cur = byC.get(n) || { min: 0, cab: 0 };
           cur.min += dur; cur.cab += cab;
@@ -658,7 +660,7 @@ export function SignalStats({
       attr.forEach((v) => splitNames(v).forEach((n) => tous.add(n)));
       if (tous.size) return [...tous];
     }
-    return splitNames(p?.collaborateurs || "");
+    return equipeApp(p || {});
   };
 
   /** Libellé d'ÉQUIPE d'une cabine : « Claudio & Micael », tel que saisi.
