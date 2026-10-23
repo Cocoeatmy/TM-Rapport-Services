@@ -107,13 +107,19 @@ export function CreateProjectButton() {
     }
   };
 
-  /* La barre du bas de l'app iPhone ouvre la même création. */
+  /* La barre du bas de l'app iPhone ouvre la même création. La demande est
+     GARDÉE tant que le rôle n'est pas confirmé : un « + » touché dès
+     l'ouverture de l'app arrivait avant la réponse de /api/auth et se
+     perdait — rien ne s'ouvrait (24.10.2026). */
+  const [demandee, setDemandee] = useState(false);
   useEffect(() => {
-    if (!isAdmin) return;
-    const ouvrir = () => setRapide(true);
+    const ouvrir = () => setDemandee(true);
     window.addEventListener("tm-nouveau-projet", ouvrir);
     return () => window.removeEventListener("tm-nouveau-projet", ouvrir);
-  }, [isAdmin]);
+  }, []);
+  useEffect(() => {
+    if (demandee && isAdmin) { setRapide(true); setDemandee(false); }
+  }, [demandee, isAdmin]);
 
   if (!isAdmin) return null;
 

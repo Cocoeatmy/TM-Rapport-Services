@@ -1145,8 +1145,8 @@ function getWeeklyHoursForCollab(projects: Project[], collabName: string): numbe
   sunday.setDate(monday.getDate() + 6);
   return getHoursForCollabInRange(
     projects, collabName,
-    monday.toISOString().split("T")[0],
-    sunday.toISOString().split("T")[0],
+    isoLocal(monday),
+    isoLocal(sunday),
   );
 }
 
@@ -1166,8 +1166,8 @@ function getDateRangeForFilter(
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
     return {
-      fromStr: monday.toISOString().split("T")[0],
-      toStr: sunday.toISOString().split("T")[0],
+      fromStr: isoLocal(monday),
+      toStr: isoLocal(sunday),
       label: "Cette semaine",
     };
   }
@@ -1177,8 +1177,8 @@ function getDateRangeForFilter(
     const lastDay = new Date(y, m, 0);
     const monthName = firstDay.toLocaleDateString("fr-CH", { month: "long", year: "numeric" });
     return {
-      fromStr: firstDay.toISOString().split("T")[0],
-      toStr: lastDay.toISOString().split("T")[0],
+      fromStr: isoLocal(firstDay),
+      toStr: isoLocal(lastDay),
       label: monthName.charAt(0).toUpperCase() + monthName.slice(1),
     };
   }
@@ -1205,8 +1205,14 @@ function fmtMin(min: number): string {
   return `${h}h ${m.toString().padStart(2, "0")}min`;
 }
 
+/* Le jour LOCAL, pas celui d'UTC : entre minuit et 2 h (heure suisse), le
+   tableau de bord affichait encore la veille comme « Aujourd'hui »
+   (24.10.2026). */
+function isoLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 function getTodayStr() {
-  return new Date().toISOString().split("T")[0];
+  return isoLocal(new Date());
 }
 
 /** Retourne la couleur du point de statut rapport ou null si rien à afficher.
@@ -1229,7 +1235,7 @@ function getWeekEndStr() {
   const today = new Date();
   const weekEnd = new Date(today);
   weekEnd.setDate(weekEnd.getDate() + 14);
-  return weekEnd.toISOString().split("T")[0];
+  return isoLocal(weekEnd);
 }
 
 function getThisWeekEndStr() {
@@ -1238,7 +1244,7 @@ function getThisWeekEndStr() {
   const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
   const sunday = new Date(today);
   sunday.setDate(today.getDate() + daysUntilSunday);
-  return sunday.toISOString().split("T")[0];
+  return isoLocal(sunday);
 }
 
 function formatDay(dateStr: string) {
@@ -2860,7 +2866,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // ── Demain : mêmes décomptes, pour la date du lendemain ───────────────────
   const tomorrowD = new Date(todayStr + "T12:00:00");
   tomorrowD.setDate(tomorrowD.getDate() + 1);
-  const tomorrowStr = tomorrowD.toISOString().split("T")[0];
+  const tomorrowStr = isoLocal(tomorrowD);
   const uniqueTomorrowProjects = uniqueWeekProjects.filter((p) => projectSpansDate(p, tomorrowStr));
   const tomorrowMontageProjects = uniqueTomorrowProjects.filter((p) => {
     const src = getProjectSource(p);
@@ -2890,7 +2896,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // ── Après-demain (J+2) : mêmes décomptes ──────────────────────────────────
   const afterD = new Date(todayStr + "T12:00:00");
   afterD.setDate(afterD.getDate() + 2);
-  const afterStr = afterD.toISOString().split("T")[0];
+  const afterStr = isoLocal(afterD);
   const uniqueAfterProjects = uniqueWeekProjects.filter((p) => projectSpansDate(p, afterStr));
   const afterMontageProjects = uniqueAfterProjects.filter((p) => {
     const src = getProjectSource(p);
@@ -9156,7 +9162,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               const now = new Date();
               const weekEnd = new Date(now);
               weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
-              const weekEndStr = weekEnd.toISOString().split("T")[0];
+              const weekEndStr = isoLocal(weekEnd);
 
               // Build a map of dateKey → projects, expanding multi-day projects
               const isSavPanel = showSummaryPanel === "sav-non-traites";

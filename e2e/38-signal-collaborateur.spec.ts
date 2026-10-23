@@ -19,10 +19,20 @@ const REFUSES_AU_COLLABORATEUR = new Set([
 
 const ROUTES_RESERVEES = ["/api/admin/appareils", "/api/bexio/signaux", "/api/controles", "/api/user-activity", "/api/relance/trace", "/api/absences"];
 
-function demain(): string {
-  const d = new Date(); d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+/* Le jour que le tableau de bord montre DÉPLIÉ, quel que soit le jour du
+   test : aujourd'hui en semaine, le lundi qui vient le week-end (« Mes
+   interventions » va du lundi au vendredi). Avec son titre dans l'agenda.
+   Le test fixait tout à « demain » : un vendredi, demain est un samedi, hors
+   de la semaine affichée — d'où des échecs selon le jour (23.10.2026). */
+function jourAffiche(): { iso: string; titre: string } {
+  const d = new Date();
+  const dow = d.getDay();
+  const ajout = dow === 6 ? 2 : dow === 0 ? 1 : 0;
+  d.setDate(d.getDate() + ajout);
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return { iso, titre: ["Aujourd'hui", "Demain", "Après-demain"][ajout] };
 }
+const demain = () => jourAffiche().iso;
 
 async function ouvrir(page: Page, context: BrowserContext, compte: typeof ADMIN, theme: "signal" | "classic") {
   await sansServiceWorker(context);
@@ -59,11 +69,13 @@ test.describe("thème Signal pour tous", () => {
     await expect(page.locator(".sg-card-title", { hasText: "Signaux" })).toHaveCount(0);
     await expect(page.getByText("Charge de la semaine")).toHaveCount(0);
     await expect(page.getByText("Disponibilité par collaborateur")).toHaveCount(0);
-    /* … ni les tuiles réservées, quand on ouvre la grille complète. */
-    await page.locator(".sg-cat", { hasText: "Tout" }).click();
-    await expect(page.locator(".dash-grid")).toBeVisible();
-    await expect(page.locator(".dash-grid").getByText("À facturer")).toHaveCount(0);
-    await expect(page.locator(".dash-grid").getByText("Monteurs actifs")).toHaveCount(0);
+    /* … ni les onglets de rangement (Tout, Le jour même…) ni leur grille de
+       tuiles : réservés à Micael depuis le 23.10.2026. */
+    await expect(page.locator(".sg-cats")).toHaveCount(0);
+    await expect(page.locator(".dash-grid")).toHaveCount(0);
+    /* « Déjà fixés » passe avant « À planifier » pour un collaborateur. */
+    const sections = await page.locator(".sg-section-head > span:first-child").allInnerTexts();
+    expect(sections.findIndex((t) => /déjà fixés/i.test(t))).toBeLessThan(sections.findIndex((t) => /à planifier/i.test(t)));
     /* … et les routes réservées ne sont même pas appelées. */
     await page.waitForTimeout(2000);
     /* Les LECTURES : « user-activity » reçoit aussi, en POST, le signe de vie
@@ -120,14 +132,22 @@ test.describe("thème Signal pour tous", () => {
       await page.goto("/", { waitUntil: "domcontentloaded" });
       await expect(page.locator(".sg-agenda")).toBeVisible({ timeout: 30_000 });
     }
+    /* La carte du jour : sur iPhone elle est repliée par défaut, on l'ouvre. */
+    const carteDuJour = (page: Page) =>
+      page.locator(".sg-agenda .sg-card", { has: page.locator(".sg-card-title", { hasText: new RegExp(`^${jourAffiche().titre}$`) }) });
+    const ouvrirCarte = async (page: Page) => {
+      const bouton = carteDuJour(page).locator(".sg-day-toggle");
+      if ((await bouton.count()) && (await bouton.getAttribute("aria-expanded")) === "false") await bouton.click();
+    };
     const ligneDemain = (page: Page, metier: string) =>
-      page.locator(".sg-agenda .sg-card", { has: page.locator(".sg-card-title", { hasText: /^Demain$/ }) }).locator(".sg-row", { hasText: metier }).locator(".sg-row-unit");
+      carteDuJour(page).locator(".sg-row", { hasText: metier }).locator(".sg-row-unit");
 
     test("Jacobo : son binôme et sa mesure, pas le chantier de Miguel", async ({ page, context }) => {
       await ouvrirAvec(page, context, MONTEUR);
-      await expect(ligneDemain(page, "Montages")).toHaveText("1 projet");
-      await expect(ligneDemain(page, "Mesures")).toHaveText("1 projet");
+      /* Un collaborateur n'a plus l'agenda de l'équipe (20.10.2026) : « Mes
+         interventions » le remplace — le jour affiché compte SES deux lignes. */
       const mes = page.locator(".sg-mes-interventions");
+      await expect(mes.getByRole("button", { name: new RegExp(`^${jourAffiche().titre}|^\\w+ 2 `) }).first()).toBeVisible();
       await expect(mes).toContainText("Binome Jacobo Claudio");
       await expect(mes).toContainText("Mesure de Jacobo");
       await expect(mes).not.toContainText("Chantier de Miguel");
@@ -135,8 +155,6 @@ test.describe("thème Signal pour tous", () => {
 
     test("Claudio : le même chantier en binôme, ni la mesure de Jacobo ni le chantier de Miguel", async ({ page, context }) => {
       await ouvrirAvec(page, context, CLAUDIO);
-      await expect(ligneDemain(page, "Montages")).toHaveText("1 projet");
-      await expect(ligneDemain(page, "Mesures")).toHaveText("—");
       const mes = page.locator(".sg-mes-interventions");
       await expect(mes).toContainText("Binome Jacobo Claudio");
       await expect(mes).not.toContainText("Mesure de Jacobo");
@@ -145,6 +163,7 @@ test.describe("thème Signal pour tous", () => {
 
     test("administrateur : toute l'activité", async ({ page, context }) => {
       await ouvrirAvec(page, context, ADMIN);
+      await ouvrirCarte(page);
       await expect(ligneDemain(page, "Montages")).toHaveText("2 projets");
       await expect(ligneDemain(page, "Mesures")).toHaveText("1 projet");
     });

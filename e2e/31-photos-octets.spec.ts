@@ -107,13 +107,18 @@ test.describe("les octets d'une photo survivent à la fermeture du navigateur", 
       contexte = null;
 
       /* ── Deuxième session, même profil ───────────────────────────────── */
+      /* La page se rouvre avec le réseau, mais AUCUN envoi ne peut partir :
+         on lit ce qui dort sur l'appareil sans qu'il se vide entre-temps.
+         (Rouvrir hors ligne exigeait que la page soit déjà en mémoire du
+         service worker — un autre sujet, couvert par 30-service-worker ; le
+         test échouait là, avant même de lire la photo. 23.10.2026) */
       contexte = await chromium.launchPersistentContext(profil, {
         viewport: { width: 390, height: 844 },
-        serviceWorkers: "allow",
-        offline: true,
+        serviceWorkers: "block",
       });
       page = contexte.pages()[0] ?? (await contexte.newPage());
       await brancherFixtures(page);
+      await page.route(/cloudinary|\/api\/upload|\/api\/photos\//, (r) => r.abort());
       await page.goto(`${BASE}/projet/${PROJET_ID}?mode=cmd`, { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2000);
 

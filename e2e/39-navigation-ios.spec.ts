@@ -86,8 +86,10 @@ test.describe("app iPhone", () => {
     await expect(page).toHaveURL(/mode=cmd/);
     /* Le retour vers la page en cartes, en tête de la liste. */
     await expect(page.locator(".tm-etats-retour", { hasText: "Services" })).toBeVisible();
-    /* Le sous-menu existant (Mesures / Montages / Services / SAV) est là. */
-    await expect(page.locator(".nav-sub-chip", { hasText: "Montages" })).toBeVisible();
+    /* Sur iPhone, plus de bande Mesures / Montages / Services / SAV sous
+       l'en-tête : elle faisait doublon avec le retour « ‹ Services »
+       (choix du 21.10.2026). */
+    await expect(page.locator(".nav-sub-chip", { hasText: "Montages" })).toHaveCount(0);
     expect(await marque(page)).toBe(1);
   });
 
@@ -111,7 +113,8 @@ test.describe("app iPhone", () => {
   test("administrateur : « + » ouvre la création existante ; Statistiques dans le profil", async ({ page, context }) => {
     await ouvrir(page, context, ADMIN);
     await barre(page).getByLabel("Nouveau projet").click();
-    await expect(page.locator(".fixed.inset-0.z-\\[200\\]")).toBeVisible({ timeout: 10_000 });
+    /* La création rapide en quatre étapes (20.10.2026), plus l'ancien formulaire. */
+    await expect(page.getByRole("dialog", { name: "Nouveau projet" })).toBeVisible({ timeout: 10_000 });
     await page.keyboard.press("Escape");
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1500);
