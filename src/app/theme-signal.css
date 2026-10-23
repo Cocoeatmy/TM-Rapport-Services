@@ -6486,3 +6486,6 @@ html[data-ui="signal"] .sg-appels-aide { font-size: 10.5px; color: var(--sg-text
     grid-template-columns: 50px 104px 80px minmax(0, 1fr) 116px 128px 26px;
   }
 }
+
+/* Ronds d'initiales de l'équipe, au bout du nom du projet (23.10.2026). */
+html[data-ui="signal"] .sg-pname .sg-pequipe { margin-left: 8px; vertical-align: -5px; white-space: nowrap; }

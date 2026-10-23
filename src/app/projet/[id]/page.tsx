@@ -58,6 +58,7 @@ import {
   Banknote,
   CloudUpload,
   Database,
+  UsersRound,
 } from "lucide-react";
 // MontageChecklist supprimée (section retirée)
 // GPS DÉSACTIVÉ — décommenter pour réactiver le pointage GPS automatique
@@ -144,6 +145,8 @@ import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine }
 import { addToQueue, avecSaisiesEnAttente, isOnline, offlineFetch } from "@/lib/offline";
 import { lectureFiable } from "@/lib/ecritures-projet";
 import { useVoitArgent } from "@/lib/use-argent";
+import { HistoriqueEquipe } from "@/components/historique-equipe";
+import type { SourceHistorique } from "@/lib/historique-equipe";
 /* Importé STATIQUEMENT, et non au moment de signer. Le chargement à la
    demande se déclenchait exactement quand le réseau manque : sans service
    worker pour servir le fragment depuis sa réserve, la signature ne pouvait
@@ -8918,6 +8921,8 @@ function ProjectPageContent({ id }: { id: string }) {
     { id: "cabines", label: "Informations cabines", Icon: Package, bg: "bg-sky-100/80 dark:bg-sky-900/30", fg: "text-sky-600 dark:text-sky-400" },
     { id: "mesures", label: "Documents & commentaires (Mesures / Montage)", Icon: Ruler, bg: "bg-teal-100/80 dark:bg-teal-900/30", fg: "text-teal-600 dark:text-teal-400" },
     { id: "commentaires", label: "Commentaires", Icon: MessageSquare, bg: "bg-amber-100/80 dark:bg-amber-900/30", fg: "text-amber-600 dark:text-amber-400" },
+    /* Qui a travaillé, qui est prévu, SAV et signalements (23.10.2026). */
+    { id: "equipe", label: "Équipe & historique", Icon: UsersRound, bg: "bg-fuchsia-100/80 dark:bg-fuchsia-900/30", fg: "text-fuchsia-600 dark:text-fuchsia-400" },
     { id: "fiche", label: "Fiche de travail", Icon: FileSpreadsheet, bg: "bg-indigo-100/80 dark:bg-indigo-900/30", fg: "text-indigo-600 dark:text-indigo-400" },
     { id: "rapport", label: "Rapport", Icon: ClipboardList, bg: "bg-emerald-100/80 dark:bg-emerald-900/30", fg: "text-emerald-600 dark:text-emerald-400" },
   ] as const;
@@ -9676,7 +9681,7 @@ function ProjectPageContent({ id }: { id: string }) {
             // Libellés courts (la maquette) + compteurs réels.
             const SHORT: Record<string, string> = {
               projet: "Projet", dates: "Dates", client: "Contact", cabines: "Cabines",
-              mesures: "Documents", commentaires: "Commentaires", fiche: "Fiche", rapport: "Rapport",
+              mesures: "Documents", commentaires: "Commentaires", equipe: "Équipe", fiche: "Fiche", rapport: "Rapport",
             };
             const badgeOf = (id: string): number => {
               if (id === "cabines") return cabines.length;
@@ -9685,7 +9690,7 @@ function ProjectPageContent({ id }: { id: string }) {
               return 0;
             };
             return tabDefs
-              .filter((t) => (t.id !== "fiche" || isAdmin) && (t.id !== "rapport" || isMac))
+              .filter((t) => ((t.id !== "fiche" && t.id !== "equipe") || isAdmin) && (t.id !== "rapport" || isMac))
               .map((t) => {
                 const on = macTabs.has(t.id);
                 const n = badgeOf(t.id);
@@ -9722,7 +9727,7 @@ function ProjectPageContent({ id }: { id: string }) {
         <div className="fixed left-2 z-30 flex flex-col gap-2" style={{ top: railTop }}>
           {/* Onglet « Fiche de travail » : admin uniquement pour l'instant. */}
           {(() => {
-            const tabs = tabDefs.filter((t) => t.id !== "fiche" || isAdmin);
+            const tabs = tabDefs.filter((t) => (t.id !== "fiche" && t.id !== "equipe") || isAdmin);
             const out: React.ReactNode[] = [];
             tabs.forEach((t) => {
               out.push(renderTabButton(t));
@@ -9743,7 +9748,7 @@ function ProjectPageContent({ id }: { id: string }) {
               d'un iPhone SE. Elles passent à la ligne plutôt que de sortir. */}
           <div className="flex flex-wrap justify-between items-center gap-y-2 pb-1">
             {(() => {
-              const tabs = tabDefs.filter((t) => t.id !== "rapport" && (t.id !== "fiche" || isAdmin));
+              const tabs = tabDefs.filter((t) => t.id !== "rapport" && ((t.id !== "fiche" && t.id !== "equipe") || isAdmin));
               const out: React.ReactNode[] = [];
               tabs.forEach((t) => {
                 out.push(renderTabButton(t));
@@ -9870,7 +9875,7 @@ function ProjectPageContent({ id }: { id: string }) {
             commentaires: nbComm ? `${nbComm} commentaire${nbComm > 1 ? "s" : ""}` : "Aucun commentaire",
             fiche: "Fiche de travail du chantier",
           };
-          const COURT: Record<string, string> = { projet: "Projet", dates: "Dates", client: "Contacts", cabines: "Cabines", mesures: "Documents", commentaires: "Commentaires", fiche: "Fiche de travail" };
+          const COURT: Record<string, string> = { projet: "Projet", dates: "Dates", client: "Contacts", cabines: "Cabines", mesures: "Documents", commentaires: "Commentaires", equipe: "Équipe", fiche: "Fiche de travail" };
           const TEINTE: Record<string, string> = { projet: "#1b63ff", dates: "#0e7490", client: "#7c3aed", cabines: "#0284c7", mesures: "#0d9488", commentaires: "#d97706", fiche: "#4f46e5" };
           const pastille: Record<string, number> = { cabines: totalCab, mesures: nbDocs, commentaires: nbComm };
           const ouvrir = (tid: string) => {
@@ -9901,7 +9906,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 </button>
               )}
               <div className="tm-pj-grille">
-                {tabDefs.filter((t) => t.id !== "rapport" && (t.id !== "fiche" || isAdmin)).map((t) => {
+                {tabDefs.filter((t) => t.id !== "rapport" && ((t.id !== "fiche" && t.id !== "equipe") || isAdmin)).map((t) => {
                   const on = macTabs.has(t.id);
                   const n = pastille[t.id] || 0;
                   return (
@@ -10623,6 +10628,11 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* === Commentaires Notion natifs === */}
         <div className={macHidden("commentaires") ? "!hidden" : ""}>
           <NotionComments projectId={id} onCountChange={setNotionCommentsCount} />
+        </div>
+
+        {/* === Équipe & historique : qui, quand, SAV, signalements === */}
+        <div className={!isTab || macHidden("equipe") ? "!hidden" : ""}>
+          {isTab && isAdmin && macTabs.has("equipe") && <HistoriqueEquipe projectId={id} projet={project as unknown as SourceHistorique} />}
         </div>
 
         </div>{/* fin colonne droite */}

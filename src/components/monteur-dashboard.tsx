@@ -50,6 +50,8 @@ import { useIsSignalTheme } from "@/lib/use-signal-theme";
 import { useDroits } from "@/lib/use-droits";
 import { champNomme, prenomDe } from "@/lib/perimetre-projets";
 import { useMontants } from "@/lib/use-argent";
+import { RondsEquipe } from "@/components/ronds-equipe";
+import { noms as nomsEquipe } from "@/lib/historique-equipe";
 
 /* Trois têtes : l'équipe complète (« Team », trois monteurs ou plus). */
 function IconeEquipe(props: React.SVGProps<SVGSVGElement>) {
@@ -8564,13 +8566,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 /* Le client en logo, au bout du titre : on
                                    reconnaît Dubat ou Duka avant de lire. */
                                 const logo = logoClientNoir(p.projet);
+                                /* Qui travaille dessus, en ronds d'initiales
+                                   (23.10.2026) : l'équipe de la nature de la
+                                   liste — mesures, SAV, ou montage/services. */
+                                const equipe = nomsEquipe(vueMesures ? p.mesuresTraiteePar
+                                  : vueSav ? (p.collaborateursSAV || p.collaborateurs) : p.collaborateurs);
+                                const ronds = equipe.length > 0 ? <RondsEquipe noms={equipe} taille={20} max={3} className="sg-pequipe" /> : null;
                                 return logo ? (
                                   <span className="sg-pname has-logo">
-                                    <span className="sg-pname-txt">{p.projet}</span>
+                                    <span className="sg-pname-txt">{p.projet}{ronds}</span>
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img className={`sg-plogo${logo.voile ? " is-voile" : ""}${logo.carre ? " is-carre" : ""}`} src={logo.src} alt="" aria-hidden="true" />
                                   </span>
-                                ) : <span className="sg-pname">{p.projet}</span>;
+                                ) : <span className="sg-pname">{p.projet}{ronds}</span>;
                               })()}
                               {etatSav ? (
                                 <EtatSavRapide
