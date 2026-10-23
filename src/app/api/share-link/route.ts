@@ -16,6 +16,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { notion, databaseId, mapPageToProject, getProject, fournisseursForDisplay, type ContactDetail } from "@/lib/notion";
+import { jetonCourt } from "@/lib/jeton-court";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -150,7 +151,15 @@ export async function GET(req: NextRequest) {
     const cartons = full.nbCartons != null ? String(full.nbCartons) : "";
     const notesLines: string[] = [];
     // Champs courts : titre en **gras** (double) + valeur sur la MÊME ligne.
-    const addField = (label: string, val?: string) => { if (val && val.trim()) notesLines.push(`**${label}** : ${val.trim()}`); };
+    /* Une valeur sur PLUSIEURS lignes (ex. N° CMD Grossiste : Client / TM /
+       Usine) passe tout entière SOUS le titre, une par ligne (23.10.2026). */
+    const addField = (label: string, val?: string) => {
+      const v = (val || "").trim();
+      if (!v) return;
+      const lignes = v.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+      if (lignes.length > 1) { notesLines.push(`**${label}** :`); notesLines.push(...lignes); }
+      else notesLines.push(`**${label}** : ${v}`);
+    };
     // Blocs multi-lignes : titre en **gras** (double), valeur sur la ligne
     // SUIVANTE, précédés d'une ligne vide de séparation.
     const addBlock = (label: string, val?: string) => {
@@ -213,8 +222,10 @@ export async function GET(req: NextRequest) {
       //    mesures » (route courte /m/<token> → sert les fichiers Notion). ──
       if (type === "mesures" && Array.isArray(full.documentsMesures) && full.documentsMesures.length) {
         notesLines.push("");
+        /* Lien COURT (jeton de 22 caractères) précédé d'une icône : le
+           Calendrier n'accepte pas de lien caché derrière un mot (texte brut). */
         notesLines.push("**Documents pour prise de mesures** :");
-        notesLines.push(`${origin}/m/${token}`);
+        notesLines.push(`📄 ${origin}/m/${jetonCourt(project.id)}`);
       }
 
       // ── Divers infos chantier (double **, précédé d'une ligne vide). ──

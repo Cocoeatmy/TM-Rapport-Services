@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getProject } from "@/lib/notion";
+import { idDepuisJeton } from "@/lib/jeton-court";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -24,7 +25,8 @@ function escapeHtml(s: string): string {
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   let id = "";
-  try { id = Buffer.from(token, "base64url").toString("utf8"); } catch {}
+  // Jeton court (22 caractères) ou ancien : les deux restent valables.
+  id = idDepuisJeton(token);
   if (!id) return new NextResponse("not found", { status: 404 });
 
   let docs: { name: string; url: string }[] = [];
