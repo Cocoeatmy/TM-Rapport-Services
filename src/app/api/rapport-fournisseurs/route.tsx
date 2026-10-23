@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
+import { estProprietaire } from "@/lib/droits-serveur";
 import ReactPDF, {
   Document, Page, Text, View, Image, StyleSheet,
 } from "@react-pdf/renderer";
@@ -25,10 +26,10 @@ function asciiFilename(s: string): string {
   return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[–—]/g, "-")
     .replace(/[^\x20-\x7E]/g, "").replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim();
 }
-async function isAuthed(req: NextRequest): Promise<boolean> {
+async function utilisateur(req: NextRequest) {
   const token = req.cookies.get("auth-token")?.value;
-  if (!token) return false;
-  try { return !!(await verifyToken(token)); } catch { return false; }
+  if (!token) return null;
+  try { return await verifyToken(token); } catch { return null; }
 }
 
 type Row = {
@@ -43,6 +44,8 @@ type Row = {
   /** Ligne pointée comme réglée dans l'app. */
   paye?: boolean;
   collaborateurs?: string;
+  /** Montant de l'offre (bexio), en CHF — imprimé pour le propriétaire seul. */
+  montant?: number | null;
 };
 type Payload = {
   title?: string;         // Titre du rapport (défaut "Rapport fournisseur")
@@ -52,6 +55,8 @@ type Payload = {
   periodLabel?: string;   // "Août 2026" | "Tout" | ...
   statusLabel?: string;   // filtre de statut éventuel
   rows?: Row[];
+  /** Colonne CHF + total : décidé par le SERVEUR (propriétaire seul). */
+  montants?: boolean;
 };
 
 const styles = StyleSheet.create({
@@ -74,6 +79,7 @@ const styles = StyleSheet.create({
   cCab: { width: 24, textAlign: "right", paddingRight: 4 },
   cEtat: { width: 84 },
   cPaye: { width: 34 },
+  cChf: { width: 58, textAlign: "right", paddingRight: 6 },
   refLine: { fontSize: 8, color: "#222" },
   refPrefix: { color: "#8a94a3", fontFamily: "Helvetica-Bold" },
   chip: { fontSize: 7, fontFamily: "Helvetica-Bold", color: "#1e3a5f", backgroundColor: "#eef2f7", borderRadius: 3, paddingVertical: 1.5, paddingHorizontal: 4, alignSelf: "flex-start" },
@@ -87,6 +93,12 @@ const styles = StyleSheet.create({
 function RapportFournisseursPDF({ data }: { data: Payload }) {
   const rows = data.rows || [];
   const totalCab = rows.reduce((s, r) => s + (Number(r.nbCabines) || 0), 0);
+  /* Montants des offres (bexio) : la colonne et le total, selon le filtre
+     appliqué dans l'app (23.10.2026). */
+  const avecChf = !!data.montants;
+  const chf = (n: number) => new Intl.NumberFormat("fr-CH", { maximumFractionDigits: 0 }).format(Math.round(n)).replace(/[\u202f\u00a0]/g, "'");
+  const totalChf = rows.reduce((s, r) => s + (Number(r.montant) || 0), 0);
+  const sansMontant = rows.filter((r) => !(Number(r.montant) > 0)).length;
   const generatedAt = new Date().toLocaleDateString("fr-CH", { day: "2-digit", month: "long", year: "numeric" });
   return (
     <Document>
@@ -125,6 +137,7 @@ function RapportFournisseursPDF({ data }: { data: Payload }) {
           <Text style={[styles.th, styles.cDate]}>Date</Text>
           <Text style={[styles.th, styles.cCab]}>Cab.</Text>
           <Text style={[styles.th, styles.cEtat]}>État</Text>
+          {avecChf && <Text style={[styles.th, styles.cChf]}>CHF</Text>}
           <Text style={[styles.th, styles.cPaye]}>Payé</Text>
         </View>
 
@@ -141,6 +154,7 @@ function RapportFournisseursPDF({ data }: { data: Payload }) {
             <Text style={[styles.td, styles.cDate]}>{nfc(r.date || "—")}</Text>
             <Text style={[styles.td, styles.cCab]}>{r.nbCabines ? String(r.nbCabines) : ""}</Text>
             <View style={styles.cEtat}>{r.etat ? <Text style={styles.chip}>{nfc(r.etat)}</Text> : null}</View>
+            {avecChf && <Text style={[styles.td, styles.cChf]}>{Number(r.montant) > 0 ? chf(Number(r.montant)) : "—"}</Text>}
             {/* Rien quand ce n'est pas payé : une case vide se repère mieux
                 qu'un « non » qu'il faudrait lire ligne après ligne. */}
             <View style={styles.cPaye}>{r.paye ? <Text style={styles.chipPaye}>Payé</Text> : null}</View>
@@ -163,8 +177,14 @@ function RapportFournisseursPDF({ data }: { data: Payload }) {
             <Text style={[styles.totalTxt, styles.cDate]}> </Text>
             <Text style={[styles.totalTxt, styles.cCab]}>{totalCab || ""}</Text>
             <Text style={[styles.totalTxt, styles.cEtat]}> cab.</Text>
+            {avecChf && <Text style={[styles.totalTxt, styles.cChf]}>{chf(totalChf)}</Text>}
             <Text style={[styles.totalTxt, styles.cPaye]}> </Text>
           </View>
+        )}
+        {avecChf && rows.length > 0 && (
+          <Text style={{ fontSize: 8, color: "#64748b", marginTop: 4, textAlign: "right" }}>
+            {`Total des offres : CHF ${chf(totalChf)}`}{sansMontant ? ` — ${sansMontant} projet${sansMontant > 1 ? "s" : ""} sans offre trouvée dans bexio` : ""}
+          </Text>
         )}
 
         <Text style={styles.footer} fixed
@@ -175,9 +195,15 @@ function RapportFournisseursPDF({ data }: { data: Payload }) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await isAuthed(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const user = await utilisateur(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   try {
     const data: Payload = await req.json();
+    /* L'argent n'est imprimé que pour le PROPRIÉTAIRE : pour tout autre
+       compte, les montants envoyés sont ignorés et la colonne n'existe pas. */
+    const proprio = await estProprietaire(user as { email?: string; role?: string });
+    data.montants = proprio && (data.rows || []).some((r) => typeof r.montant === "number");
+    if (!proprio) data.rows = (data.rows || []).map((r) => ({ ...r, montant: null }));
     const pdfStream = await ReactPDF.renderToStream(<RapportFournisseursPDF data={data} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf

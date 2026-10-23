@@ -36,6 +36,7 @@ import { NouveauProjet } from "@/components/nouveau-projet";
 import { AccueilCrm, AccueilLogos, AccueilServices } from "@/components/accueils-rubriques";
 import "./accueils.css";
 import { useMontants, useVoitArgent } from "@/lib/use-argent";
+import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
 import { useDroits } from "@/lib/use-droits";
 
 /* La pastille de chaque état de commande, dans les cartes de « Projets en
@@ -1267,6 +1268,10 @@ function HomePage() {
   /* L'argent : au propriétaire seul (22.10.2026) — droits confirmés. */
   const voitArgent = useVoitArgent();
   const droitsCharges = !!useDroits().mes;
+  /* Montants des offres bexio (par n° OFR TM) — le serveur ne les donne
+     qu'au propriétaire. Affichés dans la vue Fournisseurs (23.10.2026). */
+  const { actif: ofrActif, montant: montantOfr } = useMontantsOFR();
+  const voitMontants = voitArgent && ofrActif;
   const montantsProjets = useMontants();
   useEffect(() => {
     if (droitsCharges && !voitArgent && mode === "a-facturer") setMode("dashboard" as Mode);
@@ -3016,6 +3021,9 @@ function HomePage() {
                 nbCabines: p.nbCabines || 0,
                 etat: fTypeEtat(p) || "",
                 paye: fEstPaye(p),
+                /* Montant de l'offre (bexio) : le serveur ne l'imprime que
+                   pour le propriétaire. */
+                ...(voitMontants ? { montant: montantOfr(p.ofrTM) } : {}),
                 collaborateurs: p.collaborateurs || "",
               })),
             };
@@ -3150,6 +3158,11 @@ function HomePage() {
                 </div>
                 <p className="text-sm text-gray-500 mb-3">
                   {fournisseursFiltered.length} projet{fournisseursFiltered.length !== 1 ? "s" : ""}{" · "}{fournisseursFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cabine{fournisseursFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
+                  {voitMontants && (
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                      {" · "}CHF {francsCourts(fournisseursFiltered.reduce((sum, p) => sum + (montantOfr(p.ofrTM) || 0), 0))}
+                    </span>
+                  )}
                 </p>
                 {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
                 {/* Lignes compactes (même esthétique que « RDV Montage à fixer ») */}
@@ -3202,6 +3215,10 @@ function HomePage() {
                               <Calendar className="w-3 h-3 shrink-0" />{fTypeLbl} : {fTypeD ? formatDateFR(fTypeD) : "—"}
                             </span>
                             {!!project.nbCabines && <span>{project.nbCabines} cab.</span>}
+                            {voitMontants && (() => {
+                              const m = montantOfr(project.ofrTM);
+                              return m ? <span className="font-semibold text-emerald-700 dark:text-emerald-400 whitespace-nowrap" title="Montant de l'offre (bexio)">CHF {francsCourts(m)}</span> : null;
+                            })()}
                             {/* N° de service du fournisseur : ce qui permet de
                                 pointer la ligne sur la facture reçue. Il se lit
                                 avec le reste de l'identité du chantier, pas à
