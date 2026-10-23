@@ -205,6 +205,8 @@ import { ContactsProjet } from "@/components/signal-preview";
 const MESSAGE_PASSAGE_FIGE =
   "Ce passage est daté d'un jour écoulé : ses heures ne se modifient plus. Ajoutez un passage pour l'intervention du jour.";
 
+/* `isAdmin` = le PROPRIÉTAIRE (Micael) seul depuis le 23.10.2026 : un autre
+   administrateur ne retouche pas non plus un passage d'un jour écoulé. */
 function passageFige(date: string | null | undefined, aujourdhui: string, isAdmin: boolean): boolean {
   if (isAdmin) return false;
   const d = String(date || "").slice(0, 10);
@@ -6019,7 +6021,11 @@ function ProjectPageContent({ id }: { id: string }) {
         const u = { ...c };
         // Jour du montage : celui de la photo, à défaut aujourd'hui.
         if (!u.date) u.date = capture.jour || todayStr;
-        if (!estSousTraite) {
+        /* Un lot déjà daté d'un AUTRE jour que la photo garde ses heures :
+           une photo d'aujourd'hui ne réécrit jamais le passage d'hier
+           (TM-2600933, 23.10.2026). */
+        const autreJour = !!capture.jour && !!u.date && u.date !== capture.jour;
+        if (!estSousTraite && !autreJour) {
           const jourRef = u.date || todayStr;
           /* Arrivée et départ corrigés par la PRISE DE VUE (voir
              corrigerCoupleParPhoto) — et jamais un départ avant l'arrivée. */
@@ -6109,15 +6115,27 @@ function ProjectPageContent({ id }: { id: string }) {
       // qu'on uploadait une photo). On remplit la 1re intervention sans heure.
       /* Le passage visé est celui du JOUR de la photo ; à défaut le premier
          sans arrivée (photo d'avant) ou sans départ (photo de fin). */
-      let i = pointages.map((p, k) => (p.date === (capture.jour || todayStr) ? k : -1)).filter((k) => k >= 0).pop() ?? -1;
-      if (i < 0) i = bucket === "AVANT_INTERVENTION" ? pointages.findIndex((p) => !p.arrivee) : fin ? pointages.findIndex((p) => !p.depart) : -1;
+      /* Le passage visé est celui du JOUR DE LA PHOTO, et jamais un autre :
+         TM-2600933 (23.10.2026), les photos du montage du 23.10 avaient écrit
+         leurs heures dans le passage du DÉMONTAGE du 12.10, repris « faute de
+         mieux » parce qu'il n'avait pas d'heures. Pas de passage ce jour-là ?
+         On en ouvre un — seul un passage SANS date peut être adopté. */
+      const jourPhoto = capture.jour || todayStr;
+      let i = pointages.map((p, k) => (p.date === jourPhoto ? k : -1)).filter((k) => k >= 0).pop() ?? -1;
+      if (i < 0) i = pointages.findIndex((p) => !p.date);
+      let liste = pointages;
+      if (i < 0 && (bucket === "AVANT_INTERVENTION" || fin)) {
+        liste = [...pointages, { date: jourPhoto, collaborateur: equipeDuJour(project?.collaborateurs, userCollab), arrivee: "", depart: "" }];
+        i = liste.length - 1;
+      }
       if (i >= 0 && (bucket === "AVANT_INTERVENTION" || fin)) {
-        const pt = pointages[i];
+        const pt = liste[i];
         const jourRef = pt.date || capture.jour || todayStr;
         const r = corrigerCoupleParPhoto({ arrivee: pt.arrivee || "", depart: pt.depart || "" }, capture, bucket, jourRef, preuvesDuPassage(undefined, jourRef));
         if (r.arrivee !== (pt.arrivee || "") || r.depart !== (pt.depart || "")) {
-          setPointages((prev) => prev.map((p, k) => (k === i
-            ? { ...p, arrivee: r.arrivee, depart: r.depart, date: p.date || capture.jour || todayStr }
+          const nouveau = liste !== pointages;
+          setPointages((prev) => (nouveau ? [...prev, liste[i]] : prev).map((p, k) => (k === i
+            ? { ...p, arrivee: r.arrivee, depart: r.depart, date: p.date || jourPhoto }
             : p)));
           if (r.depart && r.depart !== (pt.depart || "")) direDepart(r.depart);
           scheduleAutoSave();
@@ -6274,7 +6292,7 @@ function ProjectPageContent({ id }: { id: string }) {
     /* Un passage d'un jour écoulé ne bouge plus : le refus se fait ici, pour
        qu'aucun chemin — clavier, sélecteur de date — ne le contourne. */
     const refuse = (idx: number) => {
-      if (!passageFige(liste[idx]?.date, today, isAdmin)) return false;
+      if (!passageFige(liste[idx]?.date, today, voitArgent)) return false;
       toast.error(MESSAGE_PASSAGE_FIGE);
       return true;
     };
@@ -6289,7 +6307,7 @@ function ProjectPageContent({ id }: { id: string }) {
       <div className="space-y-3">
         <Label>Interventions</Label>
         {liste.map((entry, idx) => (
-          <BlocFige key={idx} fige={passageFige(entry.date, today, isAdmin)}>
+          <BlocFige key={idx} fige={passageFige(entry.date, today, voitArgent)}>
           <div className="p-3 bg-gray-50 dark:bg-slate-800 rounded-xl space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-500">Intervention {idx + 1}</span>
@@ -6455,7 +6473,7 @@ function ProjectPageContent({ id }: { id: string }) {
         depart: parseCabineTextMulti(project?.heureDepartSav || "")[idx + 1] || "",
       }}
       aujourdhui={today}
-      isAdmin={isAdmin}
+      isAdmin={voitArgent}
       onEnregistrer={(suivante) => {
         const dernier = dernierPassage(suivante) || suivante[suivante.length - 1] || null;
         /* Les quatre colonnes historiques gardent le DERNIER passage : tout ce
@@ -6511,7 +6529,7 @@ function ProjectPageContent({ id }: { id: string }) {
         depart: cabines[idx]?.depart || "",
       }}
       aujourdhui={today}
-      isAdmin={isAdmin}
+      isAdmin={voitArgent}
       onEnregistrer={(suivante) => {
         const dernier = dernierPassage(suivante) || suivante[suivante.length - 1] || null;
         /* L'attribution du lot — ce que lisent le tableau de bord, la charge
@@ -11230,7 +11248,7 @@ function ProjectPageContent({ id }: { id: string }) {
               {showHeuresCard && <CardContent className="space-y-4">
                 {/* Mode simple (1 cabine) */}
                 {!isMultiDay && (
-                  <BlocFige fige={passageFige(project?.dateMontage, today, isAdmin)}>
+                  <BlocFige fige={passageFige(project?.dateMontage, today, voitArgent)}>
                   <SiteTimer
                     projectId={project.id}
                     heureArrivee={heureArrivee}
@@ -11298,7 +11316,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       </button>
                     </div>
                     {pointages.map((entry, idx) => {
-                      const fige = passageFige(entry.date, today, isAdmin);
+                      const fige = passageFige(entry.date, today, voitArgent);
                       /* Même règle que partout : un passage daté d'un jour
                          écoulé se lit, ne se retouche plus. */
                       const refuse = () => { if (!fige) return false; toast.error(MESSAGE_PASSAGE_FIGE); return true; };

@@ -7,6 +7,7 @@ import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
 import { onStatusChange } from "@/lib/projets-cache";
 import { besoinDeFusion, fusionnerAvecExistant } from "@/lib/fusion-cabines";
 import { sansArgent } from "@/lib/argent-projets";
+import { COLONNES_DATEES, limitePassages, protegerPassages } from "@/lib/passages-verrou";
 import { estProprietaire } from "@/lib/droits-serveur";
 import { getUser } from "@/lib/auth";
 
@@ -133,6 +134,30 @@ export async function PATCH(
     // Ne pas transmettre ces champs de contrôle à updateProject.
     delete body.clearAttributionCabs;
     delete body.nomsCabinesForces;
+
+    /* ── LES PASSAGES D'UN JOUR ÉCOULÉ NE SE RÉÉCRIVENT PAS ──────────────
+       (TM-2600933, 23.10.2026 : le démontage du 12.10 avait reçu les heures
+       du montage du 23.10.) Seul le propriétaire y échappe ; pour tous les
+       autres, chaque passage daté d'avant la limite est rétabli tel qu'en
+       base — les heures du jour, elles, passent. */
+    const colonnesTouchees = COLONNES_DATEES.filter((c) => typeof body[c] === "string");
+    if (colonnesTouchees.length > 0 && !(await estProprietaire(await getUser()))) {
+      let base = existantPourHeures as Record<string, unknown> | null;
+      if (!base) {
+        try { base = (await getProject(id)) as unknown as Record<string, unknown>; } catch { base = null; }
+        existantPourHeures = base;
+      }
+      if (base) {
+        const limite = limitePassages(request.headers.get("x-tm-saisi-le"));
+        let touches = 0;
+        for (const c of colonnesTouchees) {
+          const r = protegerPassages(c, String(base[c] || ""), String(body[c]), limite);
+          if (r.touches > 0) body[c] = r.valeur; // sinon : intact, au caractère près
+          touches += r.touches;
+        }
+        if (touches > 0) console.warn(`[PATCH /api/projects/${id}] ${touches} passage(s) d'avant le ${limite} rétabli(s) — réservé au propriétaire`);
+      }
+    }
 
     /* ── UN DÉPART NE PRÉCÈDE PAS UNE ARRIVÉE ───────────────────────────
        Le 16 octobre 2026, un rapport est parti chez le client en annonçant

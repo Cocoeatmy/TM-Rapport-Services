@@ -547,7 +547,12 @@ async function passeDeFile(): Promise<{ success: number; failed: number; skipped
     try {
       const options: RequestInit = {
         method: item.method,
-        headers: item.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+        /* Le moment RÉEL de la saisie : le serveur protège les passages des
+           jours écoulés, et une saisie d'hier rejouée ce matin doit garder
+           le droit qu'elle avait hier (voir passages-verrou). */
+        headers: item.body !== undefined
+          ? { "Content-Type": "application/json", "x-tm-saisi-le": String(item.timestamp || "") }
+          : undefined,
         body: item.body !== undefined ? JSON.stringify(item.body) : undefined,
       };
 

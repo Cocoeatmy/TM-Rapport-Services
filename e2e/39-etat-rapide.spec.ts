@@ -29,9 +29,14 @@ test("état cliquable, enregistré dans Notion, et tous les états en filtre", a
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(".sg-tile", { hasText: "RDV Mesures à fixer" }).first().click();
 
-  /* Tous les états de la colonne, en filtre. */
-  for (const e of ["Pas contacté", "Mesures partielles", "Projet sans mesures", "Terminé"]) {
+  /* Les états de la colonne, en filtre — sauf ceux retirés des listes
+     Mesures à la demande de Micael (« Projet sans mesures », « Terminé »,
+     « Annulé »… voir PASTILLES_RETIREES) et « RDV - Fixé » (23.10.2026). */
+  for (const e of ["Pas contacté", "Mesures partielles"]) {
     await expect(page.locator(".sg-chips .sg-chip", { hasText: e }).first()).toBeVisible({ timeout: 15_000 });
+  }
+  for (const e of ["Projet sans mesures", "Terminé", "RDV - Fixé"]) {
+    await expect(page.locator(".sg-chips .sg-chip", { hasText: e })).toHaveCount(0);
   }
 
   /* La pastille de la ligne : un clic, le menu des états, un choix. */
