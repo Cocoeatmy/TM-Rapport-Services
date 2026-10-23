@@ -2390,7 +2390,7 @@ export function SignalStats({
           </div>
 
           <Fold title="Signalements par livraison"
-            meta="défauts d'usine, dommages de transport et pièces manquantes, en nombre"
+            meta="défauts d'usine, dommages de transport et pièces manquantes"
             right={
               <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
                 <button type="button" className={axeDegats === "marque" ? "is-on" : ""} onClick={() => setAxeDegats("marque")}>Marque</button>

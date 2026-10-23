@@ -414,7 +414,7 @@ export function StatsPartenaire({ tous, periode, famille, nom, libellePeriode, o
         </section>}
 
         {voir("signalements") && s.signalements && <section className="sgpt-carte">
-          <h3>Signalements <small>en nombre</small></h3>
+          <h3>Signalements</h3>
           <ul className="sgpt-qualite">
             {s.signalements.map((q) => (
               <li key={q.lib}>
