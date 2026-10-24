@@ -143,6 +143,7 @@ import { equipeDuJour, nomsAProposer, equipeDesPassages, listeDeNoms } from "@/l
 import { fusionnerPassage } from "@/lib/passage-lot";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, avecSaisiesEnAttente, isOnline, offlineFetch } from "@/lib/offline";
+import { reprendreDictees, type EtatAjout } from "@/lib/dictees";
 import { lectureFiable } from "@/lib/ecritures-projet";
 import { useVoitArgent } from "@/lib/use-argent";
 import { HistoriqueEquipe } from "@/components/historique-equipe";
@@ -3071,7 +3072,7 @@ function EditableTextField({ label, value, projectId, fieldName, notionField, mu
             </div>
             {multiline && (
               <div className="mt-1">
-                <VoiceRecorder onTranscript={(text) => setDraft((prev) => prev ? prev + "\n" + text : text)} />
+                <VoiceRecorder cible="au champ (pensez à valider ✓)" onTranscript={(text) => setDraft((prev) => prev ? prev + "\n" + text : text)} />
               </div>
             )}
           </div>
@@ -3125,11 +3126,12 @@ function InternalNoteField({
     setSavedAt("saving");
     timerRef.current = setTimeout(async () => {
       try {
-        await offlineFetch(`/api/projects/${projectId}`, {
+        const rep = await offlineFetch(`/api/projects/${projectId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ noteInterneMontage: next }),
         });
+        if (!rep.ok) { setSavedAt("idle"); return; }
         onUpdate(next);
         setSavedAt("saved");
       } catch {
@@ -3212,8 +3214,10 @@ function InternalNoteField({
           <div className="pt-1">
             <VoiceRecorder
               accent="amber"
-              addLabel="Ajouter à la note"
-              onTranscript={(text) => applyText(draft ? draft + "\n" + text : text)}
+              cible="à la note"
+              cle={`note:${projectId}`}
+              onTranscript={(text) => { applyText(draft ? draft + "\n" + text : text); }}
+              dejaPresent={(t) => draft.includes(t)}
             />
           </div>
         </>
@@ -4252,6 +4256,8 @@ function AssistantRapport({
   signalements,
   sav,
   sansMinimumPhotos = false,
+  dicteeCle,
+  onDictee,
 }: {
   projectId: string;
   project: Project;
@@ -4284,6 +4290,10 @@ function AssistantRapport({
   sav?: React.ReactNode;
   /** Administrateur : le minimum de photos ne bloque pas (il reste affiché). */
   sansMinimumPhotos?: boolean;
+  /** Dictée vocale : où la garder sur l'appareil, et comment la verser ET
+   *  l'enregistrer tout de suite. Sans elle, pas de bouton micro. */
+  dicteeCle?: string;
+  onDictee?: (texte: string) => Promise<EtatAjout>;
 }) {
   /* Tout ce qui suit lit et écrit SOIT le projet, SOIT le lot. Les deux
      chemins restent côte à côte, nommés, plutôt que dispersés dans le
@@ -4815,6 +4825,12 @@ function AssistantRapport({
             </div>
             <Textarea placeholder="Précisions supplémentaires…" value={rapportEff} rows={3}
               onChange={(e) => setRapportEff(e.target.value)} />
+            {/* La dictée, EN PLUS de la saisie manuelle : le texte s'ajoute à
+                la fin du champ ci-dessus et part tout de suite. */}
+            {dicteeCle && onDictee && (
+              <VoiceRecorder cle={dicteeCle} cible="au rapport" onTranscript={onDictee}
+                dejaPresent={(t) => rapportEff.includes(t)} />
+            )}
             {/* La note interne est celle du CHANTIER : une seule, qu'on
                 renseigne depuis n'importe quel lot. */}
             <InternalNoteField projectId={projectId} value={project.noteInterneMontage}
@@ -5446,14 +5462,16 @@ function ProjectPageContent({ id }: { id: string }) {
    * Appelée à chaque modification utilisateur — le bouton Enregistrer reste
    * disponible comme filet de sécurité. Pas de toast, pas de setSaving.
    */
-  const scheduleAutoSave = useCallback(() => {
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(async () => {
+  /* Le corps de la sauvegarde, appelable tout de suite (dictée vocale) ou
+     après le délai de frappe (scheduleAutoSave). Dit ce qu'il est advenu de
+     l'envoi : enregistré, mis en file hors ligne, ou échoué. */
+  const executerAutoSave = useCallback(async (opts?: { siChange?: boolean }): Promise<EtatAjout> => {
+    {
       const {
         rapport, commentaires, heureArrivee, heureDepart,
         cabines: cab, isCabineMode: cabMode, isMultiDay: multiDay, pointages: pts,
       } = latestSaveDataRef.current;
-      if (!id) return; // projet pas encore chargé
+      if (!id) return "echec"; // projet pas encore chargé
 
       const reportToSave = cabMode
         ? [rapport.trim(), buildCabineReportLines(cab)].filter(Boolean).join("\n\n")
@@ -5504,6 +5522,14 @@ function ProjectPageContent({ id }: { id: string }) {
             .join(" | ")
         : "";
 
+      /* Envoi de dernière seconde (page masquée ou fermée) : seulement s'il
+         y a du nouveau par rapport à ce que le serveur ou la file ont déjà. */
+      if (opts?.siChange) {
+        const snap = serverSnapshotRef.current;
+        if (snap && snap.rapport === reportToSave && snap.commentaires === commentaires
+          && snap.heureArrivee === arriveeToSave && snap.heureDepart === departToSave) return "enregistre";
+      }
+
       const patchBody: Record<string, unknown> = {
         heureArrivee: arriveeToSave,
         heureDepart: departToSave,
@@ -5514,12 +5540,13 @@ function ProjectPageContent({ id }: { id: string }) {
         patchBody.attributionCabines = attributionToSave;
       }
 
-      // PATCH Notion en arrière-plan — erreurs silencieuses
-      offlineFetch(`/api/projects/${id}`, {
+      // PATCH Notion en arrière-plan. Le résultat n'est attendu qu'à la
+      // fin : les gardes ci-dessous doivent être posées dès l'envoi.
+      const envoi = offlineFetch(`/api/projects/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patchBody),
-      }).catch(() => {});
+      }).catch(() => null);
 
       if (cabMode) {
         // Backup localStorage. L'attribution monteurs est en plus ré-affirmée
@@ -5551,8 +5578,90 @@ function ProjectPageContent({ id }: { id: string }) {
         ts: Date.now(),
       };
       invalidateApiCache();
-    }, 2000); // 2 s de debounce
-  }, [id]); // id stable pour toute la durée du projet ; latestSaveDataRef est lu au moment du fire
+      const rep = await envoi;
+      if (!rep || !rep.ok) return "echec";
+      const corps = await rep.clone().json().catch(() => null);
+      return corps && corps.queued === true ? "en-attente" : "enregistre";
+    }
+  }, [id]); // id stable pour toute la durée du projet ; latestSaveDataRef est lu au moment de l'envoi
+
+  const scheduleAutoSave = useCallback(() => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => { executerAutoSave(); }, 2000); // 2 s de debounce
+  }, [executerAutoSave]);
+
+  /**
+   * Dictée vocale → rapport : le texte est ajouté à la fin du rapport ET
+   * enregistré tout de suite, sans attendre le délai de frappe. La valeur
+   * est prise dans `latestSaveDataRef` (toujours à jour, même si la page a
+   * été quittée pendant la transcription), pas dans une fermeture périmée.
+   */
+  const ajouterDicteeAuRapport = useCallback(async (texte: string): Promise<EtatAjout> => {
+    const avant = latestSaveDataRef.current.rapport || "";
+    const apres = avant.trim() ? `${avant.replace(/\s+$/, "")}\n${texte}` : texte;
+    latestSaveDataRef.current = { ...latestSaveDataRef.current, rapport: apres };
+    setRapport(apres);
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    return executerAutoSave();
+  }, [executerAutoSave]);
+
+  /* Filet : une saisie (frappe, dictée du clavier iPhone) encore dans le
+     délai de 2 s part TOUT DE SUITE si la page passe en arrière-plan ou se
+     ferme. Sans cela, verrouiller le téléphone juste après avoir écrit
+     figeait le minuteur — iOS suspend la page — et la saisie pouvait ne
+     jamais partir (24.10.2026). */
+  useEffect(() => {
+    const vider = () => {
+      if (!autoSaveTimerRef.current) return;
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+      executerAutoSave({ siChange: true });
+    };
+    const auMasquage = () => { if (document.visibilityState === "hidden") vider(); };
+    window.addEventListener("pagehide", vider);
+    document.addEventListener("visibilitychange", auMasquage);
+    return () => {
+      window.removeEventListener("pagehide", vider);
+      document.removeEventListener("visibilitychange", auMasquage);
+      vider(); // quitter la fiche dans l'app : on n'attend pas non plus
+    };
+  }, [executerAutoSave]);
+
+  /** Dictée vocale → rapport d'UN lot (assistant multi-lots). */
+  const ajouterDicteeAuLot = useCallback(async (idx: number, texte: string): Promise<EtatAjout> => {
+    const cab = latestSaveDataRef.current.cabines;
+    if (!cab[idx]) return "echec";
+    const avant = cab[idx].rapport || "";
+    const apres = avant.trim() ? `${avant.replace(/\s+$/, "")}\n${texte}` : texte;
+    const suivantes = cab.map((c, i) => (i === idx ? { ...c, rapport: apres } : c));
+    latestSaveDataRef.current = { ...latestSaveDataRef.current, cabines: suivantes };
+    setCabines((prev) => prev.map((c, i) => (i === idx ? { ...c, rapport: apres } : c)));
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    return executerAutoSave();
+  }, [executerAutoSave]);
+
+  /* Les dictées du rapport restées sur l'appareil (pas de réseau, page
+     fermée pendant la transcription) sont reprises dès que la fiche est
+     chargée, et au retour du réseau — que l'onglet Rapport soit ouvert ou
+     non. */
+  useEffect(() => {
+    if (loading || !id || editablesInitializedRef.current !== id) return;
+    const cle = `rapport:${id}`;
+    const reprendre = () => {
+      reprendreDictees(cle, ajouterDicteeAuRapport,
+        (t) => (latestSaveDataRef.current.rapport || "").includes(t)).catch(() => {});
+    };
+    const reprendreLots = () => {
+      latestSaveDataRef.current.cabines.forEach((_, idx) => {
+        reprendreDictees(`rapport:${id}:cab${idx + 1}`, (t) => ajouterDicteeAuLot(idx, t),
+          (t) => (latestSaveDataRef.current.cabines[idx]?.rapport || "").includes(t)).catch(() => {});
+      });
+    };
+    const tout = () => { reprendre(); reprendreLots(); };
+    tout();
+    window.addEventListener("online", tout);
+    return () => window.removeEventListener("online", tout);
+  }, [loading, id, ajouterDicteeAuRapport, ajouterDicteeAuLot]);
 
   const [signature, setSignature] = useState("");
 
@@ -11977,6 +12086,8 @@ function ProjectPageContent({ id }: { id: string }) {
                         setProject={setProject}
                         rapport={rapport}
                         setRapport={(v) => { setRapport(v); scheduleAutoSave(); }}
+                        dicteeCle={`rapport:${id}`}
+                        onDictee={ajouterDicteeAuRapport}
                         heureArrivee={heureArrivee}
                         setHeureArrivee={(v) => { setHeureArrivee(v); scheduleAutoSave(); }}
                         depart={departCourantMono}
@@ -12106,10 +12217,10 @@ function ProjectPageContent({ id }: { id: string }) {
                           </button>
                           <div>
                             <VoiceRecorder
-                              onTranscript={(text) => {
-                                setRapport((prev) => (prev ? prev + "\n" + text : text));
-                                scheduleAutoSave();
-                              }}
+                              cle={`rapport:${id}`}
+                              cible="au rapport"
+                              onTranscript={ajouterDicteeAuRapport}
+                              dejaPresent={(t) => (latestSaveDataRef.current.rapport || "").includes(t)}
                             />
                           </div>
                         </div>
@@ -13752,6 +13863,8 @@ function ProjectPageContent({ id }: { id: string }) {
           setProject={setProject}
           rapport={rapport}
           setRapport={(v) => { setRapport(v); scheduleAutoSave(); }}
+          dicteeCle={assistantLot !== null ? `rapport:${id}:cab${assistantLot + 1}` : `rapport:${id}`}
+          onDictee={assistantLot !== null ? (t) => ajouterDicteeAuLot(assistantLot, t) : ajouterDicteeAuRapport}
           heureArrivee={heureArrivee}
           setHeureArrivee={(v) => { setHeureArrivee(v); scheduleAutoSave(); }}
           depart={cabines[assistantLot].depart || ""}

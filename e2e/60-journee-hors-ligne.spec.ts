@@ -1232,8 +1232,17 @@ test("5 — deux chantiers sans réseau, fermeture complète, puis fermeture en 
 
     // Les files, intactes : chaque saisie, chaque photo avec ses octets.
     const fileRouverte = await fileEcritures(page);
-    expect(fileRouverte.map((e) => [e.id, e.url, e.method, e.body]), "la file des saisies a survécu à la fermeture")
+    expect(fileRouverte.slice(0, fileAvantFermeture.length).map((e) => [e.id, e.url, e.method, e.body]),
+           "la file des saisies a survécu à la fermeture")
       .toEqual(fileAvantFermeture.map((e) => [e.id, e.url, e.method, e.body]));
+    /* Depuis le 24.10.2026, une sauvegarde encore dans son délai de frappe
+       part À la fermeture au lieu d'être perdue : elle peut s'ajouter en fin
+       de file. Elle ne peut que répéter la dernière saisie de sa fiche —
+       rien d'inventé, rien de plus ancien. */
+    for (const e of fileRouverte.slice(fileAvantFermeture.length)) {
+      const precedente = [...fileAvantFermeture].reverse().find((x) => x.url === e.url && x.method === e.method);
+      expect(e.body, `ajout de fermeture sur ${e.url} : la dernière saisie, telle quelle`).toEqual(precedente?.body);
+    }
     const photosRouvertes = await filePhotos(page);
     expect(photosRouvertes.map((x) => [x.id, x.projectId, x.files[0].name, x.files[0].sha]).sort(),
            "les photos ont survécu, octets lisibles et identiques")

@@ -1,41 +1,145 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { Mic, Loader2, RotateCcw, Plus, Sparkles, AlertCircle, Square } from "lucide-react";
-import { ZoneTexte } from "@/components/zone-texte";
+/**
+ * La dictée vocale.
+ *
+ * Refonte du 24.10.2026 — des rapports dictés se perdaient : le texte
+ * transcrit restait dans cette case en attendant un appui sur « Ajouter au
+ * rapport ». Le monteur voyait son texte, croyait que c'était fait, quittait
+ * la page… et tout disparaissait. Désormais :
+ *   - le texte transcrit est versé AUTOMATIQUEMENT dans le champ ;
+ *   - l'écran dit ce qu'il en est vraiment : enregistré, en attente du
+ *     réseau, ou pas enregistré (et alors on le dit en rouge) ;
+ *   - avec une `cle`, l'audio est gardé sur l'appareil (lib/dictees) tant
+ *     que le texte n'est pas en sécurité : sans réseau, la dictée est
+ *     transcrite et versée au retour du réseau ou à la prochaine ouverture.
+ */
+
+import { useState, useRef, useCallback, useEffect } from "react";
+import { Mic, Loader2, AlertCircle, Square, Check, CloudOff, RotateCcw } from "lucide-react";
+import {
+  garderDictee, noterTexte, oublierDictee, transcrire, reprendreDictees, prendreEnCharge,
+  type EtatAjout,
+} from "@/lib/dictees";
 
 interface VoiceRecorderProps {
-  onTranscript: (text: string) => void;
+  /** Verse le texte dans son champ. Peut dire ce qu'est devenu l'enregistrement. */
+  onTranscript: (text: string) => EtatAjout | void | Promise<EtatAjout | void>;
   /** Palette de couleur. "amber" pour la zone Note interne, sinon bleu (défaut). */
   accent?: "blue" | "amber";
-  /** Libellé du bouton d'ajout (défaut « Ajouter au rapport »). */
+  /** Destination, pour les messages : « au rapport », « à la note »… */
+  cible?: string;
+  /** Ancien libellé du bouton d'ajout — conservé pour compatibilité. */
   addLabel?: string;
+  /** Clé de conservation sur l'appareil (ex. `rapport:<id>`). Sans elle,
+   *  l'audio n'est gardé qu'en mémoire, le temps de la page. */
+  cle?: string;
+  /** Le champ contient-il déjà ce texte ? (évite un double versement à la reprise) */
+  dejaPresent?: (texte: string) => boolean;
 }
 
-type Status = "idle" | "recording" | "transcribing" | "done" | "error";
+type Status = "idle" | "recording" | "transcribing" | "added" | "kept" | "error";
 
-/** Extension de fichier à partir du type MIME du MediaRecorder (Groq détecte
- *  le format par l'extension). iOS → mp4, Chrome/Android → webm. */
-function extFromMime(mime: string): string {
-  if (mime.includes("mp4") || mime.includes("m4a") || mime.includes("aac")) return "mp4";
-  if (mime.includes("mpeg") || mime.includes("mp3")) return "mp3";
-  if (mime.includes("ogg")) return "ogg";
-  if (mime.includes("wav")) return "wav";
-  return "webm";
-}
+const MESSAGE_AJOUT: Record<EtatAjout, string> = {
+  enregistre: "Ajouté et enregistré",
+  "en-attente": "Ajouté — sera envoyé dès le retour du réseau",
+  ajoute: "Ajouté",
+  echec: "Ajouté à l'écran, mais PAS encore enregistré",
+};
 
-export function VoiceRecorder({ onTranscript, accent = "blue", addLabel = "Ajouter au rapport" }: VoiceRecorderProps) {
+export function VoiceRecorder({ onTranscript, accent = "blue", cible = "au rapport", cle, dejaPresent }: VoiceRecorderProps) {
   const amber = accent === "amber";
   const [status, setStatus] = useState<Status>("idle");
-  const [transcript, setTranscript] = useState("");
+  const [etat, setEtat] = useState<EtatAjout | null>(null);
+  const [dernierTexte, setDernierTexte] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [reformulating, setReformulating] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  /* L'audio du dernier essai, gardé en mémoire : « Réessayer » ne demande
+     jamais de redicter. */
+  const dernierAudioRef = useRef<{ blob: Blob; mime: string; id: string | null } | null>(null);
+
+  /* Toujours la DERNIÈRE version des fonctions du parent : une transcription
+     qui arrive après coup ne doit pas verser dans un état périmé. */
+  const verserRef = useRef(onTranscript);
+  verserRef.current = onTranscript;
+  const dejaPresentRef = useRef(dejaPresent);
+  dejaPresentRef.current = dejaPresent;
+
+  const verser = useCallback(async (texte: string, id: string | null) => {
+    let resultat: EtatAjout = "ajoute";
+    try {
+      resultat = (await verserRef.current(texte)) || "ajoute";
+    } catch {
+      resultat = "echec";
+    }
+    if (resultat !== "echec" && id) await oublierDictee(id);
+    setDernierTexte(texte);
+    setEtat(resultat);
+    setStatus("added");
+  }, []);
+
+  const traiter = useCallback(async (blob: Blob, mime: string, id: string | null) => {
+    setStatus("transcribing");
+    setErrorMsg("");
+    const liberer = id ? prendreEnCharge(id) : () => {};
+    try {
+      const t = await transcrire(blob, mime);
+      if (t.ok) {
+        if (id) await noterTexte(id, t.texte);
+        dernierAudioRef.current = null;
+        await verser(t.texte, id);
+        return;
+      }
+      if (t.raison === "vide") {
+        if (id) await oublierDictee(id);
+        dernierAudioRef.current = null;
+        setStatus("error");
+        setErrorMsg(t.message);
+        return;
+      }
+      dernierAudioRef.current = { blob, mime, id };
+      if (id) {
+        setStatus("kept");
+      } else {
+        setStatus("error");
+        setErrorMsg(t.raison === "reseau"
+          ? "Pas de réseau : la dictée est gardée tant que cette page reste ouverte. Réessayez dès que le réseau revient."
+          : `${t.message} Votre dictée est gardée : réessayez.`);
+      }
+    } finally {
+      liberer();
+    }
+  }, [verser]);
+
+  /* Reprise : les dictées restées sur l'appareil (réseau absent, page
+     fermée pendant la transcription) sont versées dès que possible. */
+  const reprendre = useCallback(async () => {
+    if (!cle) return;
+    const { versees } = await reprendreDictees(
+      cle,
+      (texte) => verserRef.current(texte),
+      (texte) => dejaPresentRef.current?.(texte) ?? false,
+    );
+    if (versees > 0) {
+      setEtat("ajoute");
+      setDernierTexte("");
+      setStatus("added");
+      dernierAudioRef.current = null;
+    }
+  }, [cle]);
+
+  useEffect(() => {
+    if (!cle) return;
+    reprendre();
+    const enLigne = () => { reprendre(); };
+    window.addEventListener("online", enLigne);
+    return () => window.removeEventListener("online", enLigne);
+  }, [cle, reprendre]);
 
   const start = useCallback(async () => {
     setErrorMsg("");
-    setTranscript("");
+    setEtat(null);
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setStatus("error");
       setErrorMsg("Enregistrement non disponible sur cet appareil.");
@@ -55,28 +159,10 @@ export function VoiceRecorder({ onTranscript, accent = "blue", addLabel = "Ajout
           setErrorMsg("Aucun son capté. Rapprochez-vous du micro et réessayez.");
           return;
         }
-        // Transcription côté serveur (Groq Whisper) — fiable sur iOS.
-        setStatus("transcribing");
-        try {
-          const form = new FormData();
-          form.append("audio", blob, `audio.${extFromMime(mime)}`);
-          form.append("filename", `audio.${extFromMime(mime)}`);
-          const res = await fetch("/api/transcribe", { method: "POST", body: form });
-          const data = await res.json().catch(() => ({}));
-          if (res.ok && (data.text || "").trim()) {
-            setTranscript((data.text as string).trim());
-            setStatus("done");
-          } else if (res.ok) {
-            setStatus("error");
-            setErrorMsg("Rien n'a été compris. Réessayez en parlant plus près du micro.");
-          } else {
-            setStatus("error");
-            setErrorMsg(data.error || "La transcription a échoué. Réessayez.");
-          }
-        } catch {
-          setStatus("error");
-          setErrorMsg("Pas de réseau — la dictée nécessite une connexion Internet.");
-        }
+        /* L'audio sur l'appareil AVANT tout envoi : une coupure, une page
+           fermée ou une transcription ratée ne peuvent plus rien perdre. */
+        const id = cle ? await garderDictee(cle, blob, mime) : null;
+        await traiter(blob, mime, id);
       };
       mr.start();
       mediaRecorderRef.current = mr;
@@ -85,7 +171,7 @@ export function VoiceRecorder({ onTranscript, accent = "blue", addLabel = "Ajout
       setStatus("error");
       setErrorMsg("Micro non autorisé. Autorisez l'accès au micro dans les réglages.");
     }
-  }, []);
+  }, [cle, traiter]);
 
   const stop = useCallback(() => {
     const mr = mediaRecorderRef.current;
@@ -93,38 +179,20 @@ export function VoiceRecorder({ onTranscript, accent = "blue", addLabel = "Ajout
     mediaRecorderRef.current = null;
   }, []);
 
-  const addToReport = useCallback(() => {
-    const t = transcript.trim();
-    if (t) onTranscript(t);
-    setTranscript("");
-    setStatus("idle");
-  }, [transcript, onTranscript]);
-
-  const reformulate = useCallback(async () => {
-    if (!transcript.trim() || reformulating) return;
-    setReformulating(true);
-    try {
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: `Reformule ce texte de rapport de montage de cabine de douche de manière professionnelle, claire et concise. Garde le sens exact mais améliore la formulation. Réponds uniquement avec le texte reformulé, sans introduction ni commentaire :\n\n${transcript}`,
-        }),
-      });
-      if (res.ok) {
-        const d = await res.json();
-        const out = (d.answer || d.response || "").trim();
-        if (out) setTranscript(out);
-      }
-    } catch {
-      /* silencieux — l'utilisateur garde le texte brut */
-    } finally {
-      setReformulating(false);
-    }
-  }, [transcript, reformulating]);
+  const reessayer = useCallback(() => {
+    const a = dernierAudioRef.current;
+    if (a) traiter(a.blob, a.mime, a.id);
+    else if (dernierTexte && etat === "echec") verser(dernierTexte, null);
+    else reprendre();
+  }, [traiter, verser, reprendre, dernierTexte, etat]);
 
   const isRecording = status === "recording";
   const isTranscribing = status === "transcribing";
+  const titre = isRecording
+    ? "Enregistrement… appuyez pour arrêter"
+    : isTranscribing
+      ? "Transcription en cours… ne fermez pas tout de suite"
+      : "Dictée vocale";
 
   return (
     <div className={`rounded-2xl border backdrop-blur-sm p-4 space-y-3 ${
@@ -149,73 +217,66 @@ export function VoiceRecorder({ onTranscript, accent = "blue", addLabel = "Ajout
           {isTranscribing ? <Loader2 className="w-5 h-5 animate-spin" /> : isRecording ? <Square className="w-4 h-4 fill-current" /> : <Mic className="w-5 h-5" />}
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-            {isRecording ? "Enregistrement… appuyez pour arrêter" : isTranscribing ? "Transcription en cours…" : status === "done" ? "Relisez et ajoutez au rapport" : "Dictée vocale"}
-          </p>
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{titre}</p>
           {isRecording && (
             <p className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              Parlez maintenant
+              Parlez maintenant — le texte ira directement {cible}
             </p>
           )}
         </div>
       </div>
 
-      {status === "error" && errorMsg && (
-        <div className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{errorMsg}</span>
+      {status === "added" && etat && (
+        <div
+          data-dictee-etat={etat}
+          className={`flex items-start gap-2 text-sm rounded-xl p-3 border ${
+            etat === "echec"
+              ? "text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+              : etat === "en-attente"
+                ? "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700"
+                : "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
+          }`}
+        >
+          {etat === "echec" ? <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            : etat === "en-attente" ? <CloudOff className="w-4 h-4 shrink-0 mt-0.5" />
+            : <Check className="w-4 h-4 shrink-0 mt-0.5" />}
+          <div className="flex-1 min-w-0">
+            <p className="font-medium">{MESSAGE_AJOUT[etat].replace("Ajouté", `Ajouté ${cible}`)}</p>
+            {etat === "echec" && (
+              <button type="button" onClick={reessayer} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold underline">
+                <RotateCcw className="w-3 h-3" /> Réessayer l&apos;enregistrement
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {status === "done" && (
-        <>
-          {/* Texte transcrit, ÉDITABLE avant ajout. */}
-          <ZoneTexte
-            value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
-            rows={3}
-            className={`w-full text-sm p-3 rounded-xl bg-gray-50 dark:bg-slate-700/50 border text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 ${
-              amber
-                ? "border-amber-200 dark:border-amber-800/50 focus:ring-amber-400/40"
-                : "border-gray-200 dark:border-slate-600 focus:ring-[#1e3a5f]/30"
-            }`}
-          />
-          <button
-            type="button"
-            onClick={reformulate}
-            disabled={reformulating || transcript.trim().length < 3}
-            className={`flex items-center gap-1.5 text-xs disabled:opacity-50 ${
-              amber
-                ? "text-amber-700 dark:text-amber-400 hover:text-amber-800"
-                : "text-purple-600 dark:text-purple-400 hover:text-purple-700"
-            }`}
-          >
-            {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-            {reformulating ? "Reformulation en cours…" : "Reformuler avec l'IA"}
-          </button>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={addToReport}
-              disabled={!transcript.trim()}
-              className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-xl text-white text-sm font-medium active:scale-[0.98] transition-all disabled:opacity-50 ${
-                amber ? "bg-amber-600 hover:bg-amber-700" : "bg-[#1e3a5f] hover:bg-[#2a4a73]"
-              }`}
-            >
-              <Plus className="w-4 h-4" />
-              {addLabel}
-            </button>
-            <button
-              type="button"
-              onClick={start}
-              className="flex items-center justify-center gap-2 h-9 px-4 rounded-xl bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 text-sm font-medium hover:bg-gray-200 dark:hover:bg-slate-600 active:scale-[0.98] transition-all"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Refaire
+      {status === "kept" && (
+        <div data-dictee-etat="gardee" className="flex items-start gap-2 text-sm rounded-xl p-3 border text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700">
+          <CloudOff className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium">Dictée gardée sur l&apos;appareil</p>
+            <p className="text-xs">Pas de réseau pour la transcrire : elle sera transcrite et ajoutée {cible} automatiquement dès le retour du réseau, même si vous fermez la page.</p>
+            <button type="button" onClick={reessayer} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold underline">
+              <RotateCcw className="w-3 h-3" /> Réessayer maintenant
             </button>
           </div>
-        </>
+        </div>
+      )}
+
+      {status === "error" && errorMsg && (
+        <div className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-3">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <span>{errorMsg}</span>
+            {dernierAudioRef.current && (
+              <button type="button" onClick={reessayer} className="mt-1 flex items-center gap-1 text-xs font-semibold underline">
+                <RotateCcw className="w-3 h-3" /> Réessayer
+              </button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

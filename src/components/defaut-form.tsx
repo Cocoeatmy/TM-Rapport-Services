@@ -384,7 +384,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
           className="mt-1"
         />
         <div className="flex items-center gap-2 mt-1">
-          <VoiceRecorder onTranscript={(text) => setDescription((prev) => prev ? prev + " " + text : text)} />
+          <VoiceRecorder cible="à la description" onTranscript={(text) => setDescription((prev) => prev ? prev + " " + text : text)} />
           {description.trim().length > 10 && (
             <button onClick={handleAI} disabled={aiLoading} className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 disabled:opacity-50">
               {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
