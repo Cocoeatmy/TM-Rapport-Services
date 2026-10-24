@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-23T21:08:54.022Z",
+  "genereLe": "2026-10-24T11:27:04.114Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -1375,6 +1375,16 @@
       "gardePage": false,
       "methodes": [
         "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/rapport-dicte",
+      "type": "api",
+      "fichier": "src/app/api/rapport-dicte/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
         "POST"
       ]
     },

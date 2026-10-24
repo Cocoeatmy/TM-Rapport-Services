@@ -63,6 +63,8 @@ interface DefautFormProps {
   /** Signale au parent que le formulaire s'ouvre ou se referme : il masque
    *  alors les autres boutons « Signaler… », pour que le signalement en
    *  cours de saisie ne soit plus mêlé à ceux qu'on pourrait ajouter. */
+  /** Proposé par le rapport dicté : le formulaire s'ouvre déjà rempli. */
+  descriptionInitiale?: string;
   onOuvert?: (ouvert: boolean) => void;
   /** Titre du formulaire + libellé du bouton replié. Défaut « Signaler un défaut ». */
   title?: string;
@@ -77,19 +79,19 @@ interface DefautFormProps {
   accent?: AccentName;
 }
 
-export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, cabineIdx, onSubmitted, onOuvert, title, types, phase, icon, accent }: DefautFormProps) {
+export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, cabineIdx, onSubmitted, onOuvert, title, types, phase, icon, accent, descriptionInitiale }: DefautFormProps) {
   const TYPES = types ?? DEFAUT_TYPES;
   const usingCustomTypes = !!types;
   const heading = title ?? "Signaler un défaut";
   const Icon = icon ?? ShieldAlert;
   const c = ACCENTS[accent ?? "red"];
-  const [open, setOpenBrut] = useState(false);
+  const [open, setOpenBrut] = useState(!!descriptionInitiale);
   /* Toute ouverture/fermeture passe par ici : le parent doit savoir qu'un
      formulaire occupe l'écran pour écarter les autres. */
   const setOpen = (v: boolean) => { setOpenBrut(v); onOuvert?.(v); };
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [otherText, setOtherText] = useState("");
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(descriptionInitiale || "");
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [sending, setSending] = useState(false);

@@ -21,15 +21,17 @@ interface PiecesFormProps {
   cabineIdx?: number;
   onSubmitted?: (photoUrls: string[]) => void;
   /** Signale au parent que le formulaire s'ouvre ou se referme. */
+  /** Proposé par le rapport dicté : le formulaire s'ouvre déjà rempli. */
+  descriptionInitiale?: string;
   onOuvert?: (ouvert: boolean) => void;
 }
 
-export function PiecesForm({ projectId, projectName, cabineLabel, cabineIdx, onSubmitted, onOuvert }: PiecesFormProps) {
-  const [open, setOpenBrut] = useState(false);
+export function PiecesForm({ projectId, projectName, cabineLabel, cabineIdx, onSubmitted, onOuvert, descriptionInitiale }: PiecesFormProps) {
+  const [open, setOpenBrut] = useState(!!descriptionInitiale);
   /* Toute ouverture/fermeture passe par ici : le parent doit savoir qu'un
      formulaire occupe l'écran pour écarter les autres. */
   const setOpen = (v: boolean) => { setOpenBrut(v); onOuvert?.(v); };
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(descriptionInitiale || "");
   const [reference, setReference] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);

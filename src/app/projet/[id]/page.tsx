@@ -144,6 +144,9 @@ import { fusionnerPassage } from "@/lib/passage-lot";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, avecSaisiesEnAttente, isOnline, offlineFetch } from "@/lib/offline";
 import { reprendreDictees, type EtatAjout } from "@/lib/dictees";
+import { prendreBrouillon, ecouterBrouillons, proposerSignalement, type BrouillonSignalement } from "@/lib/brouillon-signalement";
+import { ajouterAuRapport, type AnalyseDictee, type LotDictee } from "@/lib/rapport-dicte";
+import { RapportDicte } from "@/components/rapport-dicte";
 import { lectureFiable } from "@/lib/ecritures-projet";
 import { useVoitArgent } from "@/lib/use-argent";
 import { HistoriqueEquipe } from "@/components/historique-equipe";
@@ -1803,7 +1806,14 @@ function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, 
   onDefaut: () => void;
   onPiece: () => void;
 }) {
-  const [ouvert, setOuvert] = useState<"avant" | "piece" | "defaut" | null>(null);
+  /* Un signalement proposé par le rapport dicté : son formulaire s'ouvre
+     déjà rempli (le monteur relit, choisit le type, ajoute ses photos). */
+  const [brouillon, setBrouillon] = useState<BrouillonSignalement | null>(() => prendreBrouillon(cabineIdx));
+  const [ouvert, setOuvert] = useState<"avant" | "piece" | "defaut" | null>(() => brouillon?.type ?? null);
+  useEffect(() => ecouterBrouillons(() => {
+    const b = prendreBrouillon(cabineIdx);
+    if (b) { setBrouillon(b); setOuvert(b.type); }
+  }), [cabineIdx]);
   const montrer = (lequel: "avant" | "piece" | "defaut") => ouvert === null || ouvert === lequel;
   /* Un seul formulaire est visible à la fois : sa fermeture ne peut donc
      jamais annuler l'ouverture d'un autre. */
@@ -1835,6 +1845,8 @@ function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, 
       )}
       {montrer("piece") && (
         <PiecesForm
+          key={brouillon?.type === "piece" ? `b${brouillon.id}` : "piece"}
+          descriptionInitiale={brouillon?.type === "piece" ? brouillon.description : undefined}
           projectId={projectId}
           projectName={projectName}
           cabineLabel={cabineLabel}
@@ -1845,6 +1857,8 @@ function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, 
       )}
       {montrer("defaut") && (
         <DefautForm
+          key={brouillon?.type === "defaut" ? `b${brouillon.id}` : "defaut"}
+          descriptionInitiale={brouillon?.type === "defaut" ? brouillon.description : undefined}
           projectId={projectId}
           projectName={projectName}
           cabineOptions={cabineOptions}
@@ -3116,8 +3130,12 @@ function InternalNoteField({
   // Le projet se charge en deux temps (init local puis données Notion fraîches).
   // Tant que l'utilisateur n'a pas tapé, on adopte la valeur serveur pour ne
   // jamais afficher une note vide alors que Notion en contient déjà une.
+  /* Après une saisie, on n'adopte plus la valeur serveur… sauf si elle
+     PROLONGE la nôtre : c'est un ajout venu d'ailleurs (rapport dicté), le
+     garder évite que la frappe suivante ne l'écrase. */
   useEffect(() => {
-    if (!editedRef.current) setDraft(value || "");
+    if (!editedRef.current || (value || "").startsWith(draft)) setDraft(value || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   const scheduleSave = (next: string) => {
@@ -4258,6 +4276,7 @@ function AssistantRapport({
   sansMinimumPhotos = false,
   dicteeCle,
   onDictee,
+  rapportDicte,
 }: {
   projectId: string;
   project: Project;
@@ -4294,6 +4313,8 @@ function AssistantRapport({
    *  l'enregistrer tout de suite. Sans elle, pas de bouton micro. */
   dicteeCle?: string;
   onDictee?: (texte: string) => Promise<EtatAjout>;
+  /** Rapport dicté complet (toute la visite, rangée par l'IA, relue). */
+  rapportDicte?: { lots: LotDictee[]; onAppliquer: (a: AnalyseDictee) => Promise<EtatAjout> };
 }) {
   /* Tout ce qui suit lit et écrit SOIT le projet, SOIT le lot. Les deux
      chemins restent côte à côte, nommés, plutôt que dispersés dans le
@@ -4830,6 +4851,15 @@ function AssistantRapport({
             {dicteeCle && onDictee && (
               <VoiceRecorder cle={dicteeCle} cible="au rapport" onTranscript={onDictee}
                 dejaPresent={(t) => rapportEff.includes(t)} />
+            )}
+            {rapportDicte && (
+              <RapportDicte projetId={projectId} lots={rapportDicte.lots}
+                numeroCourant={lot ? lot.numero : 0}
+                onAppliquer={rapportDicte.onAppliquer}
+                onSignaler={(sig) => {
+                  proposerSignalement({ type: sig.type, description: sig.description, cabineIdx: lot ? sig.numero : undefined });
+                  setFeuille("signalements");
+                }} />
             )}
             {/* La note interne est celle du CHANTIER : une seule, qu'on
                 renseigne depuis n'importe quel lot. */}
@@ -5387,6 +5417,8 @@ function ProjectPageContent({ id }: { id: string }) {
     cabines: [], isCabineMode: false, isMultiDay: false, pointages: [],
   });
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Note interne la plus récente connue (pour y ajouter sans écraser). */
+  const noteInterneRef = useRef("");
   /** Garde-fou : stocke l'id du projet dont les noms ont déjà été initialisés.
    *  Empêche le 2e appel initProject (données fraîches Notion) d'écraser les
    *  noms personnalisés déjà chargés depuis localStorage ou l'API KV. */
@@ -5639,6 +5671,48 @@ function ProjectPageContent({ id }: { id: string }) {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     return executerAutoSave();
   }, [executerAutoSave]);
+
+  /**
+   * Rapport dicté complet, relu par le monteur : chaque partie s'ajoute au
+   * rapport de son lot (ou au rapport général), la note interne à la note
+   * interne. Rien n'est retiré ; une partie déjà présente n'est pas doublée
+   * (une reprise après échec peut donc rejouer sans risque).
+   */
+  const appliquerRapportDicte = useCallback(async (a: AnalyseDictee): Promise<EtatAjout> => {
+    const d = latestSaveDataRef.current;
+    let general = d.rapport || "";
+    let cab = d.cabines;
+    for (const p of a.parties) {
+      if (p.numero === 0 || !d.isCabineMode || !cab[p.numero - 1]) {
+        general = ajouterAuRapport(general, p.coches, p.texte);
+      } else {
+        cab = cab.map((c, i) => (i === p.numero - 1 ? { ...c, rapport: ajouterAuRapport(c.rapport || "", p.coches, p.texte) } : c));
+      }
+    }
+    latestSaveDataRef.current = { ...d, rapport: general, cabines: cab };
+    setRapport(general);
+    setCabines(cab);
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    let etat = await executerAutoSave();
+    const note = a.noteInterne.trim();
+    if (note) {
+      const avant = noteInterneRef.current;
+      const apres = ajouterAuRapport(avant, [], note);
+      if (apres !== avant) {
+        const rep = await offlineFetch(`/api/projects/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ noteInterneMontage: apres }),
+        }).catch(() => null);
+        if (!rep || !rep.ok) etat = "echec";
+        else {
+          noteInterneRef.current = apres;
+          setProject((prev) => (prev ? { ...prev, noteInterneMontage: apres } : prev));
+        }
+      }
+    }
+    return etat;
+  }, [executerAutoSave, id]);
 
   /* Les dictées du rapport restées sur l'appareil (pas de réseau, page
      fermée pendant la transcription) sont reprises dès que la fiche est
@@ -8457,6 +8531,15 @@ function ProjectPageContent({ id }: { id: string }) {
     rapport, commentaires, heureArrivee, heureDepart,
     cabines, isCabineMode, isMultiDay, pointages,
   };
+  noteInterneRef.current = project?.noteInterneMontage || "";
+  /* Les lots que le rapport dicté connaît : le chantier entier (0), puis
+     chaque lot avec ses phrases toutes faites. Chantier simple : un seul. */
+  const lotsPourDictee: LotDictee[] = isCabineMode && cabines.length > 1
+    ? [
+        { numero: 0, nom: "Tout le chantier", options: [] },
+        ...cabines.map((c, i) => ({ numero: i + 1, nom: c.nom || `Cabine ${i + 1}`, options: [...RAPPORT_CABINE_CLASSIQUES] })),
+      ]
+    : [{ numero: 0, nom: "Chantier", options: [...RAPPORT_OPTIONS_SINGLE] }];
 
   if (loading) {
     return (
@@ -12088,6 +12171,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         setRapport={(v) => { setRapport(v); scheduleAutoSave(); }}
                         dicteeCle={`rapport:${id}`}
                         onDictee={ajouterDicteeAuRapport}
+                        rapportDicte={{ lots: lotsPourDictee, onAppliquer: appliquerRapportDicte }}
                         heureArrivee={heureArrivee}
                         setHeureArrivee={(v) => { setHeureArrivee(v); scheduleAutoSave(); }}
                         depart={departCourantMono}
@@ -13865,6 +13949,7 @@ function ProjectPageContent({ id }: { id: string }) {
           setRapport={(v) => { setRapport(v); scheduleAutoSave(); }}
           dicteeCle={assistantLot !== null ? `rapport:${id}:cab${assistantLot + 1}` : `rapport:${id}`}
           onDictee={assistantLot !== null ? (t) => ajouterDicteeAuLot(assistantLot, t) : ajouterDicteeAuRapport}
+          rapportDicte={{ lots: lotsPourDictee, onAppliquer: appliquerRapportDicte }}
           heureArrivee={heureArrivee}
           setHeureArrivee={(v) => { setHeureArrivee(v); scheduleAutoSave(); }}
           depart={cabines[assistantLot].depart || ""}
