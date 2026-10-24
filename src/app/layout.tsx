@@ -27,6 +27,7 @@ import "./navigation-ios.css";
 import { NavigationIos, IndicateurSynchro } from "@/components/navigation-ios";
 import { CoqueSignal } from "@/components/coque-signal";
 import { SansRebondMac } from "@/components/sans-rebond-mac";
+import { EnteteFixe } from "@/components/entete-fixe";
 import { ReparationEchelle } from "@/components/reparation-echelle";
 
 const geistSans = Geist({
@@ -144,7 +145,11 @@ export default function RootLayout({
             l'ecran, elle changeait de page sur un mouvement involontaire. Le
             bouton Retour de l'en-tete la remplace, et s'appuie sur la meme
             pile d'adresses visitees (lib/historique-navigation). */}
-        <div className="sticky top-0 z-50">
+        {/* `tm-entete` : sur Mac (souris ou trackpad), ce bloc devient FIXE,
+            comme le rail du thème Signal (globals.css). Collant, il suivait
+            le rebond élastique de la page ; fixe, il ne bouge plus d'un
+            pixel. La cale `tm-entete-place` garde sa place dans la page. */}
+        <div id="tm-entete" className="tm-entete sticky top-0 z-50">
         <OfflineBanner />
         <header id="main-header" className="glass-header text-white">
           <div className="flex items-center justify-between gap-2 px-2 sm:px-4 py-2 overflow-x-auto md:overflow-visible scrollbar-hide">
@@ -201,6 +206,16 @@ export default function RootLayout({
           </div>
         </header>
         </div>
+        <div className="tm-entete-place" aria-hidden="true" />
+        {/* Hauteur réelle de l'en-tête posée AVANT le premier affichage :
+            la cale a d'emblée la bonne taille, rien ne saute au chargement.
+            EnteteFixe la suit ensuite (bandeau hors ligne, barre Signal). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var e=document.getElementById('tm-entete');if(e)document.documentElement.style.setProperty('--entete-h',e.offsetHeight+'px');}catch(x){}})();`,
+          }}
+        />
+        <EnteteFixe />
         <main className="flex-1">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>

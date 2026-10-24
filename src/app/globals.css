@@ -199,6 +199,30 @@ html.is-scrolling [class*="-bg"]::after {
   }
 }
 
+/* En-tête FIGÉ sur Mac (24.10.2026).
+   Il était `sticky` : quand Safari fait rebondir la page au bout du
+   défilement (rebond que ni `overscroll-behavior` ni un `preventDefault`
+   ne coupent de façon fiable — Safari ne laisse annuler que le premier
+   événement d'un geste), un élément collant suit la page, alors que le
+   rail, `fixed`, ne bouge pas. L'en-tête devient donc `fixed` lui aussi,
+   et une cale de même hauteur (mesurée : --entete-h) lui garde sa place.
+   Seulement avec un pointeur fin (souris, trackpad) : iPhone, iPad et
+   l'app iPhone gardent leur en-tête tel quel. */
+.tm-entete-place { display: none; }
+@media (pointer: fine) {
+  html:not([data-app="ios"]) .tm-entete {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+  html:not([data-app="ios"]) .tm-entete-place {
+    display: block;
+    flex-shrink: 0;
+    height: var(--entete-h, 52px);
+  }
+}
+
 /* Barre du haut sur mobile : les icônes d'action (36px) sont réduites à 30px
    pour que TOUTES tiennent à l'écran — jusqu'à 10 pour un admin sur une page
    projet (retour + recherche + créer + cloche + actualiser + nuage + avion +
