@@ -47,6 +47,16 @@ describe("photos d'après", () => {
 });
 
 describe("heures et SAV", () => {
+  it("lots à quelques minutes chacun (heures issues des photos) : pas un oubli ; total quasi nul : oui", () => {
+    const multi = { nbCabines: 2, rapportDeMontage: "Rapport traité",
+      photosMontage: [f("Montage centre.Cab1.1.jpg"), f("Montage centre.Cab2.1.jpg")] };
+    expect(cats([projet({ ...multi, heureArrivee: "Cab1:2026-10-20:08:00 | Cab2:2026-10-20:11:00", heureDepart: "Cab1:2026-10-20:08:01 | Cab2:2026-10-20:11:01" })])).toEqual(["heures"]);
+    expect(cats([projet({ ...multi, heureArrivee: "Cab1:2026-10-20:08:00 | Cab2:2026-10-20:11:00", heureDepart: "Cab1:2026-10-20:10:59 | Cab2:2026-10-20:11:01" })])).toEqual([]);
+  });
+  it("un lot « NE PAS INSTALLER » n'attend pas de photo", () => {
+    expect(lotsSansPhotoApres(projet({ nbCabines: 2, nomsCabines: "Cab1:SDB | Cab2:C.24 - NE PAS INSTALLER",
+      photosMontage: [f("Montage centre.Cab1.1.jpg")] }))).toEqual([]);
+  });
   it("heures manquantes sur un montage récent", () => {
     expect(cats([projet({ heureArrivee: "", rapportDeMontage: "Rapport traité" })])).toEqual(["heures"]);
   });

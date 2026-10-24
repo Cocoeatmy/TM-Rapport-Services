@@ -24,6 +24,8 @@ import type { Project } from "@/lib/notion";
 import { REGLES_ANOMALIES, joursDepuis, formatJour } from "@/lib/regles";
 import { equipeApp } from "@/lib/equipe-app";
 import { lotDeLaPhoto } from "@/lib/photo-buckets";
+import { minutesDuChantier } from "@/lib/heures-chantier";
+import { minutesParPersonne } from "@/lib/heures-hommes";
 
 export type Categorie = "rapport" | "photos" | "heures" | "sav";
 
@@ -67,6 +69,8 @@ export function lotsSansPhotoApres(p: Project): number[] {
   const manque: number[] = [];
   for (let i = 1; i <= n; i++) {
     if (sousTraites.has(i)) continue;
+    // Un lot marqué « ne pas installer » n'attend aucune photo.
+    if (/ne\s*pas\s*install|annul/i.test(nomDuLot(p, i))) continue;
     if (!noms.some((x) => lotDeLaPhoto(x, true) === i)) manque.push(i);
   }
   return manque;
@@ -79,7 +83,8 @@ function nomDuLot(p: Project, i: number): string {
 
 export function constatsSante(projets: Project[], envoyes: Set<string>, maintenant: Date): Constat[] {
   const out: Constat[] = [];
-  const reglesHeures = REGLES_ANOMALIES.filter((r) => r.id === "heures-absentes" || r.id === "heures-invraisemblables");
+  const heuresAbsentes = REGLES_ANOMALIES.find((r) => r.id === "heures-absentes");
+  const heuresInvraisemblables = REGLES_ANOMALIES.find((r) => r.id === "heures-invraisemblables");
   for (const p of projets) {
     if (p.etatCMD === "Annulé") continue;
     const base = {
@@ -102,10 +107,27 @@ export function constatsSante(projets: Project[], envoyes: Set<string>, maintena
           detail: n <= 1 ? "Aucune photo « montage terminé »" : `${lots.map((i) => nomDuLot(p, i)).join(", ")} sans photo d'après` });
       }
     }
+    /* Heures. Mesuré le 24.10.2026 : sur les chantiers à plusieurs lots,
+       « Cabine 3 : 1 min de présence » est la règle, pas l'oubli — les heures
+       par lot viennent de l'envoi des photos, souvent faites d'un coup. On
+       ne garde donc que ce qui est un vrai oubli : heures manquantes, chantier
+       simple incohérent, ou chantier à lots dont le TOTAL est quasi nul. */
     if (recent && !servicePur(p)) {
-      for (const r of reglesHeures) {
-        const d = r.verifier(p, maintenant);
-        if (d) out.push({ ...base, cle: `heures:${r.id}:${p.id}`, categorie: "heures", detail: d });
+      const manque = heuresAbsentes?.verifier(p, maintenant);
+      if (manque) {
+        out.push({ ...base, cle: `heures:heures-absentes:${p.id}`, categorie: "heures", detail: manque });
+      } else if ((Number(p.nbCabines) || 1) <= 1) {
+        const d = heuresInvraisemblables?.verifier(p, maintenant);
+        if (d) out.push({ ...base, cle: `heures:heures-invraisemblables:${p.id}`, categorie: "heures", detail: d });
+      } else if (termine) {
+        // Passages compris : le total vient des heures-hommes de l'app.
+        const hh = minutesParPersonne(p);
+        const total = Math.max(minutesDuChantier(p.heureArrivee, p.heureDepart),
+          Object.values(hh.parPersonne).reduce((a, b) => a + b, 0) + hh.sansNom);
+        if (total < 20) {
+          out.push({ ...base, cle: `heures:total-quasi-nul:${p.id}`, categorie: "heures",
+            detail: `${total} min pointées pour ${Number(p.nbCabines)} lots` });
+        }
       }
     }
     if (!p.savCloture && !p.dateSavClotureLe && p.etatSAV !== "Terminé" && p.etatSAV !== "Annulé") {
