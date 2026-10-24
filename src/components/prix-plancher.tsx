@@ -159,15 +159,17 @@ export function PrixPlancherProjet({ projetId }: { projetId: string }) {
   const offre = d.offres[0];
   const sous = offre?.verdict === "sous-plancher";
   const basse = offre?.verdict === "sous-habituel";
+  const atypique = offre?.verdict === "atypique";
   return (
     <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 space-y-2" data-plancher-projet={offre?.verdict || "sans-offre"}>
       <button type="button" onClick={() => setOuvert((v) => !v)} className="w-full flex items-center gap-2 text-left">
-        {sous ? <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+        {atypique ? <Info className="w-4 h-4 text-gray-500 shrink-0" />
+          : sous ? <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
           : basse ? <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
           : <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
         <span className="flex-1 text-sm text-gray-800 dark:text-gray-100">
           {offre
-            ? <>Offre {chf(offre.ht)} HT · plancher {chf(d.resultat.plancher)}{sous ? " — en dessous !" : basse ? " — sous le prix habituel" : ""}</>
+            ? <>Offre {chf(offre.ht)} HT · plancher {chf(d.resultat.plancher)}{atypique ? " — offre atypique (mesure ou supplément ?)" : sous ? " — en dessous !" : basse ? " — sous le prix habituel" : ""}</>
             : <>Prix plancher : {chf(d.resultat.plancher)} HT</>}
         </span>
         <span className="text-[11px] text-gray-400">{ouvert ? "masquer" : "détail"}</span>
@@ -180,6 +182,14 @@ export function PrixPlancherProjet({ projetId }: { projetId: string }) {
 /** Une pastille par offre, sur « Devis en attente ». */
 export function BadgePlancher({ info }: { info?: { plancher: number; verdict: string; offreHT: number } }) {
   if (!info || info.verdict === "ok") return null;
+  if (info.verdict === "atypique") {
+    return (
+      <em title={`Offre ${chf(info.offreHT)} HT, bien en dessous d'une pose habituelle : mesure ou supplément ?`}
+        className="not-italic text-[9px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-700/50 dark:text-gray-300">
+        Offre atypique
+      </em>
+    );
+  }
   const sous = info.verdict === "sous-plancher";
   return (
     <em title={`Offre ${chf(info.offreHT)} HT · plancher ${chf(info.plancher)} HT`}

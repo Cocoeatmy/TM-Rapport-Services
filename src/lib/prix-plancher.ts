@@ -180,7 +180,7 @@ export function calculerPrixPlancher(
   /* 3. Achats. */
   const achatFournisseur = demande.fournisseur ? nombre(valeurs[`achat_${demande.fournisseur}`]) : null;
   const achatMoyen = nombre(valeurs.achatCabine);
-  if (achatFournisseur === null && achatMoyen === null) manques.push("aucun prix d'achat de cabine saisi");
+  if (achatFournisseur === null && achatMoyen === null) manques.push("aucun prix d'achat de cabine saisi (normal si le client fournit la cabine et que vous ne facturez que la pose)");
   const parCabine = (achatFournisseur ?? achatMoyen ?? 0) + (nombre(valeurs.accessoires) ?? 0) + (nombre(valeurs.consommables) ?? 0);
   const achats = cabines * parCabine;
 
@@ -222,8 +222,18 @@ export function calculerPrixPlancher(
   };
 }
 
-/** Une offre face à son plancher : « ok », « sous-habituel » ou « sous-plancher ». */
-export function verdictOffre(offreHT: number, p: PrixPlancher): "ok" | "sous-habituel" | "sous-plancher" {
+export type Verdict = "ok" | "sous-habituel" | "sous-plancher" | "atypique";
+
+/**
+ * Une offre face à son plancher.
+ *
+ * « atypique » : l'offre vaut moins de 40 % du prix habituel d'une pose
+ * comparable. Vérifié sur les vraies offres (24.10.2026) : ce sont des
+ * offres de 60 à 120 CHF — une mesure, un supplément — pas des poses. Les
+ * dire « sous le plancher » serait faux ; elles sont signalées à part.
+ */
+export function verdictOffre(offreHT: number, p: PrixPlancher): Verdict {
+  if (p.habituel && offreHT < 0.4 * p.habituel.median) return "atypique";
   if (offreHT < p.plancher) return "sous-plancher";
   if (p.habituel && offreHT < p.habituel.bas) return "sous-habituel";
   return "ok";

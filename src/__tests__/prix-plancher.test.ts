@@ -88,5 +88,7 @@ describe("verdictOffre", () => {
     expect(verdictOffre(p.plancher - 1, p)).toBe("sous-plancher");
     expect(verdictOffre(p.plancher + 1, p)).toBe("sous-habituel");
     expect(verdictOffre(10_000, p)).toBe("ok");
+    // Une offre de mesure ou un supplément : à part, pas « sous le plancher ».
+    expect(verdictOffre(110, p)).toBe("atypique");
   });
 });
