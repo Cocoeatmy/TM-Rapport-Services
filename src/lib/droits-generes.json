@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-24T11:48:48.887Z",
+  "genereLe": "2026-10-24T12:19:44.362Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -612,6 +612,16 @@
       "url": "/api/cron/rdv-reminders",
       "type": "api",
       "fichier": "src/app/api/cron/rdv-reminders/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cron/sante-hebdo",
+      "type": "api",
+      "fichier": "src/app/api/cron/sante-hebdo/route.ts",
       "niveau": "cron",
       "gardePage": false,
       "methodes": [

@@ -25,6 +25,8 @@ import { CaseDocument } from "@/lib/pdf-document-joint";
 import { estDocumentUrl } from "@/lib/fichiers-joints";
 import React from "react";
 import { getData, getDataFresh, setData } from "@/lib/kv-store";
+import { siRedis, redisHSet } from "@/lib/redis-cache";
+import { CLE_RAPPORTS_ENVOYES } from "@/lib/sante-hebdo";
 import { emailEnabled } from "@/lib/email-prefs";
 import { formatSwissDate, formatSwissDateTime } from "@/lib/time-utils";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
@@ -1996,6 +1998,13 @@ export async function GET(
           await setData(DEDUP_KEY, pruned);
         }
       } catch { /* en cas d'erreur KV, on n'empêche pas l'envoi */ }
+    }
+    /* Trace DURABLE de l'envoi au client : le contrôle du lundi s'en sert
+       pour repérer les chantiers terminés dont le rapport n'est jamais
+       parti. Le journal côté téléphone peut manquer (réseau coupé juste
+       après l'envoi) ; celle-ci est écrite par le serveur qui envoie. */
+    if (shouldSend) {
+      await siRedis(() => redisHSet(CLE_RAPPORTS_ENVOYES, id.replace(/-/g, ""), String(Date.now()))).catch(() => null);
     }
     // Gardes indépendantes : e-mail (OFF par défaut) et Telegram (ON par défaut).
     const shouldEmail = shouldSend && await emailEnabled("ferreira.micael@gmail.com", "rapport_genere", false);
