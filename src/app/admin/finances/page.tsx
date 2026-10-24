@@ -22,6 +22,7 @@ import { minutesDuChantier } from "@/lib/heures-chantier";
 import { minutesParPersonne } from "@/lib/heures-hommes";
 import { numerosTMClient } from "@/lib/montants-ofr";
 import { DelaisPaiementVue } from "@/components/delais-paiement-vue";
+import { CalculateurPrixPlancher, useOptionsPlancher } from "@/components/prix-plancher";
 import {
   ArrowLeft, Loader2, Save, CheckCircle2, TrendingUp, Wallet, Timer,
   PiggyBank, Users, Percent, Info, ReceiptText, Sparkles, X,
@@ -30,7 +31,7 @@ import {
 /* ── Champs à saisir ──────────────────────────────────────────────────────
    Regroupés par thème, chacun avec l'unité et ce à quoi il sert. */
 type Champ = { id: string; label: string; unite: string; aide: string };
-type Groupe = { titre: string; sous: string; champs: Champ[]; monteurs?: boolean };
+type Groupe = { titre: string; sous: string; champs: Champ[]; monteurs?: boolean; fournisseurs?: boolean };
 
 const GROUPES: Groupe[] = [
   {
@@ -67,6 +68,7 @@ const GROUPES: Groupe[] = [
     champs: [
       { id: "tauxHoraire", label: "Coût horaire par défaut", unite: "CHF / h", aide: "Utilisé pour un monteur sans taux propre ci-dessous." },
       { id: "coutDeplacement", label: "Coût d'un déplacement", unite: "CHF / chantier", aide: "Véhicule, carburant, temps de trajet moyen." },
+      { id: "coutKm", label: "Coût du véhicule au kilomètre", unite: "CHF / km", aide: "Carburant, usure, assurance (0,70 CHF/km est l'usage). Prix plancher : la route se compte alors au kilomètre depuis le dépôt." },
       { id: "consommables", label: "Consommables par cabine", unite: "CHF / cabine", aide: "Silicone, visserie, joints, petites fournitures." },
       { id: "achatCabine", label: "Achat moyen d'une cabine", unite: "CHF / cabine", aide: "Prix d'achat vitrage et profilés, hors accessoires." },
       { id: "accessoires", label: "Accessoires par cabine", unite: "CHF / cabine", aide: "Barres, poignées, pièces complémentaires." },
@@ -89,6 +91,14 @@ const GROUPES: Groupe[] = [
        liste se tient donc dans les réglages, et retirer quelqu'un n'efface
        PAS son salaire — les chantiers qu'il a faits gardent leur coût juste. */
     monteurs: true,
+  },
+  {
+    /* Le prix d'achat d'une cabine change beaucoup d'un fournisseur à
+       l'autre : sans lui, le prix plancher prend l'achat moyen ci-dessus. */
+    titre: "Prix d'achat d'une cabine par fournisseur",
+    sous: "facultatif · sert au prix plancher · laissez vide pour utiliser l'achat moyen",
+    champs: [],
+    fournisseurs: true,
   },
   {
     titre: "Investissement",
@@ -419,6 +429,7 @@ export default function FinancesPage() {
   }, [chantiers, annee, n]);
 
   /** Monteurs affichés : la liste enregistrée, ou celle de l'app au départ. */
+  const optionsPlancher = useOptionsPlancher();
   const listeMonteurs = useMemo(() => {
     const brut = String(vals.monteursSalaires ?? "").trim();
     return brut ? brut.split(",").map((x) => x.trim()).filter(Boolean) : [...COLLABORATEURS_LIST];
@@ -810,7 +821,11 @@ export default function FinancesPage() {
               ? [...g.champs, ...listeMonteurs.map((nom) => ({
                   id: `taux_${nom}`, label: nom, unite: "CHF / mois", aide: "", monteur: nom,
                 }))]
-              : g.champs,
+              : g.fournisseurs
+                ? (optionsPlancher?.fournisseurs || []).map((f) => ({
+                    id: `achat_${f.nom}`, label: f.nom, unite: "CHF / cabine", aide: `${f.n} chantier${f.n > 1 ? "s" : ""} posé${f.n > 1 ? "s" : ""}`,
+                  }))
+                : g.champs,
           })).map((g) => (
             <div key={g.titre} className="glass-card rounded-2xl p-5 mb-4">
               <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{g.titre}</h2>
@@ -885,6 +900,8 @@ export default function FinancesPage() {
               </div>
             </div>
           ))}
+
+          <CalculateurPrixPlancher />
 
           {/* ── Rentabilité par chantier ── */}
           <div className="glass-card rounded-2xl p-5 mb-4">

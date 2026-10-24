@@ -14,6 +14,7 @@
  * sur TOUS les projets, terminés compris, et se calcule côté serveur.
  */
 
+import { BadgePlancher } from "@/components/prix-plancher";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, FileText, Loader2, RefreshCw, Mail, Check, AlertTriangle, Ruler, XCircle } from "lucide-react";
@@ -75,6 +76,21 @@ export default function DevisAttentePage() {
   }, []);
 
   useEffect(() => { charger(); }, [charger]);
+
+  /* Prix plancher de chaque offre rattachée à un dossier : une seule
+     requête pour toute la liste (propriétaire seul, comme la page). */
+  const [planchers, setPlanchers] = useState<Record<string, { plancher: number; verdict: string; offreHT: number }>>({});
+  useEffect(() => {
+    const avecDossier = (lignes || []).filter((l) => l.projetId && l.nr).map((l) => ({ nr: l.nr, projetId: l.projetId }));
+    if (!avecDossier.length) return;
+    let vivant = true;
+    fetch("/api/prix-plancher", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lignes: avecDossier }),
+    }).then((r) => (r.ok ? r.json() : null)).then((d) => { if (vivant && d?.offres) setPlanchers(d.offres); }).catch(() => {});
+    return () => { vivant = false; };
+  }, [lignes]);
 
   const aujourdhui = new Date().toISOString().slice(0, 10);
   const toutes = lignes || [];
@@ -334,6 +350,7 @@ export default function DevisAttentePage() {
                       {l.projet || l.titre || "—"}
                     </span>
                     <span className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                      <BadgePlancher info={planchers[(l.nr || "").toUpperCase()]} />
                       {l.dateMesures ? (
                         <em className="not-italic text-[9px] font-semibold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300">
                           <Ruler className="w-2.5 h-2.5 inline mr-0.5" />

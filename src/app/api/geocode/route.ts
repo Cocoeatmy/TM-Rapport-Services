@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getData, setData } from "@/lib/kv-store";
+import { cle, resoudre, type Entree } from "@/lib/geocode";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -21,32 +22,6 @@ export const maxDuration = 30;
 const KEY = "geocode";
 /** Au-delà, on rend ce qu'on a : l'appelant rappellera pour le reste. */
 const MAX_NOUVELLES = 8;
-
-type Entree = { adresse: string; lat: number | null; lng: number | null };
-
-/** Clé de cache : adresse normalisée, pour que deux graphies se rejoignent. */
-function cle(adresse: string): string {
-  return adresse
-    .normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-async function resoudre(adresse: string): Promise<{ lat: number; lng: number } | null> {
-  try {
-    const url = "https://nominatim.openstreetmap.org/search"
-      + `?format=json&limit=1&countrycodes=ch,fr,de,it,at&q=${encodeURIComponent(adresse)}`;
-    const r = await fetch(url, {
-      headers: { "User-Agent": "TM-Rapport-Services/1.0 (planification de tournees)" },
-    });
-    if (!r.ok) return null;
-    const d = await r.json();
-    if (!Array.isArray(d) || d.length === 0) return null;
-    const lat = Number(d[0].lat), lng = Number(d[0].lon);
-    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(req: NextRequest) {
   const token = req.cookies.get("auth-token")?.value;

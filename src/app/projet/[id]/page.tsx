@@ -147,6 +147,7 @@ import { reprendreDictees, type EtatAjout } from "@/lib/dictees";
 import { prendreBrouillon, ecouterBrouillons, proposerSignalement, type BrouillonSignalement } from "@/lib/brouillon-signalement";
 import { ajouterAuRapport, type AnalyseDictee, type LotDictee } from "@/lib/rapport-dicte";
 import { RapportDicte } from "@/components/rapport-dicte";
+import { PrixPlancherProjet } from "@/components/prix-plancher";
 import { lectureFiable } from "@/lib/ecritures-projet";
 import { useVoitArgent } from "@/lib/use-argent";
 import { HistoriqueEquipe } from "@/components/historique-equipe";
@@ -10260,6 +10261,10 @@ function ProjectPageContent({ id }: { id: string }) {
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
+            {/* Prix plancher, face à l'offre bexio — au propriétaire seul.
+                Ici, et pas seulement dans le rapport : c'est AVANT d'envoyer
+                l'offre qu'il sert. */}
+            {voitArgent && <div className="mb-3"><PrixPlancherProjet projetId={id} /></div>}
 
             {/* Nom projet | Adresse chantier */}
             <div className="grid grid-cols-2 gap-3 py-1">

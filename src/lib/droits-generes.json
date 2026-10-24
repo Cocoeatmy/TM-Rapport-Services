@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-24T11:27:04.114Z",
+  "genereLe": "2026-10-24T11:48:48.887Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -1084,6 +1084,17 @@
       "type": "api",
       "fichier": "src/app/api/preferences/dashboard-order/[collab]/route.ts",
       "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/prix-plancher",
+      "type": "api",
+      "fichier": "src/app/api/prix-plancher/route.ts",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET",
